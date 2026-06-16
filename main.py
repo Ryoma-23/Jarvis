@@ -27,6 +27,8 @@ conversation_history = []
 # 履歴件数制限
 MAX_HISTORY = 30
 
+SYSTEM_PROMPT_PATH = "prompts/system_prompt.txt"
+
 # FastAPIアプリを作成
 app = FastAPI()
 
@@ -39,6 +41,9 @@ def trim_history():
     if len(conversation_history) > MAX_HISTORY:
         conversation_history = conversation_history[-MAX_HISTORY:]
 
+def load_system_prompt():
+    with open(SYSTEM_PROMPT_PATH, "r", encoding="utf-8") as file:
+        return file.read()
 
 # ルートURLでindex.htmlを返す
 @app.get("/")
@@ -63,10 +68,19 @@ def chat(request: ChatRequest):
 
         trim_history()
 
+        system_prompt = load_system_prompt()
+
+        messages = [
+            {
+                "role": "system",
+                "content": system_prompt
+            }
+        ] + conversation_history
+
         # 会話履歴ごとOpenAIへ送信
         response = client.responses.create(
             model="gpt-5",
-            input=conversation_history
+            input=messages
         )
 
         # AIの回答を取得
