@@ -24,12 +24,20 @@ client = OpenAI(api_key=api_key)
 # 会話履歴用リストを作成
 conversation_history = []
 
+# 履歴件数制限
+MAX_HISTORY = 30
+
 # FastAPIアプリを作成
 app = FastAPI()
 
-
 # staticフォルダを配信対象にする
 app.mount("/static", StaticFiles(directory="static"), name="static")
+
+def trim_history():
+    global conversation_history
+
+    if len(conversation_history) > MAX_HISTORY:
+        conversation_history = conversation_history[-MAX_HISTORY:]
 
 
 # ルートURLでindex.htmlを返す
@@ -53,6 +61,8 @@ def chat(request: ChatRequest):
             "content": request.message
         })
 
+        trim_history()
+
         # 会話履歴ごとOpenAIへ送信
         response = client.responses.create(
             model="gpt-5",
@@ -67,6 +77,8 @@ def chat(request: ChatRequest):
             "role": "assistant",
             "content": reply
         })
+
+        trim_history()
 
         return {
             "reply": reply
