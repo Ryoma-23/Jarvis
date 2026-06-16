@@ -60,7 +60,7 @@ function addMessage(sender, text) {
         div.className = "user-message";
 
         div.innerHTML =
-            `<strong>あなた:</strong> ${text}`;
+            `<strong>自分:</strong> ${text}`;
 
     } else {
 
