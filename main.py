@@ -21,6 +21,9 @@ if not api_key:
 # OpenAIクライアントを作成
 client = OpenAI(api_key=api_key)
 
+# 会話履歴用リストを作成
+conversation_history = []
+
 # FastAPIアプリを作成
 app = FastAPI()
 
@@ -44,13 +47,29 @@ class ChatRequest(BaseModel):
 @app.post("/chat")
 def chat(request: ChatRequest):
     try:
+        #ユーザーの発言を履歴に追加
+        conversation_history.append({
+            "role": "user",
+            "content": request.message
+        })
+
+        # 会話履歴ごとOpenAIへ送信
         response = client.responses.create(
             model="gpt-5",
-            input=request.message
+            input=conversation_history
         )
 
+        # AIの回答を取得
+        reply = response.output_text
+
+        # AIの回答を履歴に追加
+        conversation_history.append({
+            "role": "assistant",
+            "content": reply
+        })
+
         return {
-            "reply": response.output_text
+            "reply": reply
         }
 
     except Exception as e:
