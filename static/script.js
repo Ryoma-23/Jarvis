@@ -22,9 +22,11 @@ async function sendMessage() {
 
     messageInput.value = "";
 
+    const aiMessageDiv = addMessage("ai", "");
+
     try {
 
-        const response = await fetch("/chat", {
+        const response = await fetch("/chat/stream", {
 
             method: "POST",
 
@@ -37,16 +39,56 @@ async function sendMessage() {
             })
         });
 
-        const data = await response.json();
+        const reader = response.body.getReader();
 
-        addMessage("ai", data.reply);
+        const decoder = new TextDecoder("utf-8");
+
+        let buffer = "";
+
+        while (true) {
+
+            const { done, value } = await reader.read();
+
+            if (done) {
+                break;
+            }
+
+            buffer += decoder.decode(value, {
+                stream: true
+            });
+
+            const events = buffer.split("\n\n");
+
+            buffer = events.pop();
+
+            for (const event of events) {
+
+                if (!event.startsWith("data: ")) {
+                    continue;
+                }
+
+                const jsonText = event.replace("data: ", "");
+
+                const data = JSON.parse(jsonText);
+
+                if (data.text) {
+                    aiMessageDiv.innerHTML += data.text;
+                }
+
+                if (data.error) {
+                    aiMessageDiv.innerHTML +=
+                        "\nエラーが発生しました: " + data.error;
+                }
+
+                chatArea.scrollTop =
+                    chatArea.scrollHeight;
+            }
+        }
 
     } catch (error) {
 
-        addMessage(
-            "ai",
-            "エラーが発生しました"
-        );
+        aiMessageDiv.innerHTML +=
+            "\n通信エラーが発生しました";
     }
 }
 
@@ -60,7 +102,7 @@ function addMessage(sender, text) {
         div.className = "user-message";
 
         div.innerHTML =
-            `<strong>自分:</strong> ${text}`;
+            `<strong>あなた:</strong> ${text}`;
 
     } else {
 
@@ -74,4 +116,6 @@ function addMessage(sender, text) {
 
     chatArea.scrollTop =
         chatArea.scrollHeight;
+
+    return div;
 }

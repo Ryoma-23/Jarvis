@@ -1,8 +1,9 @@
 import os
+import json
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from openai import OpenAI
 from pydantic import BaseModel
@@ -103,3 +104,57 @@ def chat(request: ChatRequest):
             status_code=500,
             detail=f"OpenAI API呼び出し中にエラーが発生しました: {str(e)}"
         )
+
+@app.post("/chat/stream")
+def chat_stream(request: ChatRequest):
+
+    def event_generator():
+        try:
+            conversation_history.append({
+                "role": "user",
+                "content": request.message
+            })
+
+            trim_history()
+
+            system_prompt = load_system_prompt()
+
+            messages = [
+                {
+                    "role": "system",
+                    "content": system_prompt
+                }
+            ] + conversation_history
+
+            full_reply = ""
+            
+            stream = client.responses.create(
+                model="gpt-5-mini",
+                input=messages,
+                stream=True,
+                reasoning={"effort": "low"},
+            )
+
+            for event in stream:
+                if event.type == "response.output_text.delta":
+                    text = event.delta
+                    full_reply += text
+
+                    yield f"data: {json.dumps({'text': text})}\n\n"
+
+            conversation_history.append({
+                "role": "assistant",
+                "content": full_reply
+            })
+
+            trim_history()
+
+            yield f"data: {json.dumps({'done': True})}\n\n"
+
+        except Exception as e:
+            yield f"data: {json.dumps({'error': str(e)})}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream"
+    )
