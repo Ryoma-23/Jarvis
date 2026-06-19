@@ -1,5 +1,6 @@
 import os
 import json
+import re
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
@@ -7,6 +8,8 @@ from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from openai import OpenAI
 from pydantic import BaseModel
+from datetime import datetime
+from pathlib import Path
 
 
 # .envファイルを読み込む
@@ -28,7 +31,11 @@ conversation_history = []
 # 履歴件数制限
 MAX_HISTORY = 30
 
-SYSTEM_PROMPT_PATH = "prompts/system_prompt.txt"
+BASE_DIR = Path(__file__).resolve().parent
+DATA_DIR = BASE_DIR / "data"
+NOTES_FILE = DATA_DIR / "notes.json"
+
+SYSTEM_PROMPT_PATH = BASE_DIR / "prompts" / "system_prompt.txt"
 
 # FastAPIアプリを作成
 app = FastAPI()
@@ -36,15 +43,150 @@ app = FastAPI()
 # staticフォルダを配信対象にする
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
+# 短期記憶関数
 def trim_history():
     global conversation_history
 
     if len(conversation_history) > MAX_HISTORY:
         conversation_history = conversation_history[-MAX_HISTORY:]
 
+# システムプロンプト読み込み
 def load_system_prompt():
     with open(SYSTEM_PROMPT_PATH, "r", encoding="utf-8") as file:
         return file.read()
+    
+# notes.json 初期化関数
+def init_notes_file():
+    DATA_DIR.mkdir(exist_ok=True)
+
+    if not NOTES_FILE.exists():
+        with open(NOTES_FILE, "w", encoding="utf-8") as file:
+            json.dump([], file, ensure_ascii=False, indent=2)
+
+# メモ読み込み関数
+def load_notes():
+    init_notes_file()
+
+    with open(NOTES_FILE, "r", encoding="utf-8") as file:
+        return json.load(file)
+
+# メモ保存関数
+def save_notes(notes):
+    init_notes_file()
+
+    with open(NOTES_FILE, "w", encoding="utf-8") as file:
+        json.dump(notes, file, ensure_ascii=False, indent=2)
+
+# メモ追加関数
+def add_note(content):
+    notes = load_notes()
+
+    next_id = 1
+
+    if notes:
+        next_id = max(note["id"] for note in notes) + 1
+
+    note = {
+        "id": next_id,
+        "content": content,
+        "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    }
+
+    notes.append(note)
+
+    save_notes(notes)
+
+    return note
+
+# メモ一覧関数
+def format_notes_list():
+    notes = load_notes()
+
+    if not notes:
+        return "まだメモはありません。"
+
+    lines = ["現在のメモはこちらです。"]
+
+    for note in notes:
+        lines.append(
+            f'{note["id"]}. {note["content"]}（{note["created_at"]}）'
+        )
+
+    return "\n".join(lines)
+
+# メモ検索関数
+def search_notes(keyword):
+    notes = load_notes()
+
+    results = [
+        note for note in notes
+        if keyword.lower() in note["content"].lower()
+    ]
+
+    if not results:
+        return f"「{keyword}」に関するメモは見つかりませんでした。"
+
+    lines = [f"「{keyword}」に関するメモはこちらです。"]
+
+    for note in results:
+        lines.append(
+            f'{note["id"]}. {note["content"]}（{note["created_at"]}）'
+        )
+
+    return "\n".join(lines)
+
+# メモ削除関数
+def delete_note(note_id):
+    notes = load_notes()
+
+    new_notes = [
+        note for note in notes
+        if note["id"] != note_id
+    ]
+
+    if len(notes) == len(new_notes):
+        return f"{note_id}番のメモは見つかりませんでした。"
+
+    save_notes(new_notes)
+
+    return f"{note_id}番のメモを削除しました。"
+
+# メモ操作判定関数
+def handle_note_command(message):
+    if message.startswith("メモして：") or message.startswith("メモして:"):
+        content = message.replace("メモして：", "", 1)
+        content = content.replace("メモして:", "", 1)
+        content = content.strip()
+
+        if not content:
+            return "メモする内容が空のようです。"
+
+        note = add_note(content)
+
+        return f'メモしておきました。\n{note["id"]}. {note["content"]}'
+
+    if "メモ一覧" in message:
+        return format_notes_list()
+
+    if "メモ" in message and "探して" in message:
+        keyword = message.replace("のメモ", "")
+        keyword = keyword.replace("探して", "")
+        keyword = keyword.replace("を", "")
+        keyword = keyword.strip()
+
+        if not keyword:
+            return "探すキーワードを教えてください。"
+
+        return search_notes(keyword)
+
+    delete_match = re.search(r"(\d+)番のメモを削除", message)
+
+    if delete_match:
+        note_id = int(delete_match.group(1))
+        return delete_note(note_id)
+
+    return None
+
 
 # ルートURLでindex.htmlを返す
 @app.get("/")
@@ -110,6 +252,13 @@ def chat_stream(request: ChatRequest):
 
     def event_generator():
         try:
+            note_reply = handle_note_command(request.message)
+
+            if note_reply is not None:
+                yield f"data: {json.dumps({'text': note_reply})}\n\n"
+                yield f"data: {json.dumps({'done': True})}\n\n"
+                return
+
             conversation_history.append({
                 "role": "user",
                 "content": request.message
