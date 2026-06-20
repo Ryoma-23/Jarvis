@@ -40,6 +40,8 @@ NOTES_FILE = DATA_DIR / "notes.json"
 
 SYSTEM_PROMPT_PATH = BASE_DIR / "prompts" / "system_prompt.txt"
 
+NOTE_INTENT_PROMPT_PATH = BASE_DIR / "prompts" / "note_intent_prompt.txt"
+
 # FastAPIアプリを作成
 app = FastAPI()
 
@@ -56,6 +58,10 @@ def trim_history():
 # システムプロンプト読み込み（人格）
 def load_system_prompt():
     with open(SYSTEM_PROMPT_PATH, "r", encoding="utf-8") as file:
+        return file.read()
+
+def load_note_intent_prompt():
+    with open(NOTE_INTENT_PROMPT_PATH, "r", encoding="utf-8") as file:
         return file.read()
     
 # notes.json 初期化関数
@@ -156,47 +162,11 @@ def delete_note(note_id):
 
 # メモAI判定関数
 def classify_note_intent(message: str):
-    prompt = f"""
-あなたはメモ操作の意図判定AIです。
-ユーザー入力がメモ操作かどうかを判定してください。
-
-必ずJSONだけを返してください。説明文は禁止です。
-
-actionは次のいずれかです。
-- none
-- add
-- list
-- search
-- delete
-
-ルール:
-- メモを残す、メモして、覚え書き、記録して、控えておいて → add
-- メモ一覧、メモ見せて、保存したメモ → list
-- 〇〇のメモある？、〇〇のメモ探して → search
-- 〇番のメモを消して、削除して → delete
-- メモ操作でなければ none
-
-削除ルール:
-- 「3番のメモを削除」→ note_ids: [3], delete_all: false
-- 「3.4.5のメモ削除」「3,4,5番を削除」→ note_ids: [3,4,5], delete_all: false
-- 「すべてのメモを削除」「全部消して」「全削除」→ note_ids: [], delete_all: true
-
-出力形式:
-{{
-  "action": "add | list | search | delete | none",
-  "content": "追加するメモ本文。なければ null",
-  "keyword": "検索キーワード。なければ null",
-  "note_ids": [削除するメモIDの配列。なければ []],
-  "note_id": 削除するメモID。なければ null
-}}
-
-ユーザー入力:
-{message}
-"""
+    note_prompt = load_note_intent_prompt()
 
     response = client.responses.create(
         model="gpt-5-mini",
-        input=prompt,
+        input=f"{note_prompt}\n\nユーザー入力:\n{message}",
         reasoning={"effort": "low"},
     )
 
@@ -346,7 +316,6 @@ class ChatRequest(BaseModel):
 # /chat エンドポイント
 @app.post("/chat/stream")
 def chat_stream(request: ChatRequest):
-
     def event_generator():
         try:
             note_reply = handle_note_intent(request.message)
@@ -355,7 +324,7 @@ def chat_stream(request: ChatRequest):
                 yield f"data: {json.dumps({'text': note_reply})}\n\n"
                 yield f"data: {json.dumps({'done': True})}\n\n"
                 return
-
+            
             conversation_history.append({
                 "role": "user",
                 "content": request.message
