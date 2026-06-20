@@ -31,6 +31,9 @@ conversation_history = []
 # 履歴件数制限
 MAX_HISTORY = 30
 
+# 全件削除確認フラグ
+pending_delete_all = False
+
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
 NOTES_FILE = DATA_DIR / "notes.json"
@@ -151,42 +154,183 @@ def delete_note(note_id):
 
     return f"{note_id}番のメモを削除しました。"
 
-# メモ操作判定関数
-def handle_note_command(message):
-    if message.startswith("メモして：") or message.startswith("メモして:"):
-        content = message.replace("メモして：", "", 1)
-        content = content.replace("メモして:", "", 1)
-        content = content.strip()
+# メモAI判定関数
+def classify_note_intent(message: str):
+    prompt = f"""
+あなたはメモ操作の意図判定AIです。
+ユーザー入力がメモ操作かどうかを判定してください。
+
+必ずJSONだけを返してください。説明文は禁止です。
+
+actionは次のいずれかです。
+- none
+- add
+- list
+- search
+- delete
+
+ルール:
+- メモを残す、メモして、覚え書き、記録して、控えておいて → add
+- メモ一覧、メモ見せて、保存したメモ → list
+- 〇〇のメモある？、〇〇のメモ探して → search
+- 〇番のメモを消して、削除して → delete
+- メモ操作でなければ none
+
+削除ルール:
+- 「3番のメモを削除」→ note_ids: [3], delete_all: false
+- 「3.4.5のメモ削除」「3,4,5番を削除」→ note_ids: [3,4,5], delete_all: false
+- 「すべてのメモを削除」「全部消して」「全削除」→ note_ids: [], delete_all: true
+
+出力形式:
+{{
+  "action": "add | list | search | delete | none",
+  "content": "追加するメモ本文。なければ null",
+  "keyword": "検索キーワード。なければ null",
+  "note_ids": [削除するメモIDの配列。なければ []],
+  "note_id": 削除するメモID。なければ null
+}}
+
+ユーザー入力:
+{message}
+"""
+
+    response = client.responses.create(
+        model="gpt-5-mini",
+        input=prompt,
+        reasoning={"effort": "low"},
+    )
+
+    try:
+        return json.loads(response.output_text)
+    except json.JSONDecodeError:
+        return {
+            "action": "none",
+            "content": None,
+            "keyword": None,
+            "note_id": None
+        }
+
+# メモAI判定結果処理関数
+def handle_note_intent(message: str):
+    global pending_delete_all
+
+    if pending_delete_all:
+
+        if message.strip() in [
+            "はい",
+            "OK",
+            "ok",
+            "実行",
+            "削除",
+            "削除して"
+            "消して"
+        ]:
+
+            pending_delete_all = False
+
+            return delete_all_notes()
+
+        if message.strip() in [
+            "いいえ",
+            "キャンセル",
+            "やめる"
+        ]:
+
+            pending_delete_all = False
+
+            return "全削除をキャンセルしました。"
+
+    if (
+        "メモ全削除" in message
+        or "すべてのメモを削除" in message
+        or "全てのメモを削除" in message
+        or "メモを全部削除" in message
+        or "メモ全部削除" in message
+        or "メモを全部消して" in message
+    ):
+        pending_delete_all = True
+
+        return(
+            "現在保存されているメモをすべて削除します。よろしいですか？"
+        )
+    
+    result = classify_note_intent(message)
+
+    action = result.get("action")
+
+    if action == "add":
+        content = result.get("content")
 
         if not content:
-            return "メモする内容が空のようです。"
+            return "メモする内容が見つかりませんでした。"
 
         note = add_note(content)
 
         return f'メモしておきました。\n{note["id"]}. {note["content"]}'
 
-    if "メモ一覧" in message:
+    if action == "list":
         return format_notes_list()
 
-    if "メモ" in message and "探して" in message:
-        keyword = message.replace("のメモ", "")
-        keyword = keyword.replace("探して", "")
-        keyword = keyword.replace("を", "")
-        keyword = keyword.strip()
+    if action == "search":
+        keyword = result.get("keyword")
 
         if not keyword:
             return "探すキーワードを教えてください。"
 
         return search_notes(keyword)
 
-    delete_match = re.search(r"(\d+)番のメモを削除", message)
+    if action == "delete":
+        delete_all = result.get("delete_all", False)
+        note_ids = result.get("note_ids", [])
 
-    if delete_match:
-        note_id = int(delete_match.group(1))
-        return delete_note(note_id)
+        if delete_all:
+            return delete_all_notes()
+
+        if not note_ids:
+            return "削除するメモ番号を教えてください。"
+
+        try:
+            note_ids = [int(note_id) for note_id in note_ids]
+        except ValueError:
+            return "削除するメモ番号を正しく読み取れませんでした。例：3番のメモを削除、3,4,5番を削除"
+
+        return delete_notes(note_ids)
 
     return None
 
+# メモ複数削除
+def delete_notes(note_ids):
+    notes = load_notes()
+
+    deleted_notes = [
+        note for note in notes
+        if note["id"] in note_ids
+    ]
+
+    if not deleted_notes:
+        return "指定されたメモは見つかりませんでした。"
+
+    new_notes = [
+        note for note in notes
+        if note["id"] not in note_ids
+    ]
+
+    save_notes(new_notes)
+
+    deleted_ids = ", ".join(str(note["id"]) for note in deleted_notes)
+
+    return f"{deleted_ids}番のメモを削除しました。"
+
+# メモ全削除
+def delete_all_notes():
+    notes = load_notes()
+
+    if not notes:
+        return "削除するメモはありません。"
+
+    save_notes([])
+
+    return "すべてのメモを削除しました。"
 
 # ルートURLでindex.htmlを返す
 @app.get("/")
@@ -200,59 +344,12 @@ class ChatRequest(BaseModel):
 
 
 # /chat エンドポイント
-@app.post("/chat")
-def chat(request: ChatRequest):
-    try:
-        #ユーザーの発言を履歴に追加
-        conversation_history.append({
-            "role": "user",
-            "content": request.message
-        })
-
-        trim_history()
-
-        system_prompt = load_system_prompt()
-
-        messages = [
-            {
-                "role": "system",
-                "content": system_prompt
-            }
-        ] + conversation_history
-
-        # 会話履歴ごとOpenAIへ送信
-        response = client.responses.create(
-            model="gpt-5",
-            input=messages
-        )
-
-        # AIの回答を取得
-        reply = response.output_text
-
-        # AIの回答を履歴に追加
-        conversation_history.append({
-            "role": "assistant",
-            "content": reply
-        })
-
-        trim_history()
-
-        return {
-            "reply": reply
-        }
-
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"OpenAI API呼び出し中にエラーが発生しました: {str(e)}"
-        )
-
 @app.post("/chat/stream")
 def chat_stream(request: ChatRequest):
 
     def event_generator():
         try:
-            note_reply = handle_note_command(request.message)
+            note_reply = handle_note_intent(request.message)
 
             if note_reply is not None:
                 yield f"data: {json.dumps({'text': note_reply})}\n\n"
