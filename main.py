@@ -53,7 +53,7 @@ def trim_history():
     if len(conversation_history) > MAX_HISTORY:
         conversation_history = conversation_history[-MAX_HISTORY:]
 
-# システムプロンプト読み込み
+# システムプロンプト読み込み（人格）
 def load_system_prompt():
     with open(SYSTEM_PROMPT_PATH, "r", encoding="utf-8") as file:
         return file.read()
