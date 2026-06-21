@@ -317,6 +317,15 @@ class ChatRequest(BaseModel):
 @app.post("/chat/stream")
 def chat_stream(request: ChatRequest):
     def event_generator():
+        # 現在日時
+        current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S (%A)")
+
+        current_datetime_message = {
+            "role": "system",
+            "content": (
+                f"現在日時: {current_time}"
+            )
+        }
         try:
             note_reply = handle_note_intent(request.message)
 
@@ -338,10 +347,13 @@ def chat_stream(request: ChatRequest):
                 {
                     "role": "system",
                     "content": system_prompt
-                }
+                },
+                current_datetime_message
             ] + conversation_history
 
             full_reply = ""
+
+            print(messages)
             
             stream = client.responses.create(
                 model="gpt-5-mini",
@@ -363,6 +375,9 @@ def chat_stream(request: ChatRequest):
             })
 
             trim_history()
+
+            print(current_time)
+            print(conversation_history)
 
             yield f"data: {json.dumps({'done': True})}\n\n"
 
