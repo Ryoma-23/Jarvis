@@ -1,18 +1,22 @@
 const sendButton = document.getElementById("send-button");
 
-const messageInput =
-    document.getElementById("message-input");
+const messageInput = document.getElementById("message-input");
 
-const chatArea =
-    document.getElementById("chat-area");
+const chatArea = document.getElementById("chat-area");
 
 
 sendButton.addEventListener("click", sendMessage);
 
+messageInput.addEventListener("keydown", function(event) {
+    if (event.key === "Enter") {
+        sendMessage();
+    }
+});
+
 
 async function sendMessage() {
 
-    const message = messageInput.value;
+    const message = messageInput.value.trim();
 
     if (!message) {
         return;
