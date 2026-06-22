@@ -38,10 +38,12 @@ BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
 NOTES_FILE = DATA_DIR / "notes.json"
 TASKS_FILE = DATA_DIR / "tasks.json"
+MEMORY_FILE = DATA_DIR / "memory.json"
 
 SYSTEM_PROMPT_PATH = BASE_DIR / "prompts" / "system_prompt.txt"
 NOTE_INTENT_PROMPT_PATH = BASE_DIR / "prompts" / "note_intent_prompt.txt"
 TASK_INTENT_PROMPT_PATH = BASE_DIR / "prompts" / "task_intent_prompt.txt"
+MEMORY_INTENT_PROMPT_PATH = BASE_DIR / "prompts" / "memory_intent_prompt.txt"
 
 # FastAPIアプリを作成
 app = FastAPI()
@@ -512,6 +514,231 @@ def handle_task_intent(message: str):
 
     return None
 
+# memory.json初期化
+def init_memory_file():
+    DATA_DIR.mkdir(exist_ok=True)
+
+    if not MEMORY_FILE.exists():
+        with open(MEMORY_FILE, "w", encoding="utf-8") as file:
+            json.dump([], file, ensure_ascii=False, indent=2)
+
+# 長期記憶読み込み
+def load_memory():
+    init_memory_file()
+
+    with open(MEMORY_FILE, "r", encoding="utf-8") as file:
+        return json.load(file)
+
+# 長期記憶保存
+def save_memory(memories):
+    init_memory_file()
+
+    with open(MEMORY_FILE, "w", encoding="utf-8") as file:
+        json.dump(memories, file, ensure_ascii=False, indent=2)
+
+# 長期記憶追加
+def add_memory(content, category="other"):
+    memories = load_memory()
+
+    next_id = 1
+    if memories:
+        next_id = max(memory["id"] for memory in memories) + 1
+
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    memory = {
+        "id": next_id,
+        "content": content,
+        "category": category or "other",
+        "created_at": now,
+        "updated_at": now
+    }
+
+    memories.append(memory)
+    save_memory(memories)
+
+    return memory
+
+# 長期記憶一覧
+def format_memory_list():
+    memories = load_memory()
+
+    if not memories:
+        return "まだ覚えていることはありません。"
+
+    lines = ["現在覚えていることはこちらです。"]
+
+    for memory in memories:
+        lines.append(
+            f'{memory["id"]}. [{memory["category"]}] {memory["content"]}'
+        )
+
+    return "\n".join(lines)
+
+# 長期記憶検索
+def search_memory(keyword):
+    memories = load_memory()
+
+    results = [
+        memory for memory in memories
+        if keyword.lower() in memory["content"].lower()
+        or keyword.lower() in memory["category"].lower()
+    ]
+
+    if not results:
+        return f"「{keyword}」に関する記憶は見つかりませんでした。"
+
+    lines = [f"「{keyword}」に関する記憶はこちらです。"]
+
+    for memory in results:
+        lines.append(
+            f'{memory["id"]}. [{memory["category"]}] {memory["content"]}'
+        )
+
+    return "\n".join(lines)
+
+# 長期記憶削除
+def delete_memory(memory_ids):
+    memories = load_memory()
+
+    deleted = [
+        memory for memory in memories
+        if memory["id"] in memory_ids
+    ]
+
+    if not deleted:
+        return "指定された記憶は見つかりませんでした。"
+
+    new_memories = [
+        memory for memory in memories
+        if memory["id"] not in memory_ids
+    ]
+
+    save_memory(new_memories)
+
+    ids = ", ".join(str(memory["id"]) for memory in deleted)
+    return f"{ids}番の記憶を削除しました。"
+
+# 長期記憶更新
+def update_memory(memory_ids, content, category=None):
+    memories = load_memory()
+
+    updated = []
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+    for memory in memories:
+        if memory["id"] in memory_ids:
+            memory["content"] = content
+            if category:
+                memory["category"] = category
+            memory["updated_at"] = now
+            updated.append(memory["id"])
+
+    if not updated:
+        return "指定された記憶は見つかりませんでした。"
+
+    save_memory(memories)
+
+    ids = ", ".join(str(memory_id) for memory_id in updated)
+    return f"{ids}番の記憶を更新しました。"
+
+# 長期記憶意図判定
+def load_memory_intent_prompt():
+    with open(MEMORY_INTENT_PROMPT_PATH, "r", encoding="utf-8") as file:
+        return file.read()
+
+
+def classify_memory_intent(message: str):
+    memory_prompt = load_memory_intent_prompt()
+
+    response = client.responses.create(
+        model="gpt-5-mini",
+        input=f"{memory_prompt}\n\nユーザー入力:\n{message}",
+        reasoning={"effort": "low"},
+    )
+
+    try:
+        return json.loads(response.output_text)
+    except json.JSONDecodeError:
+        return {
+            "action": "none",
+            "content": None,
+            "category": None,
+            "keyword": None,
+            "memory_ids": []
+        }
+    
+# 長期記憶判定結果処理
+def handle_memory_intent(message: str):
+    result = classify_memory_intent(message)
+
+    action = result.get("action")
+
+    if action == "add":
+        content = result.get("content")
+        category = result.get("category") or "other"
+
+        if not content:
+            return "覚える内容が見つかりませんでした。"
+
+        memory = add_memory(content, category)
+
+        return f'覚えておきました。\n{memory["id"]}. [{memory["category"]}] {memory["content"]}'
+
+    if action == "list":
+        return format_memory_list()
+
+    if action == "search":
+        keyword = result.get("keyword")
+
+        if not keyword:
+            return "探すキーワードを教えてください。"
+
+        return search_memory(keyword)
+
+    if action == "delete":
+        memory_ids = result.get("memory_ids", [])
+
+        if not memory_ids:
+            return "削除する記憶番号を教えてください。"
+
+        memory_ids = [int(memory_id) for memory_id in memory_ids]
+        return delete_memory(memory_ids)
+
+    if action == "update":
+        memory_ids = result.get("memory_ids", [])
+        content = result.get("content")
+        category = result.get("category")
+
+        if not memory_ids:
+            return "更新する記憶番号を教えてください。"
+
+        if not content:
+            return "更新後の内容を教えてください。"
+
+        memory_ids = [int(memory_id) for memory_id in memory_ids]
+        return update_memory(memory_ids, content, category)
+
+    return None
+
+# 通常会話に長期記憶を渡す
+def format_memory_for_prompt():
+    memories = load_memory()
+
+    if not memories:
+        return "長期記憶はまだありません。"
+
+    lines = [
+        "以下はユーザーに関する長期記憶です。",
+        "回答に関係がある場合のみ参考にしてください。"
+    ]
+
+    for memory in memories:
+        lines.append(
+            f'- [{memory["category"]}] {memory["content"]}'
+        )
+
+    return "\n".join(lines)
 
 # ルートURLでindex.htmlを返す
 @app.get("/")
@@ -552,6 +779,13 @@ def chat_stream(request: ChatRequest):
                 yield f"data: {json.dumps({'done': True})}\n\n"
                 return
             
+            memory_reply = handle_memory_intent(request.message)
+
+            if memory_reply is not None:
+                yield f"data: {json.dumps({'text': memory_reply})}\n\n"
+                yield f"data: {json.dumps({'done': True})}\n\n"
+                return
+            
             conversation_history.append({
                 "role": "user",
                 "content": request.message
@@ -561,12 +795,18 @@ def chat_stream(request: ChatRequest):
 
             system_prompt = load_system_prompt()
 
+            memory_context = format_memory_for_prompt()
+
             messages = [
                 {
                     "role": "system",
                     "content": system_prompt
                 },
-                current_datetime_message
+                current_datetime_message,
+                {
+                    "role": "system",
+                    "content": memory_context
+                }
             ] + conversation_history
 
             full_reply = ""
