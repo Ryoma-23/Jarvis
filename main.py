@@ -37,10 +37,11 @@ pending_delete_all = False
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
 NOTES_FILE = DATA_DIR / "notes.json"
+TASKS_FILE = DATA_DIR / "tasks.json"
 
 SYSTEM_PROMPT_PATH = BASE_DIR / "prompts" / "system_prompt.txt"
-
 NOTE_INTENT_PROMPT_PATH = BASE_DIR / "prompts" / "note_intent_prompt.txt"
+TASK_INTENT_PROMPT_PATH = BASE_DIR / "prompts" / "task_intent_prompt.txt"
 
 # FastAPIアプリを作成
 app = FastAPI()
@@ -217,6 +218,7 @@ def handle_note_intent(message: str):
         or "メモを全部削除" in message
         or "メモ全部削除" in message
         or "メモを全部消して" in message
+        or "メモ全部消して" in message
     ):
         pending_delete_all = True
 
@@ -302,6 +304,215 @@ def delete_all_notes():
 
     return "すべてのメモを削除しました。"
 
+# tasks.json初期化
+def init_tasks_file():
+    DATA_DIR.mkdir(exist_ok=True)
+
+    if not TASKS_FILE.exists():
+        with open(TASKS_FILE, "w", encoding="utf-8") as file:
+            json.dump([], file, ensure_ascii=False, indent=2)
+
+# タスク読み込み・保存
+def load_tasks():
+    init_tasks_file()
+
+    with open(TASKS_FILE, "r", encoding="utf-8") as file:
+        return json.load(file)
+
+def save_tasks(tasks):
+    init_tasks_file()
+
+    with open(TASKS_FILE, "w", encoding="utf-8") as file:
+        json.dump(tasks, file, ensure_ascii=False, indent=2)
+
+# タスク追加
+def add_task(title, due_date=None):
+    tasks = load_tasks()
+
+    next_id = 1
+    if tasks:
+        next_id = max(task["id"] for task in tasks) + 1
+
+    task = {
+        "id": next_id,
+        "title": title,
+        "status": "todo",
+        "due_date": due_date,
+        "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "completed_at": None
+    }
+
+    tasks.append(task)
+    save_tasks(tasks)
+
+    return task
+
+# タスク一覧
+def format_tasks_list(status_filter="all"):
+    tasks = load_tasks()
+
+    if status_filter == "todo":
+        tasks = [task for task in tasks if task["status"] == "todo"]
+        title = "未完了のタスクはこちらです。"
+    elif status_filter == "done":
+        tasks = [task for task in tasks if task["status"] == "done"]
+        title = "完了済みのタスクはこちらです。"
+    else:
+        title = "現在のタスクはこちらです。"
+
+    if not tasks:
+        return "該当するタスクはありません。"
+
+    lines = [title]
+
+    for task in tasks:
+        status = "未完了" if task["status"] == "todo" else "完了"
+        due = task["due_date"] if task["due_date"] else "期限なし"
+        lines.append(f'{task["id"]}. {task["title"]} / {status} / 期限: {due}')
+
+    return "\n".join(lines)
+
+# タスク検索
+def search_tasks(keyword):
+    tasks = load_tasks()
+
+    results = [
+        task for task in tasks
+        if keyword.lower() in task["title"].lower()
+    ]
+
+    if not results:
+        return f"「{keyword}」に関するタスクは見つかりませんでした。"
+
+    lines = [f"「{keyword}」に関するタスクはこちらです。"]
+
+    for task in results:
+        status = "未完了" if task["status"] == "todo" else "完了"
+        due = task["due_date"] if task["due_date"] else "期限なし"
+        lines.append(f'{task["id"]}. {task["title"]} / {status} / 期限: {due}')
+
+    return "\n".join(lines)
+
+# タスク完了処理
+def complete_tasks(task_ids):
+    tasks = load_tasks()
+
+    completed = []
+
+    for task in tasks:
+        if task["id"] in task_ids:
+            task["status"] = "done"
+            task["completed_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            completed.append(task["id"])
+
+    if not completed:
+        return "指定されたタスクは見つかりませんでした。"
+
+    save_tasks(tasks)
+
+    ids = ", ".join(str(task_id) for task_id in completed)
+    return f"{ids}番のタスクを完了にしました。"
+
+# タスク削除処理
+def delete_tasks(task_ids):
+    tasks = load_tasks()
+
+    deleted = [
+        task for task in tasks
+        if task["id"] in task_ids
+    ]
+
+    if not deleted:
+        return "指定されたタスクは見つかりませんでした。"
+
+    new_tasks = [
+        task for task in tasks
+        if task["id"] not in task_ids
+    ]
+
+    save_tasks(new_tasks)
+
+    ids = ", ".join(str(task["id"]) for task in deleted)
+    return f"{ids}番のタスクを削除しました。"
+
+# タスク意図判定
+def load_task_intent_prompt():
+    with open(TASK_INTENT_PROMPT_PATH, "r", encoding="utf-8") as file:
+        return file.read()
+
+
+def classify_task_intent(message: str):
+    task_prompt = load_task_intent_prompt()
+
+    response = client.responses.create(
+        model="gpt-5-mini",
+        input=f"{task_prompt}\n\nユーザー入力:\n{message}",
+        reasoning={"effort": "low"},
+    )
+
+    try:
+        return json.loads(response.output_text)
+    except json.JSONDecodeError:
+        return {
+            "action": "none",
+            "title": None,
+            "keyword": None,
+            "task_ids": [],
+            "status_filter": None,
+            "due_date": None
+        }
+    
+# タスク判定結果処理
+def handle_task_intent(message: str):
+    result = classify_task_intent(message)
+
+    action = result.get("action")
+
+    if action == "add":
+        title = result.get("title")
+        due_date = result.get("due_date")
+
+        if not title:
+            return "追加するタスク内容が見つかりませんでした。"
+
+        task = add_task(title, due_date)
+
+        due = task["due_date"] if task["due_date"] else "期限なし"
+        return f'タスクに追加しました。\n{task["id"]}. {task["title"]} / 期限: {due}'
+
+    if action == "list":
+        status_filter = result.get("status_filter") or "all"
+        return format_tasks_list(status_filter)
+
+    if action == "search":
+        keyword = result.get("keyword")
+
+        if not keyword:
+            return "探すキーワードを教えてください。"
+
+        return search_tasks(keyword)
+
+    if action == "complete":
+        task_ids = result.get("task_ids", [])
+
+        if not task_ids:
+            return "完了にするタスク番号を教えてください。"
+
+        task_ids = [int(task_id) for task_id in task_ids]
+        return complete_tasks(task_ids)
+
+    if action == "delete":
+        task_ids = result.get("task_ids", [])
+
+        if not task_ids:
+            return "削除するタスク番号を教えてください。"
+
+        task_ids = [int(task_id) for task_id in task_ids]
+        return delete_tasks(task_ids)
+
+    return None
+
+
 # ルートURLでindex.htmlを返す
 @app.get("/")
 def read_index():
@@ -331,6 +542,13 @@ def chat_stream(request: ChatRequest):
 
             if note_reply is not None:
                 yield f"data: {json.dumps({'text': note_reply})}\n\n"
+                yield f"data: {json.dumps({'done': True})}\n\n"
+                return
+            
+            task_reply = handle_task_intent(request.message)
+
+            if task_reply is not None:
+                yield f"data: {json.dumps({'text': task_reply})}\n\n"
                 yield f"data: {json.dumps({'done': True})}\n\n"
                 return
             
