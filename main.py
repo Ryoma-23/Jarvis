@@ -1,15 +1,11 @@
-import os
 import json
 import re
 
-from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import FileResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
-from openai import OpenAI
 from pydantic import BaseModel
 from datetime import datetime
-from pathlib import Path
 from app.config import (
     DATA_DIR,
     NOTES_FILE,
@@ -20,20 +16,8 @@ from app.config import (
     TASK_INTENT_PROMPT_PATH,
     MEMORY_INTENT_PROMPT_PATH
 )
+from app.openai_client import client
 
-
-# .envファイルを読み込む
-load_dotenv()
-
-# OpenAI APIキーを取得
-api_key = os.getenv("OPENAI_API_KEY")
-
-# APIキーがない場合はエラー
-if not api_key:
-    raise RuntimeError("OPENAI_API_KEY が設定されていません。.env を確認してください。")
-
-# OpenAIクライアントを作成
-client = OpenAI(api_key=api_key)
 
 # 会話履歴用リストを作成
 conversation_history = []
