@@ -10,6 +10,16 @@ from openai import OpenAI
 from pydantic import BaseModel
 from datetime import datetime
 from pathlib import Path
+from app.config import (
+    DATA_DIR,
+    NOTES_FILE,
+    TASKS_FILE,
+    MEMORY_FILE,
+    SYSTEM_PROMPT_PATH,
+    NOTE_INTENT_PROMPT_PATH,
+    TASK_INTENT_PROMPT_PATH,
+    MEMORY_INTENT_PROMPT_PATH
+)
 
 
 # .envファイルを読み込む
@@ -33,17 +43,6 @@ MAX_HISTORY = 30
 
 # 全件削除確認フラグ
 pending_delete_all = False
-
-BASE_DIR = Path(__file__).resolve().parent
-DATA_DIR = BASE_DIR / "data"
-NOTES_FILE = DATA_DIR / "notes.json"
-TASKS_FILE = DATA_DIR / "tasks.json"
-MEMORY_FILE = DATA_DIR / "memory.json"
-
-SYSTEM_PROMPT_PATH = BASE_DIR / "prompts" / "system_prompt.txt"
-NOTE_INTENT_PROMPT_PATH = BASE_DIR / "prompts" / "note_intent_prompt.txt"
-TASK_INTENT_PROMPT_PATH = BASE_DIR / "prompts" / "task_intent_prompt.txt"
-MEMORY_INTENT_PROMPT_PATH = BASE_DIR / "prompts" / "memory_intent_prompt.txt"
 
 # FastAPIアプリを作成
 app = FastAPI()
