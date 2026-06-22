@@ -10,6 +10,7 @@ from app.services.intent_service import (
     handle_memory_intent
 )
 from app.services.memory_service import format_memory_for_prompt
+from app.services.router_service import route_message
 
 
 conversation_history = []
@@ -39,26 +40,31 @@ def generate_chat_stream(message: str):
             "content": f"現在日時: {current_time}"
         }
 
-        note_reply = handle_note_intent(message)
+        route = route_message(message)
 
-        if note_reply is not None:
-            yield f"data: {json.dumps({'text': note_reply})}\n\n"
-            yield f"data: {json.dumps({'done': True})}\n\n"
-            return
+        if route == "note":
+            note_reply = handle_note_intent(message)
 
-        task_reply = handle_task_intent(message)
+            if note_reply is not None:
+                yield f"data: {json.dumps({'text': note_reply})}\n\n"
+                yield f"data: {json.dumps({'done': True})}\n\n"
+                return
 
-        if task_reply is not None:
-            yield f"data: {json.dumps({'text': task_reply})}\n\n"
-            yield f"data: {json.dumps({'done': True})}\n\n"
-            return
+        if route == "task":
+            task_reply = handle_task_intent(message)
 
-        memory_reply = handle_memory_intent(message)
+            if task_reply is not None:
+                yield f"data: {json.dumps({'text': task_reply})}\n\n"
+                yield f"data: {json.dumps({'done': True})}\n\n"
+                return
 
-        if memory_reply is not None:
-            yield f"data: {json.dumps({'text': memory_reply})}\n\n"
-            yield f"data: {json.dumps({'done': True})}\n\n"
-            return
+        if route == "memory":
+            memory_reply = handle_memory_intent(message)
+
+            if memory_reply is not None:
+                yield f"data: {json.dumps({'text': memory_reply})}\n\n"
+                yield f"data: {json.dumps({'done': True})}\n\n"
+                return
 
         conversation_history.append({
             "role": "user",
