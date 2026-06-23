@@ -1,9 +1,13 @@
+let peerConnection = null;
+let dataChannel = null;
+let localStream = null;
+
 const sendButton = document.getElementById("send-button");
-
 const messageInput = document.getElementById("message-input");
-
 const chatArea = document.getElementById("chat-area");
+const voiceButton = document.getElementById("voice-button");
 
+voiceButton.addEventListener("click", startRealtimeVoice);
 
 sendButton.addEventListener("click", sendMessage);
 
@@ -93,6 +97,116 @@ async function sendMessage() {
 
         aiMessageDiv.innerHTML +=
             "\n通信エラーが発生しました";
+    }
+}
+
+
+async function startRealtimeVoice() {
+    try {
+        voiceButton.disabled = true;
+        voiceButton.textContent = "接続中...";
+
+        const tokenResponse = await fetch("/realtime/token");
+        const tokenData = await tokenResponse.json();
+
+        const ephemeralKey = tokenData.value;
+
+        peerConnection = new RTCPeerConnection();
+
+        const audioElement = document.createElement("audio");
+        audioElement.autoplay = true;
+
+        peerConnection.ontrack = function(event) {
+            audioElement.srcObject = event.streams[0];
+        };
+
+        localStream = await navigator.mediaDevices.getUserMedia({
+            audio: true
+        });
+
+        peerConnection.addTrack(localStream.getTracks()[0]);
+
+        dataChannel = peerConnection.createDataChannel("oai-events");
+
+        dataChannel.onopen = function() {
+            console.log("Realtime data channel opened");
+
+            const event = {
+                type: "session.update",
+                session: {
+                    instructions: `
+            あなたはJarvisです。
+            必ず日本語だけで返答してください。
+            ユーザーが何語で話しても、日本語で返答してください。
+            韓国語、中国語、英語では返答しないでください。
+            返答は自然で簡潔な日本語にしてください。無駄な会話はしないでください。
+            `,
+                    modalities: ["audio", "text"],
+                    input_audio_transcription: {
+                        model: "gpt-4o-mini-transcribe",
+                        language: "ja"
+                    }
+                }
+            };
+
+            dataChannel.send(JSON.stringify(event));
+        };
+
+        dataChannel.onmessage = function(event) {
+            const data = JSON.parse(event.data);
+            console.log("Realtime event:", data);
+
+            if (data.type === "session.created") {
+                const updateEvent = {
+                    type: "session.update",
+                    session: {
+                        instructions: `
+        あなたはJarvisです。
+        必ず日本語だけで返答してください。
+        ユーザーが何語で話しても、日本語で返答してください。
+        韓国語、中国語、英語では返答しないでください。無駄な会話はしないでください。
+        `,
+                        modalities: ["audio", "text"],
+                        input_audio_transcription: {
+                            model: "gpt-4o-mini-transcribe",
+                            language: "ja"
+                        }
+                    }
+                };
+
+                dataChannel.send(JSON.stringify(updateEvent));
+            }
+        };
+
+        const offer = await peerConnection.createOffer();
+        await peerConnection.setLocalDescription(offer);
+
+        const sdpResponse = await fetch(
+            "https://api.openai.com/v1/realtime/calls",
+            {
+                method: "POST",
+                body: offer.sdp,
+                headers: {
+                    "Authorization": `Bearer ${ephemeralKey}`,
+                    "Content-Type": "application/sdp"
+                }
+            }
+        );
+
+        const answer = {
+            type: "answer",
+            sdp: await sdpResponse.text()
+        };
+
+        await peerConnection.setRemoteDescription(answer);
+
+        voiceButton.textContent = "音声接続中";
+
+    } catch (error) {
+        console.error(error);
+        voiceButton.disabled = false;
+        voiceButton.textContent = "音声接続";
+        alert("音声接続に失敗しました。Consoleを確認してください。");
     }
 }
 
