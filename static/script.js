@@ -134,13 +134,6 @@ async function startRealtimeVoice() {
             const event = {
                 type: "session.update",
                 session: {
-                    instructions: `
-            あなたはJarvisです。
-            必ず日本語だけで返答してください。
-            ユーザーが何語で話しても、日本語で返答してください。
-            韓国語、中国語、英語では返答しないでください。
-            返答は自然で簡潔な日本語にしてください。無駄な会話はしないでください。
-            `,
                     modalities: ["audio", "text"],
                     input_audio_transcription: {
                         model: "gpt-4o-mini-transcribe",
@@ -160,12 +153,6 @@ async function startRealtimeVoice() {
                 const updateEvent = {
                     type: "session.update",
                     session: {
-                        instructions: `
-        あなたはJarvisです。
-        必ず日本語だけで返答してください。
-        ユーザーが何語で話しても、日本語で返答してください。
-        韓国語、中国語、英語では返答しないでください。無駄な会話はしないでください。
-        `,
                         modalities: ["audio", "text"],
                         input_audio_transcription: {
                             model: "gpt-4o-mini-transcribe",
