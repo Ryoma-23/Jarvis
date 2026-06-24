@@ -145,23 +145,40 @@ async function startRealtimeVoice() {
             dataChannel.send(JSON.stringify(event));
         };
 
-        dataChannel.onmessage = function(event) {
+        dataChannel.onmessage = async function(event) {
             const data = JSON.parse(event.data);
             console.log("Realtime event:", data);
 
-            if (data.type === "session.created") {
-                const updateEvent = {
-                    type: "session.update",
-                    session: {
-                        modalities: ["audio", "text"],
-                        input_audio_transcription: {
-                            model: "gpt-4o-mini-transcribe",
-                            language: "ja"
-                        }
-                    }
-                };
+            if (data.type === "response.function_call_arguments.done") {
+                const toolName = data.name;
+                const callId = data.call_id;
+                const argumentsJson = JSON.parse(data.arguments);
 
-                dataChannel.send(JSON.stringify(updateEvent));
+                const toolResponse = await fetch("/realtime/tools", {
+                    method: "POST",
+                    headers: {
+                        "Content-Type": "application/json"
+                    },
+                    body: JSON.stringify({
+                        tool_name: toolName,
+                        arguments: argumentsJson
+                    })
+                });
+
+                const result = await toolResponse.json();
+
+                dataChannel.send(JSON.stringify({
+                    type: "conversation.item.create",
+                    item: {
+                        type: "function_call_output",
+                        call_id: callId,
+                        output: JSON.stringify(result)
+                    }
+                }));
+
+                dataChannel.send(JSON.stringify({
+                    type: "response.create"
+                }));
             }
         };
 

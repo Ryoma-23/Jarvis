@@ -35,6 +35,17 @@ def build_realtime_instructions():
 - 聞き取れないときは反応しない
 - 長文説明が必要な場合は、まず要点だけ話す
 - 箇条書きではなく、自然な会話として話す
+
+音声でメモ操作を依頼された場合は、以下のtoolを使用してください。
+
+- メモして、メモに残して → add_note
+- メモ一覧、メモ見せて、保存しているメモ → list_notes
+- 〇〇のメモある？、〇〇のメモ探して → search_notes
+- 〇番のメモを削除、〇番消して → delete_notes
+
+tool実行後は、実行結果を自然な日本語で短く伝えてください。
+削除は番号指定がある場合のみ実行してください。
+番号がない場合は、先に一覧または検索を促してください。
 """
 
 
@@ -52,6 +63,68 @@ def create_realtime_token():
                 "type": "realtime",
                 "model": "gpt-realtime-2",
                 "instructions": instructions,
+                "tools": [
+                    {
+                        "type": "function",
+                        "name": "add_note",
+                        "description": "ユーザーのメモを保存します。",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "content": {
+                                    "type": "string",
+                                    "description": "保存するメモ内容"
+                                }
+                            },
+                            "required": ["content"]
+                        }
+                    },
+                    {
+                        "type": "function",
+                        "name": "list_notes",
+                        "description": "保存されているメモ一覧を取得します。",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {},
+                            "required": []
+                        }
+                    },
+                    {
+                        "type": "function",
+                        "name": "search_notes",
+                        "description": "キーワードに一致するメモを検索します。",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "keyword": {
+                                    "type": "string",
+                                    "description": "検索キーワード"
+                                }
+                            },
+                            "required": ["keyword"]
+                        }
+                    },
+                    {
+                        "type": "function",
+                        "name": "delete_notes",
+                        "description": "指定した番号のメモを削除します。",
+                        "parameters": {
+                            "type": "object",
+                            "properties": {
+                                "note_ids": {
+                                    "type": "array",
+                                    "items": {
+                                        "type": "integer"
+                                    },
+                                    "description": "削除するメモIDの配列"
+                                }
+                            },
+                            "required": ["note_ids"]
+                        }
+                    }
+                ],
+                
+                "tool_choice": "auto",
                 "audio": {
                     "output": {
                         "voice": "cedar",
