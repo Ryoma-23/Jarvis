@@ -14,6 +14,14 @@ from app.services.task_service import (
 )
 
 
+from app.services.memory_service import (
+    add_memory,
+    format_memory_list,
+    search_memory,
+    update_memory,
+    delete_memory
+)
+
 def execute_realtime_tool(tool_name: str, arguments: dict):
     if tool_name == "add_note":
         content = arguments.get("content")
@@ -163,6 +171,103 @@ def execute_realtime_tool(tool_name: str, arguments: dict):
             }
 
         result = delete_tasks(task_ids)
+
+        return {
+            "success": True,
+            "message": result
+        }
+    
+    if tool_name == "add_memory":
+        content = arguments.get("content")
+        category = arguments.get("category") or "other"
+
+        if not content:
+            return {
+                "success": False,
+                "message": "覚える内容がありません。"
+            }
+
+        memory = add_memory(content, category)
+
+        return {
+            "success": True,
+            "message": f"覚えておきました。{memory['id']}. [{memory['category']}] {memory['content']}"
+        }
+
+    if tool_name == "list_memory":
+        result = format_memory_list()
+
+        return {
+            "success": True,
+            "message": result
+        }
+
+    if tool_name == "search_memory":
+        keyword = arguments.get("keyword")
+
+        if not keyword:
+            return {
+                "success": False,
+                "message": "検索キーワードがありません。"
+            }
+
+        result = search_memory(keyword)
+
+        return {
+            "success": True,
+            "message": result
+        }
+
+    if tool_name == "update_memory":
+        memory_ids = arguments.get("memory_ids", [])
+        content = arguments.get("content")
+        category = arguments.get("category")
+
+        if not memory_ids:
+            return {
+                "success": False,
+                "message": "更新する記憶番号が指定されていません。"
+            }
+
+        if not content:
+            return {
+                "success": False,
+                "message": "更新後の内容がありません。"
+            }
+
+        try:
+            memory_ids = [int(memory_id) for memory_id in memory_ids]
+        except ValueError:
+            return {
+                "success": False,
+                "message": "更新する記憶番号を正しく読み取れませんでした。"
+            }
+
+        result = update_memory(memory_ids, content, category)
+
+        return {
+            "success": True,
+            "message": result
+        }
+
+    if tool_name == "delete_memory":
+        memory_ids = arguments.get("memory_ids", [])
+
+        if not memory_ids:
+            return {
+                "success": False,
+                "message": "削除する記憶番号が指定されていません。"
+            }
+
+        try:
+            memory_ids = [int(memory_id) for memory_id in memory_ids]
+        except ValueError:
+            return {
+                "success": False,
+                "message": "削除する記憶番号を正しく読み取れませんでした。"
+            }
+
+        result = delete_memory(memory_ids)
 
         return {
             "success": True,
