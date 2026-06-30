@@ -58,3 +58,32 @@ h1 {
 
     margin-bottom: 20px;
 }
+
+.voice-controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 12px;
+    flex-wrap: wrap;
+}
+
+.voice-status {
+    font-size: 14px;
+    opacity: 0.8;
+}
+
+.voice-status.connected {
+    color: #2e7d32;
+}
+
+.voice-status.connecting {
+    color: #f57c00;
+}
+
+.voice-status.disconnected {
+    color: #666;
+}
+
+.voice-status.error {
+    color: #c62828;
+}

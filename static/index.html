@@ -23,9 +23,15 @@
                 placeholder="メッセージを入力..."
             >
 
-            <button id="voice-button">
-                音声接続
-            </button>
+            <div class="voice-controls">
+                <button id="voice-connect-button">音声接続ON</button>
+                <button id="voice-disconnect-button" disabled>音声切断</button>
+                <button id="voice-reconnect-button" disabled>再接続</button>
+
+                <div id="voice-status" class="voice-status">
+                    音声状態: 未接続
+                </div>
+            </div>
 
             <button id="send-button">
                 送信
