@@ -2,6 +2,7 @@ import subprocess
 import time
 import webbrowser
 import urllib.request
+import sys
 from pathlib import Path
 from datetime import datetime
 
@@ -22,6 +23,10 @@ UVICORN_LOG_FILE = LOG_DIR / "uvicorn.log"
 
 CHECK_INTERVAL_SECONDS = 5
 STARTUP_TIMEOUT_SECONDS = 30
+
+LOCK_FILE = BASE_DIR / "jarvis_daemon.lock"
+
+OPEN_BROWSER = "--no-browser" not in sys.argv
 
 
 def write_log(message: str):
@@ -117,6 +122,12 @@ def open_jarvis_frontend():
 def main():
     write_log("Jarvis daemonを起動しました。")
 
+    if is_another_daemon_running():
+        write_log("別のJarvis daemonがすでに起動しているため終了します。")
+        return
+
+    create_lock_file()
+
     if not VENV_PYTHON.exists():
         write_log(f"仮想環境のPythonが見つかりません: {VENV_PYTHON}")
         return
@@ -126,12 +137,18 @@ def main():
     try:
         if is_server_alive():
             write_log("Jarvisサーバーはすでに起動しています。")
-            open_jarvis_frontend()
+            if OPEN_BROWSER:
+                open_jarvis_frontend()
+            else:
+                write_log("ブラウザ自動起動は無効です。")
         else:
             process = start_jarvis_server()
 
             if wait_until_server_ready():
-                open_jarvis_frontend()
+                if OPEN_BROWSER:
+                    open_jarvis_frontend()
+                else:
+                    write_log("ブラウザ自動起動は無効です。")
             else:
                 write_log("Jarvisサーバーが起動できなかったため終了します。")
                 stop_jarvis_server(process)
@@ -157,7 +174,44 @@ def main():
 
     finally:
         stop_jarvis_server(process)
+        remove_lock_file()
         write_log("Jarvis daemonを終了しました。")
+
+
+def is_another_daemon_running() -> bool:
+    if not LOCK_FILE.exists():
+        return False
+
+    try:
+        pid_text = LOCK_FILE.read_text(encoding="utf-8").strip()
+        old_pid = int(pid_text)
+
+        # WindowsでPIDが存在するか確認
+        result = subprocess.run(
+            ["tasklist", "/FI", f"PID eq {old_pid}"],
+            capture_output=True,
+            text=True
+        )
+
+        return str(old_pid) in result.stdout
+
+    except Exception:
+        return False
+
+
+def create_lock_file():
+    current_pid = subprocess.os.getpid()
+
+    LOCK_FILE.write_text(str(current_pid), encoding="utf-8")
+
+    write_log(f"ロックファイルを作成しました。PID: {current_pid}")
+
+
+def remove_lock_file():
+    if LOCK_FILE.exists():
+        LOCK_FILE.unlink()
+        write_log("ロックファイルを削除しました。")
+
 
 
 if __name__ == "__main__":

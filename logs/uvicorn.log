@@ -9,3 +9,22 @@ INFO:     Waiting for application startup.
 INFO:     Application startup complete.
 INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
 INFO:     127.0.0.1:60833 - "GET / HTTP/1.1" 200 OK
+INFO:     Started server process [33504]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:62302 - "GET / HTTP/1.1" 200 OK
+INFO:     Started server process [2072]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:49926 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57250 - "GET /realtime/token HTTP/1.1" 200 OK
+INFO:     Started server process [39100]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:59080 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62449 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55228 - "GET /static/script.js HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:62449 - "GET /static/style.css HTTP/1.1" 304 Not Modified
