@@ -28,6 +28,11 @@ LOCK_FILE = BASE_DIR / "jarvis_daemon.lock"
 
 OPEN_BROWSER = "--no-browser" not in sys.argv
 
+MAX_RESTART_ATTEMPTS = 3
+RESTART_WINDOW_SECONDS = 60
+RESTART_DELAY_SECONDS = 3
+STABLE_RUNNING_SECONDS = 30
+
 
 def write_log(message: str):
     LOG_DIR.mkdir(exist_ok=True)
@@ -120,6 +125,9 @@ def open_jarvis_frontend():
 
 
 def main():
+    restart_attempts = 0
+    first_failure_time = None
+
     write_log("Jarvis daemonを起動しました。")
 
     if is_another_daemon_running():
@@ -136,11 +144,9 @@ def main():
 
     try:
         if is_server_alive():
-            write_log("Jarvisサーバーはすでに起動しています。")
-            if OPEN_BROWSER:
-                open_jarvis_frontend()
-            else:
-                write_log("ブラウザ自動起動は無効です。")
+            write_log("既にポート8000でサーバーが起動しています。")
+            write_log("daemon管理外のサーバーの可能性があるため、今回は起動せず終了します。")
+            return
         else:
             process = start_jarvis_server()
 
@@ -156,19 +162,50 @@ def main():
 
         write_log("Jarvisサーバーの監視を開始します。")
 
+        server_started_at = time.time()
+
         while True:
             time.sleep(CHECK_INTERVAL_SECONDS)
 
-            if process is not None and process.poll() is not None:
-                write_log("Jarvisサーバーが停止しました。再起動します。")
+            if process is not None and process.poll() is None:
+                running_time = time.time() - server_started_at
 
-                process = start_jarvis_server()
+                if running_time >= STABLE_RUNNING_SECONDS:
+                    if restart_attempts != 0:
+                        write_log("Jarvisサーバーが安定稼働したため、再起動失敗カウントをリセットします。")
 
-                if wait_until_server_ready():
-                    write_log("Jarvisサーバーの再起動に成功しました。")
-                else:
-                    write_log("Jarvisサーバーの再起動に失敗しました。")
+                    restart_attempts = 0
+                    first_failure_time = None
 
+                continue
+
+            write_log("Jarvisサーバーが停止しました。")
+
+            restart_attempts, first_failure_time = update_restart_failure_count(
+                restart_attempts,
+                first_failure_time
+            )
+
+            write_log(
+                f"再起動失敗カウント: {restart_attempts}/{MAX_RESTART_ATTEMPTS}"
+            )
+
+            if not can_restart_server(restart_attempts, first_failure_time):
+                write_log("短時間に複数回停止したため、再起動を停止します。")
+                write_log("uvicorn.logを確認してください。")
+                break
+
+            write_log(f"{RESTART_DELAY_SECONDS}秒後にJarvisサーバーを再起動します。")
+            time.sleep(RESTART_DELAY_SECONDS)
+
+            process = start_jarvis_server()
+
+            if wait_until_server_ready():
+                server_started_at = time.time()
+                write_log("Jarvisサーバーの再起動に成功しました。")
+            else:
+                write_log("Jarvisサーバーの再起動に失敗しました。")
+            
     except KeyboardInterrupt:
         write_log("終了指示を受け取りました。")
 
@@ -212,6 +249,37 @@ def remove_lock_file():
         LOCK_FILE.unlink()
         write_log("ロックファイルを削除しました。")
 
+
+def can_restart_server(restart_attempts: int, first_failure_time: float | None) -> bool:
+    if first_failure_time is None:
+        return True
+
+    elapsed_time = time.time() - first_failure_time
+
+    if elapsed_time > RESTART_WINDOW_SECONDS:
+        return True
+
+    return restart_attempts < MAX_RESTART_ATTEMPTS
+
+
+def update_restart_failure_count(restart_attempts, first_failure_time):
+    current_time = time.time()
+
+    if first_failure_time is None:
+        first_failure_time = current_time
+        restart_attempts = 1
+        return restart_attempts, first_failure_time
+
+    elapsed_time = current_time - first_failure_time
+
+    if elapsed_time > RESTART_WINDOW_SECONDS:
+        first_failure_time = current_time
+        restart_attempts = 1
+        return restart_attempts, first_failure_time
+
+    restart_attempts += 1
+
+    return restart_attempts, first_failure_time
 
 
 if __name__ == "__main__":
