@@ -97,3 +97,87 @@ Traceback (most recent call last):
   File "C:\Projects\Jarvis\main.py", line 1, in <module>
     raise Exception("test error")
 Exception: test error
+INFO:     Started server process [32300]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:49572 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58798 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51927 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51928 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55518 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55518 - "GET /static/style.css HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51587 - "GET /static/script.js HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51712 - "GET / HTTP/1.1" 200 OK
+INFO:     Started server process [21936]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:62087 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55620 - "GET / HTTP/1.1" 200 OK
+INFO:     Started server process [14620]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:59987 - "GET / HTTP/1.1" 200 OK
+INFO:     Started server process [16860]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:59994 - "GET / HTTP/1.1" 200 OK
+INFO:     Started server process [3152]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:59999 - "GET / HTTP/1.1" 200 OK
+INFO:     Started server process [5568]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:60004 - "GET / HTTP/1.1" 200 OK
+INFO:     Started server process [25728]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:49970 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49986 - "GET / HTTP/1.1" 200 OK
+INFO:     Started server process [16860]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:60994 - "GET / HTTP/1.1" 200 OK
+INFO:     Started server process [14144]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:52772 - "GET / HTTP/1.1" 200 OK
+INFO:     Started server process [12536]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:52726 - "GET / HTTP/1.1" 200 OK
+INFO:     Started server process [27400]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:49492 - "GET / HTTP/1.1" 200 OK
+INFO:     Started server process [23344]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:57692 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56738 - "GET /favicon.ico HTTP/1.1" 404 Not Found
+INFO:     Started server process [15872]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:58000 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58004 - "GET / HTTP/1.1" 200 OK
+INFO:     Started server process [11200]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:65204 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53640 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58188 - "GET /realtime/token HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53740 - "GET /realtime/token HTTP/1.1" 200 OK
