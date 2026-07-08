@@ -12,6 +12,9 @@ BASE_DIR = Path(__file__).resolve().parent
 
 HOST = "127.0.0.1"
 PORT = 8000
+WINDOW_CONTROL_HOST = "127.0.0.1"
+WINDOW_CONTROL_PORT = 8766
+WINDOW_CONTROL_URL = f"http://{WINDOW_CONTROL_HOST}:{WINDOW_CONTROL_PORT}"
 
 SERVER_URL = f"http://{HOST}:{PORT}"
 HEALTH_CHECK_URL = SERVER_URL
@@ -158,7 +161,7 @@ def restart_jarvis_server():
 
 
 def open_jarvis():
-    open_jarvis_window()
+    show_jarvis_window()
 
 
 def create_icon_image():
@@ -185,7 +188,15 @@ def show_status(icon, menu_item):
 
 
 def open_menu_clicked(icon, menu_item):
-    open_jarvis()
+    show_jarvis_window()
+
+
+def hide_window_menu_clicked(icon, menu_item):
+    hide_jarvis_window()
+
+
+def close_window_menu_clicked(icon, menu_item):
+    close_jarvis_window()
 
 
 def restart_menu_clicked(icon, menu_item):
@@ -204,6 +215,7 @@ def quit_menu_clicked(icon, menu_item):
 
     is_shutting_down = True
 
+    close_jarvis_window()
     stop_jarvis_server()
 
     icon.visible = False
@@ -295,58 +307,52 @@ def monitor_server(icon):
         start_jarvis_server()
 
 
-def open_jarvis_window():
-    global window_process
-
+def show_jarvis_window():
     if not is_server_alive():
         write_log("Jarvisサーバーが起動していないため、起動します。")
         success = start_jarvis_server()
 
         if not success:
-            write_log("Jarvisサーバーを起動できなかったため、ウィンドウを開けません。")
+            write_log("Jarvisサーバーを起動できなかったため、ウィンドウを表示できません。")
             return
 
-    if window_process is not None and window_process.poll() is None:
-        write_log("Jarvisウィンドウはすでに起動しています。")
+    if not ensure_jarvis_window_process():
+        write_log("Jarvis Windowプロセスを準備できませんでした。")
         return
 
-    if not JARVIS_WINDOW_SCRIPT.exists():
-        write_log(f"Jarvisウィンドウ用スクリプトが見つかりません: {JARVIS_WINDOW_SCRIPT}")
-        return
-
-    write_log("Jarvis専用ウィンドウを開きます。")
-
-    window_process = subprocess.Popen(
-        [
-            str(VENV_PYTHON),
-            str(JARVIS_WINDOW_SCRIPT),
-        ],
-        cwd=BASE_DIR,
-        creationflags=subprocess.CREATE_NO_WINDOW,
-    )
+    if send_window_command("show"):
+        write_log("Jarvisウィンドウを表示しました。")
+    else:
+        write_log("Jarvisウィンドウの表示に失敗しました。")
 
 
 def close_jarvis_window():
     global window_process
 
+    if is_window_control_alive():
+        write_log("Jarvis Windowへ終了命令を送ります。")
+        send_window_command("destroy")
+
+        time.sleep(1)
+
     if window_process is None:
-        write_log("管理中のJarvisウィンドウはありません。")
+        write_log("管理中のJarvisウィンドウプロセスはありません。")
         return
 
     if window_process.poll() is not None:
-        write_log("Jarvisウィンドウはすでに終了しています。")
+        write_log("Jarvisウィンドウプロセスはすでに終了しています。")
         window_process = None
         return
 
-    write_log("Jarvisウィンドウを閉じます。")
+    write_log("Jarvisウィンドウプロセスを終了します。")
 
     window_process.terminate()
 
     try:
         window_process.wait(timeout=5)
-        write_log("Jarvisウィンドウを閉じました。")
+        write_log("Jarvisウィンドウプロセスを終了しました。")
     except subprocess.TimeoutExpired:
-        write_log("Jarvisウィンドウを正常終了できなかったため、強制終了します。")
+        write_log("Jarvisウィンドウプロセスを強制終了します。")
         window_process.kill()
 
     window_process = None
@@ -368,6 +374,73 @@ def quit_menu_clicked(icon, menu_item):
 
     icon.visible = False
     icon.stop()
+
+
+def is_window_control_alive() -> bool:
+    try:
+        with urllib.request.urlopen(f"{WINDOW_CONTROL_URL}/health", timeout=2) as response:
+            return response.status == 200
+    except Exception:
+        return False
+
+
+def send_window_command(command: str) -> bool:
+    try:
+        with urllib.request.urlopen(f"{WINDOW_CONTROL_URL}/{command}", timeout=2) as response:
+            return response.status == 200
+    except Exception as error:
+        write_log(f"Window制御コマンド送信に失敗しました: {command} / {error}")
+        return False
+
+
+def ensure_jarvis_window_process():
+    global window_process
+
+    if is_window_control_alive():
+        write_log("Jarvis Window制御サーバーはすでに起動しています。")
+        return True
+
+    if window_process is not None and window_process.poll() is None:
+        write_log("Jarvis Windowプロセスは起動中ですが、制御サーバーがまだ応答していません。")
+    else:
+        if not JARVIS_WINDOW_SCRIPT.exists():
+            write_log(f"Jarvisウィンドウ用スクリプトが見つかりません: {JARVIS_WINDOW_SCRIPT}")
+            return False
+
+        write_log("Jarvis Windowプロセスを起動します。")
+
+        window_process = subprocess.Popen(
+            [
+                str(VENV_PYTHON),
+                str(JARVIS_WINDOW_SCRIPT),
+            ],
+            cwd=BASE_DIR,
+            creationflags=subprocess.CREATE_NO_WINDOW,
+        )
+
+    start_time = time.time()
+
+    while time.time() - start_time < 10:
+        if is_window_control_alive():
+            write_log("Jarvis Window制御サーバーの起動を確認しました。")
+            return True
+
+        time.sleep(0.5)
+
+    write_log("Jarvis Window制御サーバーの起動確認に失敗しました。")
+    return False
+
+
+def hide_jarvis_window():
+    if not is_window_control_alive():
+        write_log("Jarvis Window制御サーバーが起動していません。")
+        return
+
+    if send_window_command("hide"):
+        write_log("Jarvisウィンドウを非表示にしました。")
+    else:
+        write_log("Jarvisウィンドウの非表示に失敗しました。")
+
 
 
 def setup_icon(icon):
@@ -408,7 +481,8 @@ def main():
 
     menu = pystray.Menu(
         item("Jarvisを表示", open_menu_clicked),
-        item("Jarvis画面を閉じる", close_window_menu_clicked),
+        item("Jarvisを隠す", hide_window_menu_clicked),
+        item("Jarvisウィンドウを終了", close_window_menu_clicked),
         item("状態確認", show_status),
         pystray.Menu.SEPARATOR,
         item("サーバー再起動", restart_menu_clicked),
