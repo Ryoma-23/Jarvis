@@ -181,3 +181,47 @@ INFO:     127.0.0.1:65204 - "GET / HTTP/1.1" 200 OK
 INFO:     127.0.0.1:53640 - "GET / HTTP/1.1" 200 OK
 INFO:     127.0.0.1:58188 - "GET /realtime/token HTTP/1.1" 200 OK
 INFO:     127.0.0.1:53740 - "GET /realtime/token HTTP/1.1" 200 OK
+INFO:     Started server process [9556]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:50780 - "GET / HTTP/1.1" 200 OK
+INFO:     Started server process [5340]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:59264 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65245 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58563 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58563 - "GET /static/style.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50197 - "GET /static/script.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58563 - "GET /favicon.ico HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:61470 - "GET /realtime/token HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63741 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52367 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52367 - "GET /static/style.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61047 - "GET /static/script.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61047 - "GET /favicon.ico HTTP/1.1" 404 Not Found
+INFO:     Started server process [6724]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:60148 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60152 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60153 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52345 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52345 - "GET /static/style.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60244 - "GET /static/script.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52345 - "GET /favicon.ico HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:57504 - "GET / HTTP/1.1" 200 OK
+INFO:     Started server process [22600]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:57506 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57510 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57511 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56578 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56578 - "GET /static/style.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59175 - "GET /static/script.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56578 - "GET /favicon.ico HTTP/1.1" 404 Not Found

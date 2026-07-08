@@ -2,17 +2,13 @@ import subprocess
 import time
 import webbrowser
 import urllib.request
+import pystray
 from pathlib import Path
 from datetime import datetime
-
-import pystray
 from pystray import MenuItem as item
 from PIL import Image, ImageDraw
 
-
 BASE_DIR = Path(__file__).resolve().parent
-
-VENV_PYTHON = BASE_DIR / ".venv" / "Scripts" / "python.exe"
 
 HOST = "127.0.0.1"
 PORT = 8000
@@ -20,23 +16,23 @@ PORT = 8000
 SERVER_URL = f"http://{HOST}:{PORT}"
 HEALTH_CHECK_URL = SERVER_URL
 
+VENV_PYTHON = BASE_DIR / ".venv" / "Scripts" / "python.exe"
 LOG_DIR = BASE_DIR / "logs"
 TRAY_LOG_FILE = LOG_DIR / "jarvis_tray.log"
 UVICORN_LOG_FILE = LOG_DIR / "uvicorn.log"
+JARVIS_WINDOW_SCRIPT = BASE_DIR / "jarvis_window.py"
 
 CHECK_INTERVAL_SECONDS = 5
-
 MAX_RESTART_ATTEMPTS = 3
 RESTART_WINDOW_SECONDS = 60
 RESTART_DELAY_SECONDS = 3
 STABLE_RUNNING_SECONDS = 30
 
 server_process = None
-
+window_process = None
 restart_attempts = 0
 first_failure_time = None
 server_started_at = None
-
 is_shutting_down = False
 
 
@@ -151,6 +147,9 @@ def stop_jarvis_server():
 
 def restart_jarvis_server():
     write_log("Jarvisサーバーを再起動します。")
+
+    close_jarvis_window()
+
     stop_jarvis_server()
 
     time.sleep(2)
@@ -159,12 +158,7 @@ def restart_jarvis_server():
 
 
 def open_jarvis():
-    if not is_server_alive():
-        write_log("Jarvisサーバーが起動していないため、起動します。")
-        start_jarvis_server()
-
-    write_log("Jarvis画面を開きます。")
-    webbrowser.open(SERVER_URL)
+    open_jarvis_window()
 
 
 def create_icon_image():
@@ -199,6 +193,7 @@ def restart_menu_clicked(icon, menu_item):
 
 
 def stop_server_menu_clicked(icon, menu_item):
+    close_jarvis_window()
     stop_jarvis_server()
 
 
@@ -300,6 +295,81 @@ def monitor_server(icon):
         start_jarvis_server()
 
 
+def open_jarvis_window():
+    global window_process
+
+    if not is_server_alive():
+        write_log("Jarvisサーバーが起動していないため、起動します。")
+        success = start_jarvis_server()
+
+        if not success:
+            write_log("Jarvisサーバーを起動できなかったため、ウィンドウを開けません。")
+            return
+
+    if window_process is not None and window_process.poll() is None:
+        write_log("Jarvisウィンドウはすでに起動しています。")
+        return
+
+    if not JARVIS_WINDOW_SCRIPT.exists():
+        write_log(f"Jarvisウィンドウ用スクリプトが見つかりません: {JARVIS_WINDOW_SCRIPT}")
+        return
+
+    write_log("Jarvis専用ウィンドウを開きます。")
+
+    window_process = subprocess.Popen(
+        [
+            str(VENV_PYTHON),
+            str(JARVIS_WINDOW_SCRIPT),
+        ],
+        cwd=BASE_DIR,
+        creationflags=subprocess.CREATE_NO_WINDOW,
+    )
+
+
+def close_jarvis_window():
+    global window_process
+
+    if window_process is None:
+        write_log("管理中のJarvisウィンドウはありません。")
+        return
+
+    if window_process.poll() is not None:
+        write_log("Jarvisウィンドウはすでに終了しています。")
+        window_process = None
+        return
+
+    write_log("Jarvisウィンドウを閉じます。")
+
+    window_process.terminate()
+
+    try:
+        window_process.wait(timeout=5)
+        write_log("Jarvisウィンドウを閉じました。")
+    except subprocess.TimeoutExpired:
+        write_log("Jarvisウィンドウを正常終了できなかったため、強制終了します。")
+        window_process.kill()
+
+    window_process = None
+
+
+def close_window_menu_clicked(icon, menu_item):
+    close_jarvis_window()
+
+
+def quit_menu_clicked(icon, menu_item):
+    global is_shutting_down
+
+    write_log("Jarvis Trayを終了します。")
+
+    is_shutting_down = True
+
+    close_jarvis_window()
+    stop_jarvis_server()
+
+    icon.visible = False
+    icon.stop()
+
+
 def setup_icon(icon):
     write_log("Jarvis Trayを起動しました。")
 
@@ -337,7 +407,8 @@ def main():
     icon_image = create_icon_image()
 
     menu = pystray.Menu(
-        item("Jarvisを開く", open_menu_clicked),
+        item("Jarvisを表示", open_menu_clicked),
+        item("Jarvis画面を閉じる", close_window_menu_clicked),
         item("状態確認", show_status),
         pystray.Menu.SEPARATOR,
         item("サーバー再起動", restart_menu_clicked),
