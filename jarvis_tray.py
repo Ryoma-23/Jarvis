@@ -183,8 +183,15 @@ def get_status_text():
 
 
 def show_status(icon, menu_item):
-    status = get_status_text()
-    write_log(status)
+    server_status = get_status_text()
+    write_log(server_status)
+
+    window_status = get_window_status()
+
+    if window_status:
+        write_log(f"Window状態: {window_status}")
+    else:
+        write_log("Window状態: 取得できません")
 
 
 def open_menu_clicked(icon, menu_item):
@@ -320,10 +327,8 @@ def show_jarvis_window():
         write_log("Jarvis Windowプロセスを準備できませんでした。")
         return
 
-    if send_window_command("show"):
-        write_log("Jarvisウィンドウを表示しました。")
-    else:
-        write_log("Jarvisウィンドウの表示に失敗しました。")
+    send_window_command("show")
+    send_window_command("focus")
 
 
 def close_jarvis_window():
@@ -391,6 +396,16 @@ def send_window_command(command: str) -> bool:
     except Exception as error:
         write_log(f"Window制御コマンド送信に失敗しました: {command} / {error}")
         return False
+
+
+def get_window_status():
+    try:
+        with urllib.request.urlopen(f"{WINDOW_CONTROL_URL}/status", timeout=2) as response:
+            data = response.read().decode("utf-8")
+            return data
+    except Exception as error:
+        write_log(f"Window状態取得に失敗しました: {error}")
+        return None
 
 
 def ensure_jarvis_window_process():
