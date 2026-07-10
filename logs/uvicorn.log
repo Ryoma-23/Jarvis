@@ -312,3 +312,147 @@ INFO:     127.0.0.1:56478 - "GET / HTTP/1.1" 200 OK
 INFO:     127.0.0.1:56478 - "GET /static/style.css HTTP/1.1" 200 OK
 INFO:     127.0.0.1:57069 - "GET /static/script.js HTTP/1.1" 200 OK
 INFO:     127.0.0.1:57069 - "GET /favicon.ico HTTP/1.1" 404 Not Found
+INFO:     Started server process [1856]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:57333 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57338 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57341 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56324 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56324 - "GET /static/style.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62151 - "GET /static/script.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62151 - "GET /favicon.ico HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:57847 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57852 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57856 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57250 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57257 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57260 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55585 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55585 - "GET /static/style.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59232 - "GET /static/script.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55585 - "GET /favicon.ico HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:56351 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56359 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56249 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56252 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60029 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60029 - "GET /static/style.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50256 - "GET /static/script.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60029 - "GET /favicon.ico HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:63533 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63536 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56646 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56646 - "GET /static/style.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53064 - "GET /static/script.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53064 - "GET /favicon.ico HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:57888 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57896 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57899 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49487 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49487 - "GET /static/style.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63839 - "GET /static/script.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63839 - "GET /favicon.ico HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:57973 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57985 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57990 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54617 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54617 - "GET /static/style.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57369 - "GET /static/script.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57369 - "GET /favicon.ico HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:56606 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61198 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61201 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54191 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54191 - "GET /static/style.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63294 - "GET /static/script.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63294 - "GET /favicon.ico HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52683 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57202 - "GET / HTTP/1.1" 200 OK
+INFO:     Started server process [3228]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:49378 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49385 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49389 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65374 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64176 - "GET /static/script.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65374 - "GET /static/style.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65374 - "GET /favicon.ico HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:56166 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58079 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54653 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54653 - "GET /static/style.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64148 - "GET /static/script.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64148 - "GET /favicon.ico HTTP/1.1" 404 Not Found
+INFO:     Started server process [14956]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:51721 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56833 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56836 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63178 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63178 - "GET /static/style.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60753 - "GET /static/script.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60753 - "GET /favicon.ico HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:63510 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63513 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55669 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55669 - "GET /static/style.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55711 - "GET /static/script.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55711 - "GET /favicon.ico HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:57318 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57321 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65328 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65328 - "GET /static/style.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63915 - "GET /static/script.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63915 - "GET /favicon.ico HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:65487 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65491 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65503 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65506 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63977 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63977 - "GET /static/style.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52606 - "GET /static/script.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52606 - "GET /favicon.ico HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:57560 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57566 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60471 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60477 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49593 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49593 - "GET /static/style.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53437 - "GET /static/script.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53437 - "GET /favicon.ico HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:60302 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60305 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56656 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56656 - "GET /static/style.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63937 - "GET /static/script.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63937 - "GET /favicon.ico HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:57270 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57273 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53171 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53171 - "GET /static/style.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54490 - "GET /static/script.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54490 - "GET /favicon.ico HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55406 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55409 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53000 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53000 - "GET /static/style.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62561 - "GET /static/script.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62561 - "GET /favicon.ico HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52194 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52197 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56074 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56074 - "GET /static/style.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63464 - "GET /static/script.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63464 - "GET /favicon.ico HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52675 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52678 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54441 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54441 - "GET /static/style.css HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59765 - "GET /static/script.js HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59765 - "GET /favicon.ico HTTP/1.1" 404 Not Found
