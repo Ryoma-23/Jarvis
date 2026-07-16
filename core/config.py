@@ -1,0 +1,45 @@
+from pathlib import Path
+
+
+BASE_DIR = Path(__file__).resolve().parent.parent
+
+VENV_PYTHON = BASE_DIR / ".venv" / "Scripts" / "python.exe"
+
+HOST = "127.0.0.1"
+PORT = 8000
+SERVER_URL = f"http://{HOST}:{PORT}"
+HEALTH_CHECK_URL = SERVER_URL
+
+WINDOW_CONTROL_HOST = "127.0.0.1"
+WINDOW_CONTROL_PORT = 8766
+WINDOW_CONTROL_URL = f"http://{WINDOW_CONTROL_HOST}:{WINDOW_CONTROL_PORT}"
+
+JARVIS_WINDOW_SCRIPT = BASE_DIR / "jarvis_window.py"
+
+LOG_DIR = BASE_DIR / "logs"
+DATA_DIR = BASE_DIR / "data"
+
+DAEMON_LOG_FILE = LOG_DIR / "jarvis_daemon.log"
+TRAY_LOG_FILE = LOG_DIR / "jarvis_tray.log"
+WINDOW_LOG_FILE = LOG_DIR / "jarvis_window.log"
+UVICORN_LOG_FILE = LOG_DIR / "uvicorn.log"
+
+LOCK_FILE = BASE_DIR / "jarvis_daemon.lock"
+
+WINDOW_STATE_FILE = DATA_DIR / "window_state.json"
+APP_WINDOW_TITLE = "J.A.R.V.I.S"
+
+DEFAULT_WINDOW_STATE = {
+    "x": 0,
+    "y": 0,
+    "width": 974,
+    "height": 1039,
+}
+
+CHECK_INTERVAL_SECONDS = 5
+STARTUP_TIMEOUT_SECONDS = 30
+
+MAX_RESTART_ATTEMPTS = 3
+RESTART_WINDOW_SECONDS = 60
+RESTART_DELAY_SECONDS = 3
+STABLE_RUNNING_SECONDS = 30
