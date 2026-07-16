@@ -27,10 +27,9 @@ DAEMON_LOG_FILE = LOG_DIR / "jarvis_daemon.log"
 TRAY_LOG_FILE = LOG_DIR / "jarvis_tray.log"
 WINDOW_LOG_FILE = LOG_DIR / "jarvis_window.log"
 UVICORN_LOG_FILE = LOG_DIR / "uvicorn.log"
-
 LOCK_FILE = BASE_DIR / "jarvis_daemon.lock"
-
 WINDOW_STATE_FILE = DATA_DIR / "window_state.json"
+WEBVIEW_DATA_DIR = DATA_DIR / "webview"
 APP_WINDOW_TITLE = "J.A.R.V.I.S"
 
 DEFAULT_WINDOW_STATE = {

@@ -4,7 +4,7 @@ import urllib.request
 
 import webview
 
-from core.config import APP_WINDOW_TITLE, SERVER_URL
+from core.config import APP_WINDOW_TITLE, SERVER_URL, WEBVIEW_DATA_DIR
 from core.logger import window_log
 from window.control_server import WindowControlServer
 from window.window_controller import WindowController
@@ -56,4 +56,6 @@ def run_window_app():
 
     window_log("Jarvisウィンドウを非表示状態で起動します。")
 
-    webview.start()
+    WEBVIEW_DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+    webview.start(storage_path=str(WEBVIEW_DATA_DIR))
