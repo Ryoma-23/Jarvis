@@ -2,11 +2,32 @@ import sys
 import time
 import webbrowser
 
-from core.config import SERVER_URL, VENV_PYTHON, CHECK_INTERVAL_SECONDS, RESTART_DELAY_SECONDS
+from core.config import (
+    SERVER_URL,
+    VENV_PYTHON,
+    CHECK_INTERVAL_SECONDS,
+    RESTART_DELAY_SECONDS,
+)
 from core.logger import daemon_log
-from core.process_lock import ProcessLock
-from core.restart_policy import RestartPolicy
-from core.server_manager import ServerManager
+from core.process_lock import (
+    is_another_daemon_running,
+    create_lock_file,
+    remove_lock_file,
+)
+from core.restart_policy import (
+    can_restart_server,
+    update_restart_failure_count,
+    reset_restart_failure_count_if_stable,
+    get_restart_attempt_text,
+)
+from core.server_manager import (
+    is_server_alive,
+    start_jarvis_server,
+    stop_jarvis_server,
+    get_server_process,
+    set_server_process_none,
+    get_server_started_at,
+)
 
 
 def run_daemon_app():
@@ -14,29 +35,24 @@ def run_daemon_app():
 
     daemon_log("Jarvis daemonを起動しました。")
 
-    lock = ProcessLock(daemon_log)
-
-    if lock.is_another_running():
+    if is_another_daemon_running():
         daemon_log("別のJarvis daemonがすでに起動しているため終了します。")
         return
 
-    lock.create()
-
-    server = ServerManager(log_func=daemon_log, hide_console=False)
-    restart_policy = RestartPolicy(log_func=daemon_log)
+    create_lock_file(daemon_log)
 
     if not VENV_PYTHON.exists():
         daemon_log(f"仮想環境のPythonが見つかりません: {VENV_PYTHON}")
-        lock.remove()
+        remove_lock_file(daemon_log)
         return
 
     try:
-        if server.is_alive():
+        if is_server_alive():
             daemon_log("既にポート8000でサーバーが起動しています。")
             daemon_log("daemon管理外のサーバーの可能性があるため、今回は起動せず終了します。")
             return
 
-        if not server.start():
+        if not start_jarvis_server():
             daemon_log("Jarvisサーバーが起動できなかったため終了します。")
             return
 
@@ -51,16 +67,20 @@ def run_daemon_app():
         while True:
             time.sleep(CHECK_INTERVAL_SECONDS)
 
-            if server.process is not None and server.process.poll() is None:
-                restart_policy.reset_if_stable(server.started_at)
+            process = get_server_process()
+
+            if process is not None and process.poll() is None:
+                reset_restart_failure_count_if_stable(get_server_started_at())
                 continue
 
             daemon_log("Jarvisサーバーが停止しました。")
 
-            restart_policy.record_failure()
-            daemon_log(restart_policy.get_attempt_text())
+            set_server_process_none()
 
-            if not restart_policy.can_restart():
+            update_restart_failure_count()
+            daemon_log(get_restart_attempt_text())
+
+            if not can_restart_server():
                 daemon_log("短時間に複数回停止したため、再起動を停止します。")
                 daemon_log("uvicorn.logを確認してください。")
                 break
@@ -68,7 +88,7 @@ def run_daemon_app():
             daemon_log(f"{RESTART_DELAY_SECONDS}秒後にJarvisサーバーを再起動します。")
             time.sleep(RESTART_DELAY_SECONDS)
 
-            if server.start():
+            if start_jarvis_server():
                 daemon_log("Jarvisサーバーの再起動に成功しました。")
             else:
                 daemon_log("Jarvisサーバーの再起動に失敗しました。")
@@ -77,6 +97,6 @@ def run_daemon_app():
         daemon_log("終了指示を受け取りました。")
 
     finally:
-        server.stop()
-        lock.remove()
+        stop_jarvis_server()
+        remove_lock_file(daemon_log)
         daemon_log("Jarvis daemonを終了しました。")
