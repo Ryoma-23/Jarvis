@@ -28,14 +28,46 @@ from tray.window_client import (
     close_jarvis_window,
     get_window_status,
 )
+from wakeword.wakeword_manager import WakeWordManager
 
 
 class TrayApp:
     def __init__(self):
         self.is_shutting_down = False
+        self.wakeword_manager = WakeWordManager(
+            on_activate_jarvis=self.on_wakeword_detected,
+        )
 
     def show_jarvis_window(self):
         show_window_from_client(is_server_alive, start_jarvis_server)
+
+    def on_wakeword_detected(self):
+        """
+        Wake Wordを検知したときにJarvis Windowを表示する。
+        """
+
+        if self.is_shutting_down:
+            tray_log(
+                "終了処理中のためWake Word起動を無視します。"
+            )
+            return
+
+        tray_log(
+            "Wake Wordを検知しました。Jarvisを表示します。"
+        )
+
+        try:
+            self.show_jarvis_window()
+
+        except Exception as error:
+            tray_log(
+                "Wake WordからのJarvis表示に失敗しました。"
+            )
+            tray_log(
+                f"{type(error).__name__}: {error}"
+            )
+
+            self.wakeword_manager.activation_failed()
 
     def restart_jarvis_server(self):
         tray_log("Jarvisサーバーを再起動します。")
@@ -67,6 +99,22 @@ class TrayApp:
 
     def close_window_menu_clicked(self, icon, menu_item):
         close_jarvis_window()
+    
+    def resume_wakeword_menu_clicked(self,icon,menu_item,):
+        tray_log("Wake Word待機を手動で再開します。")
+        self.wakeword_manager.resume()
+    
+    def on_conversation_finished(self):
+        """
+        Realtime会話終了後にWake Word待機へ戻す。
+        """
+
+        tray_log(
+            "Realtime会話が終了しました。"
+            "Wake Word待機へ戻ります。"
+        )
+
+        self.wakeword_manager.conversation_finished()
 
     def restart_menu_clicked(self, icon, menu_item):
         self.restart_jarvis_server()
@@ -79,6 +127,17 @@ class TrayApp:
         tray_log("Jarvis Trayを終了します。")
 
         self.is_shutting_down = True
+
+        try:
+            self.wakeword_manager.stop()
+
+        except Exception as error:
+            tray_log(
+                "Wake Word停止時にエラーが発生しました。"
+            )
+            tray_log(
+                f"{type(error).__name__}: {error}"
+            )
 
         close_jarvis_window()
         stop_jarvis_server()
@@ -129,9 +188,26 @@ class TrayApp:
             success = start_jarvis_server()
 
             if success:
-                tray_log("Jarvisサーバーの起動に成功しました。")
+                tray_log(
+                    "Jarvisサーバーの起動に成功しました。"
+                )
+
+                try:
+                    self.wakeword_manager.start()
+
+                except Exception as error:
+                    tray_log(
+                        "Wake Word待機の開始に失敗しました。"
+                    )
+                    tray_log(
+                        f"{type(error).__name__}: {error}"
+                    )
+
             else:
-                tray_log("Jarvisサーバーは起動できませんでした。Trayは起動したままにします。")
+                tray_log(
+                    "Jarvisサーバーは起動できませんでした。"
+                    "Trayは起動したままにします。"
+                )
 
         server_thread = threading.Thread(
             target=start_server_job,
@@ -153,6 +229,8 @@ class TrayApp:
             item("Jarvisを隠す", self.hide_window_menu_clicked),
             item("Jarvisウィンドウを終了", self.close_window_menu_clicked),
             item("状態確認", self.show_status),
+            pystray.Menu.SEPARATOR,
+            item("Wake Word待機を再開",self.resume_wakeword_menu_clicked),
             pystray.Menu.SEPARATOR,
             item("サーバー再起動", self.restart_menu_clicked),
             item("サーバー停止", self.stop_server_menu_clicked),
