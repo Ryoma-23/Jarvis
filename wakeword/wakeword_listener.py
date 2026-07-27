@@ -15,6 +15,7 @@ from core.config import (
     WAKEWORD_COOLDOWN_SECONDS,
     WAKEWORD_DTYPE,
     WAKEWORD_MODEL_NAME,
+    WAKEWORD_RESUME_GUARD_SECONDS,
     WAKEWORD_TARGET_FRAME_SAMPLES,
     WAKEWORD_TARGET_SAMPLE_RATE,
     WAKEWORD_THRESHOLD,
@@ -39,6 +40,8 @@ class WakeWordListener:
         self._stream: sd.InputStream | None = None
         self._model: Model | None = None
         self._device: AudioInputDevice | None = None
+
+        self._detection_enabled_at = 0.0
 
         self._stop_event = threading.Event()
         self._pause_event = threading.Event()
@@ -93,11 +96,23 @@ class WakeWordListener:
 
     def resume(self) -> None:
         if not self.is_running:
+            print(
+                "[WakeWord] 起動していないため"
+                "再開できません。"
+            )
+            return
+
+        if not self.is_paused:
+            print(
+                "[WakeWord] すでに待機中です。"
+            )
             return
 
         print("[WakeWord] 待機を再開します。")
 
         self._clear_audio_queue()
+        self._reset_model_state()
+
         self._pause_event.clear()
 
     def stop(self) -> None:
@@ -183,6 +198,16 @@ class WakeWordListener:
         print(
             f"[WakeWord] mic_channel_index="
             f"{WAKEWORD_MIC_CHANNEL_INDEX}"
+        )
+        print(
+            "[WakeWord] "
+            f"{WAKEWORD_RESUME_GUARD_SECONDS:.1f}秒後に"
+            "検知を有効化します。"
+        )
+
+        self._detection_enabled_at = (
+            time.monotonic()
+            + WAKEWORD_RESUME_GUARD_SECONDS
         )
 
         self._stream = sd.InputStream(
@@ -281,13 +306,6 @@ class WakeWordListener:
             except queue.Full:
                 pass
 
-    def _clear_audio_queue(self) -> None:
-        while True:
-            try:
-                self._audio_queue.get_nowait()
-            except queue.Empty:
-                break
-
     def _find_jarvis_score(
         self,
         predictions: dict[str, float],
@@ -371,6 +389,11 @@ class WakeWordListener:
             predictions
         )
 
+        current_time = time.monotonic()
+
+        if current_time < self._detection_enabled_at:
+            return
+
         # デバッグ時にスコア推移を確認したい場合のみ
         # コメントアウトを解除する。
         #
@@ -382,8 +405,6 @@ class WakeWordListener:
 
         if jarvis_score < WAKEWORD_THRESHOLD:
             return
-
-        current_time = time.monotonic()
 
         elapsed = (
             current_time
@@ -413,6 +434,53 @@ class WakeWordListener:
         self._clear_audio_queue()
 
         self._on_detected(jarvis_score)
+    
+    def _clear_audio_queue(self) -> None:
+        """
+        一時停止前にQueueへ入った古い音声をすべて破棄する。
+        """
+
+        cleared_count = 0
+
+        while True:
+            try:
+                self._audio_queue.get_nowait()
+                cleared_count += 1
+
+            except queue.Empty:
+                break
+
+        if cleared_count > 0:
+            print(
+                "[WakeWord] 古い音声データを破棄しました。"
+                f" count={cleared_count}"
+            )
+    
+    def _reset_model_state(self) -> None:
+        """
+        openWakeWordが保持している予測結果と
+        音声特徴量のバッファを初期化する。
+        """
+
+        if self._model is None:
+            return
+
+        try:
+            self._model.reset()
+
+            print(
+                "[WakeWord] モデル状態を初期化しました。"
+            )
+
+        except Exception as error:
+            print(
+                "[WakeWord] モデル状態の初期化に"
+                "失敗しました。"
+            )
+            print(
+                "[WakeWord] "
+                f"{type(error).__name__}: {error}"
+            )
 
     def _run(self) -> None:
         print(
