@@ -58,4 +58,4 @@ def run_window_app():
 
     WEBVIEW_DATA_DIR.mkdir(parents=True, exist_ok=True)
 
-    webview.start(storage_path=str(WEBVIEW_DATA_DIR))
+    webview.start(private_mode=False, storage_path=str(WEBVIEW_DATA_DIR))
