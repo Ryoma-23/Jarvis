@@ -10,6 +10,7 @@ class WakeWordManager:
 
     Wake Word検知後の二重起動防止、
     待機の一時停止・再開、
+    Realtime会話中の状態管理、
     Jarvis終了時の停止処理を担当する。
     """
 
@@ -27,6 +28,7 @@ class WakeWordManager:
 
         self._is_started = False
         self._is_activating = False
+        self._is_conversing = False
 
     @property
     def is_started(self) -> bool:
@@ -37,6 +39,11 @@ class WakeWordManager:
     def is_activating(self) -> bool:
         with self._state_lock:
             return self._is_activating
+
+    @property
+    def is_conversing(self) -> bool:
+        with self._state_lock:
+            return self._is_conversing
 
     def start(self) -> None:
         """
@@ -54,6 +61,7 @@ class WakeWordManager:
 
             self._is_started = True
             self._is_activating = False
+            self._is_conversing = False
 
         print(
             "[WakeWordManager] "
@@ -67,6 +75,7 @@ class WakeWordManager:
             with self._state_lock:
                 self._is_started = False
                 self._is_activating = False
+                self._is_conversing = False
 
             raise
 
@@ -81,6 +90,7 @@ class WakeWordManager:
 
             self._is_started = False
             self._is_activating = False
+            self._is_conversing = False
 
         print(
             "[WakeWordManager] "
@@ -100,13 +110,73 @@ class WakeWordManager:
 
         self._listener.pause()
 
-    def resume(self) -> None:
+    def prepare_for_conversation(
+        self,
+        source: str = "unknown",
+    ) -> None:
         """
-        Realtime会話終了後にWake Word待機を再開する。
+        Realtimeがマイクを取得する前に呼び出す。
+
+        Wake Word側のマイクを確実に解放し、
+        Realtime接続処理中の状態へ移行する。
         """
 
         with self._state_lock:
             if not self._is_started:
+                return
+
+            self._is_activating = True
+            self._is_conversing = False
+
+        print(
+            "[WakeWordManager] "
+            "Realtime開始準備に入りました。"
+            f" source={source}"
+        )
+
+        # Wake Word検知経由ではすでに停止済みだが、
+        # 手動接続時にも確実にマイクを渡せるようにする。
+        self._listener.pause()
+
+    def conversation_started(
+        self,
+        source: str = "unknown",
+    ) -> None:
+        """
+        Realtime接続が成功したときに呼び出す。
+        """
+
+        with self._state_lock:
+            if not self._is_started:
+                return
+
+            self._is_activating = False
+            self._is_conversing = True
+
+        print(
+            "[WakeWordManager] "
+            "Realtime会話を開始しました。"
+            f" source={source}"
+        )
+
+    def resume(self) -> None:
+        """
+        Wake Word待機を再開する。
+
+        Realtime会話中に手動で呼ばれた場合は、
+        マイク競合を防ぐため再開しない。
+        """
+
+        with self._state_lock:
+            if not self._is_started:
+                return
+
+            if self._is_conversing:
+                print(
+                    "[WakeWordManager] "
+                    "Realtime会話中のため"
+                    "Wake Word待機を再開しません。"
+                )
                 return
 
             self._is_activating = False
@@ -118,17 +188,33 @@ class WakeWordManager:
 
         self._listener.resume()
 
-    def conversation_finished(self) -> None:
+    def conversation_finished(
+        self,
+        reason: str = "unknown",
+    ) -> None:
         """
-        Jarvisとの会話終了時に呼び出す。
-        現時点ではresume()と同じ役割。
+        Realtime会話が終了し、
+        Realtime側のマイクが解放された後に呼び出す。
         """
 
-        self.resume()
+        with self._state_lock:
+            if not self._is_started:
+                return
+
+            self._is_activating = False
+            self._is_conversing = False
+
+        print(
+            "[WakeWordManager] "
+            "Realtime会話が終了しました。"
+            f" reason={reason}"
+        )
+
+        self._listener.resume()
 
     def activation_failed(self) -> None:
         """
-        Window表示やRealtime開始に失敗した場合、
+        Window表示やRealtime開始命令の送信に失敗した場合、
         Wake Word待機へ戻す。
         """
 
@@ -137,7 +223,14 @@ class WakeWordManager:
             "Jarvis起動に失敗したため待機へ戻ります。"
         )
 
-        self.resume()
+        with self._state_lock:
+            if not self._is_started:
+                return
+
+            self._is_activating = False
+            self._is_conversing = False
+
+        self._listener.resume()
 
     def _on_wakeword_detected(
         self,
@@ -152,6 +245,14 @@ class WakeWordManager:
 
         with self._state_lock:
             if not self._is_started:
+                return
+
+            if self._is_conversing:
+                print(
+                    "[WakeWordManager] "
+                    "Realtime会話中のため"
+                    "Wake Word検知を無視します。"
+                )
                 return
 
             if self._is_activating:
