@@ -1,17 +1,46 @@
+import json
 import subprocess
 import time
+import urllib.error
 import urllib.request
 
 from core.config import (
     BASE_DIR,
     VENV_PYTHON,
     JARVIS_WINDOW_SCRIPT,
+    WINDOW_REALTIME_COMMAND_TIMEOUT_SECONDS,
     WINDOW_CONTROL_URL,
 )
 from core.logger import tray_log
 
 
 window_process = None
+
+
+def reap_exited_window_process() -> int | None:
+    """
+    Trayが起動したWindowプロセスの異常終了を回収する。
+
+    実行中または管理対象がない場合はNoneを返し、終了済みなら
+    終了コードを返して管理対象から外す。
+    """
+
+    global window_process
+
+    process = window_process
+
+    if process is None:
+        return None
+
+    exit_code = process.poll()
+
+    if exit_code is None:
+        return None
+
+    if window_process is process:
+        window_process = None
+
+    return int(exit_code)
 
 
 def is_window_control_alive() -> bool:
@@ -28,6 +57,56 @@ def send_window_command(command: str) -> bool:
             return response.status == 200
     except Exception as error:
         tray_log(f"Window制御コマンド送信に失敗しました: {command} / {error}")
+        return False
+
+
+def start_realtime_voice(
+    source: str,
+    session_id: str,
+) -> bool:
+    payload = json.dumps(
+        {
+            "source": source,
+            "session_id": session_id,
+        },
+        ensure_ascii=False,
+    ).encode("utf-8")
+    request = urllib.request.Request(
+        f"{WINDOW_CONTROL_URL}/realtime/start",
+        data=payload,
+        headers={
+            "Content-Type": "application/json",
+        },
+        method="POST",
+    )
+
+    try:
+        with urllib.request.urlopen(
+            request,
+            timeout=(
+                WINDOW_REALTIME_COMMAND_TIMEOUT_SECONDS
+            ),
+        ) as response:
+            response_body = json.loads(
+                response.read().decode("utf-8")
+            )
+            return (
+                response.status == 200
+                and response_body.get("accepted") is True
+            )
+
+    except urllib.error.HTTPError as error:
+        tray_log(
+            "Realtime開始命令が拒否されました: "
+            f"status={error.code}, session_id={session_id}"
+        )
+        return False
+
+    except Exception as error:
+        tray_log(
+            "Realtime開始命令の送信に失敗しました: "
+            f"session_id={session_id} / {error}"
+        )
         return False
 
 
@@ -125,20 +204,25 @@ def hide_jarvis_window():
         tray_log("Jarvisウィンドウの非表示に失敗しました。")
 
 
-def show_jarvis_window(is_server_alive_func, start_server_func):
+def show_jarvis_window(
+    is_server_alive_func,
+    start_server_func,
+) -> bool:
     if not is_server_alive_func():
         tray_log("Jarvisサーバーが起動していないため、起動します。")
         success = start_server_func()
 
         if not success:
             tray_log("Jarvisサーバーを起動できなかったため、ウィンドウを表示できません。")
-            return
+            return False
 
     if not ensure_jarvis_window_process():
         tray_log("Jarvis Windowプロセスを準備できませんでした。")
-        return
+        return False
 
     if send_window_command("show"):
         tray_log("Jarvisウィンドウを表示しました。")
+        return True
     else:
         tray_log("Jarvisウィンドウの表示に失敗しました。")
+        return False

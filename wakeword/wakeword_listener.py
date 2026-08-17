@@ -16,6 +16,7 @@ from core.config import (
     WAKEWORD_DTYPE,
     WAKEWORD_MODEL_NAME,
     WAKEWORD_RESUME_GUARD_SECONDS,
+    WAKEWORD_STREAM_RETRY_SECONDS,
     WAKEWORD_TARGET_FRAME_SAMPLES,
     WAKEWORD_TARGET_SAMPLE_RATE,
     WAKEWORD_THRESHOLD,
@@ -162,6 +163,17 @@ class WakeWordListener:
             self._device.default_sample_rate
         )
 
+        if (
+            self._device.input_channels
+            < WAKEWORD_CAPTURE_CHANNELS
+        ):
+            raise RuntimeError(
+                "Wake Word用マイクの入力チャンネル数が"
+                "不足しています。"
+                f" required={WAKEWORD_CAPTURE_CHANNELS},"
+                f" available={self._device.input_channels}"
+            )
+
         # openWakeWordへ80ms単位で渡すため、
         # 取得側も80ms単位にする。
         capture_block_size = int(
@@ -196,6 +208,10 @@ class WakeWordListener:
             f"{WAKEWORD_CAPTURE_CHANNELS}"
         )
         print(
+            f"[WakeWord] available_input_channels="
+            f"{self._device.input_channels}"
+        )
+        print(
             f"[WakeWord] mic_channel_index="
             f"{WAKEWORD_MIC_CHANNEL_INDEX}"
         )
@@ -219,7 +235,12 @@ class WakeWordListener:
             callback=self._audio_callback,
         )
 
-        self._stream.start()
+        try:
+            self._stream.start()
+
+        except Exception:
+            self._close_stream()
+            raise
 
     def _close_stream(self) -> None:
         stream = self._stream
@@ -498,7 +519,30 @@ class WakeWordListener:
                     continue
 
                 if self._stream is None:
-                    self._open_stream()
+                    try:
+                        self._open_stream()
+
+                    except Exception as error:
+                        print(
+                            "[WakeWord] マイク開始に"
+                            "失敗しました。"
+                        )
+                        print(
+                            "[WakeWord] "
+                            f"{type(error).__name__}: {error}"
+                        )
+                        print(
+                            "[WakeWord] "
+                            f"{WAKEWORD_STREAM_RETRY_SECONDS:.1f}秒後に"
+                            "再試行します。"
+                        )
+
+                        if self._stop_event.wait(
+                            WAKEWORD_STREAM_RETRY_SECONDS
+                        ):
+                            break
+
+                        continue
 
                     print(
                         "[WakeWord] "

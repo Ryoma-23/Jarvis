@@ -4,9 +4,15 @@ import urllib.request
 
 import webview
 
-from core.config import APP_WINDOW_TITLE, SERVER_URL, WEBVIEW_DATA_DIR
+from core.config import (
+    APP_WINDOW_TITLE,
+    SERVER_URL,
+    WEBVIEW_DATA_DIR,
+    WINDOW_APP_URL,
+)
 from core.logger import window_log
 from window.control_server import WindowControlServer
+from window.tray_client import notify_realtime_finished
 from window.window_controller import WindowController
 from window.window_state import load_window_state
 
@@ -24,7 +30,11 @@ def run_window_app():
         window_log("Jarvisサーバーが起動していません。")
         sys.exit(1)
 
-    controller = WindowController()
+    controller = WindowController(
+        on_realtime_window_closed=(
+            notify_realtime_finished
+        ),
+    )
     control_server = WindowControlServer(controller)
 
     controller.set_stop_control_server_func(control_server.stop)
@@ -33,7 +43,7 @@ def run_window_app():
 
     window = webview.create_window(
         title=APP_WINDOW_TITLE,
-        url=SERVER_URL,
+        url=WINDOW_APP_URL,
         x=window_state["x"],
         y=window_state["y"],
         width=window_state["width"],

@@ -1038,3 +1038,102 @@ INFO:     127.0.0.1:50829 - "GET /favicon.ico HTTP/1.1" 404 Not Found
 INFO:     127.0.0.1:54371 - "GET /realtime/token HTTP/1.1" 200 OK
 INFO:     127.0.0.1:54286 - "GET /realtime/token HTTP/1.1" 200 OK
 INFO:     127.0.0.1:63742 - "GET /realtime/token HTTP/1.1" 200 OK
+INFO:     Started server process [8316]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:55188 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51961 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65300 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64992 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64992 - "GET /static/style.css HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:59308 - "GET /static/script.js HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:59308 - "GET /favicon.ico HTTP/1.1" 404 Not Found
+INFO:     Started server process [26584]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:53204 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57903 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57906 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54156 - "GET /favicon.ico HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:60294 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60297 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60300 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50265 - "GET /realtime/token HTTP/1.1" 200 OK
+INFO:     Started server process [2124]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:62697 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62704 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62707 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58007 - "GET /favicon.ico HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:58112 - "GET /realtime/token HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58456 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62765 - "GET /realtime/token HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53754 - "GET /realtime/token HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58299 - "GET /realtime/token HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59497 - "GET / HTTP/1.1" 200 OK
+INFO:     Started server process [28992]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:59364 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49727 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49730 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62378 - "GET /favicon.ico HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51177 - "GET / HTTP/1.1" 200 OK
+INFO:     Started server process [24428]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:54109 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54113 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54116 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60032 - "GET /favicon.ico HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:61045 - "GET /realtime/token HTTP/1.1" 200 OK
+INFO:     Started server process [7112]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:61971 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61977 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61980 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49611 - "GET /?v=1.5-wakeword-auto-start HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49611 - "GET /static/script.js?v=1.5-wakeword-auto-start HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49611 - "GET /favicon.ico HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:49611 - "GET /realtime/token HTTP/1.1" 200 OK
+INFO:     Started server process [21068]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:49829 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49833 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49836 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64792 - "GET /?v=1.5-wakeword-auto-start HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64792 - "GET /static/script.js?v=1.5-wakeword-auto-start HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:64792 - "GET /favicon.ico HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:64792 - "GET /realtime/token HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64019 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54588 - "GET /realtime/token HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55000 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55003 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60071 - "GET /?v=1.5-wakeword-auto-start HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60071 - "GET /static/script.js?v=1.5-wakeword-auto-start HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:60071 - "GET /favicon.ico HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:60071 - "GET /realtime/token HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51728 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51731 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51097 - "GET /?v=1.5-wakeword-auto-start HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51097 - "GET /static/script.js?v=1.5-wakeword-auto-start HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51097 - "GET /favicon.ico HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51097 - "GET /realtime/token HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58973 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58976 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57740 - "GET /?v=1.5-wakeword-recovery HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57740 - "GET /static/script.js?v=1.5-wakeword-recovery HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57740 - "GET /favicon.ico HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:57740 - "GET /realtime/token HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54438 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55989 - "GET /realtime/token HTTP/1.1" 200 OK

@@ -8,6 +8,19 @@ from app.routes.realtime import router as realtime_router
 app = FastAPI()
 
 
+@app.middleware("http")
+async def revalidate_local_ui_assets(request, call_next):
+    response = await call_next(request)
+
+    if (
+        request.url.path == "/"
+        or request.url.path.startswith("/static/")
+    ):
+        response.headers["Cache-Control"] = "no-cache"
+
+    return response
+
+
 # staticフォルダを配信対象にする
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
