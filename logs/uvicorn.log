@@ -1137,3 +1137,41 @@ INFO:     127.0.0.1:57740 - "GET /favicon.ico HTTP/1.1" 404 Not Found
 INFO:     127.0.0.1:57740 - "GET /realtime/token HTTP/1.1" 200 OK
 INFO:     127.0.0.1:54438 - "GET / HTTP/1.1" 200 OK
 INFO:     127.0.0.1:55989 - "GET /realtime/token HTTP/1.1" 200 OK
+INFO:     Started server process [22568]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:61471 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50609 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50613 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53762 - "GET /?v=1.5-realtime-noise-control HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53762 - "GET /static/script.js?v=1.5-realtime-noise-control HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53762 - "GET /favicon.ico HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:53762 - "GET /realtime/token HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49601 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55189 - "GET /realtime/token HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59757 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58842 - "GET /realtime/token HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49574 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49577 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58796 - "GET /?v=1.5-realtime-noise-control HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58796 - "GET /static/script.js?v=1.5-realtime-noise-control HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58796 - "GET /favicon.ico HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:58796 - "GET /realtime/token HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55507 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55510 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53338 - "GET /?v=1.5-realtime-barge-in-guard HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53338 - "GET /static/script.js?v=1.5-realtime-barge-in-guard HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53338 - "GET /favicon.ico HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:53338 - "GET /realtime/token HTTP/1.1" 200 OK
+INFO:     Started server process [16064]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:61202 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61208 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61211 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54852 - "GET /?v=1.5-realtime-barge-in-guard HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54852 - "GET /static/script.js?v=1.5-realtime-barge-in-guard HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:54852 - "GET /favicon.ico HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:54852 - "GET /realtime/token HTTP/1.1" 200 OK

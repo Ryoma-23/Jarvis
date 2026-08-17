@@ -151,6 +151,51 @@ The fifth v1.5.2 implementation phase is complete:
   rejected with a clear diagnostic instead of failing later in the audio
   callback.
 
+## Realtime background-noise mitigation
+
+Realtime microphone input now uses the browser's built-in WebRTC processing:
+
+- `echoCancellation: true`
+- `noiseSuppression: true`
+- `autoGainControl: true`
+
+The Realtime `session.update` keeps the existing Japanese
+`gpt-4o-mini-transcribe` configuration and uses the matching flat Realtime
+session fields already used by this client:
+
+- Input noise reduction: `far_field`
+- Turn detection: `server_vad`
+- VAD threshold: `0.8`
+- Automatic response creation: enabled
+- Server-side automatic response interruption: disabled
+
+`prefix_padding_ms` and `silence_duration_ms` are not set, so the Realtime
+defaults remain in use. `interrupt_response: false` prevents a single
+`speech_started` event from immediately cancelling JARVIS output. While the
+WebRTC output audio buffer is playing, the client waits 600 ms and interrupts
+only if user speech is still active. It sends `response.cancel` for a response
+that is still being generated, followed by `output_audio_buffer.clear` to stop
+buffered WebRTC playback. Outside JARVIS playback, normal server VAD turn
+detection and automatic response creation remain unchanged.
+
+The adjustable frontend constants are located together near the top of
+`static/script.js`:
+
+- `REALTIME_MEDIA_AUDIO_CONSTRAINTS`
+- `REALTIME_INPUT_NOISE_REDUCTION_TYPE`
+- `REALTIME_SERVER_VAD_THRESHOLD`
+- `REALTIME_BARGE_IN_GUARD_MS`
+
+This processing reduces false activation from steady environmental noise and
+far-field playback, but it does not identify the speaker. Television, video,
+or another person can still activate VAD when their audio is sufficiently loud
+and speech-like.
+
+The 600 ms barge-in guard is cleared when user speech stops, WebRTC playback
+stops or is cleared, a new guard starts, or Realtime cleanup runs. Realtime
+cleanup is shared by disconnect, reconnect, connection failure, data-channel
+failure, and window unload, so an old timer cannot cancel a later session.
+
 ## Remaining limitations
 
 - Abrupt termination of a window process that was launched independently and
@@ -162,6 +207,8 @@ The fifth v1.5.2 implementation phase is complete:
   only microphone stream-open failures are retried automatically.
 - A WebRTC `disconnected` state is currently treated as terminal immediately;
   there is no grace period for a transient network handoff.
+- Realtime noise reduction and VAD are not speaker verification. They cannot
+  guarantee rejection of television audio, video speech, or other people.
 
 ## Automated state tests
 
@@ -312,6 +359,18 @@ microphone and speaker:
 8. While Realtime is connecting or active, choose `Wake Word待機を再開` from
    the tray. Confirm the request is rejected and no second microphone capture
    starts.
+9. In a quiet room, confirm a normal voice still starts and completes a turn.
+10. With television or YouTube speech playing, confirm playback alone is less
+    likely to produce `input_audio_buffer.speech_started`.
+11. With television playing, speak near the ReSpeaker and confirm JARVIS still
+    recognizes the user from the normal operating distance.
+12. While JARVIS is speaking, play a short television/video utterance or make a
+    short cough/noise and confirm a sub-600 ms detection does not stop JARVIS.
+13. While JARVIS is speaking, say a phrase such as “ちょっと待って” for at
+    least 600 ms and confirm the response is interrupted and the new user turn
+    is accepted.
+14. Repeat JARVIS response → user interruption → next response → interruption
+    several times and confirm no delayed cancellation occurs.
 
 For each run, check that only one Realtime connection is created, the browser
 and wake-word microphones are never active together, and no Python window or

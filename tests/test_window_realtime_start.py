@@ -562,6 +562,98 @@ class WindowStaticAssetTests(unittest.TestCase):
             script,
         )
 
+    def test_script_configures_realtime_noise_controls(self):
+        script = (
+            BASE_DIR / "static" / "script.js"
+        ).read_text(encoding="utf-8")
+
+        for constraint in (
+            "echoCancellation: true",
+            "noiseSuppression: true",
+            "autoGainControl: true",
+        ):
+            self.assertIn(constraint, script)
+
+        self.assertIn(
+            "audio: REALTIME_MEDIA_AUDIO_CONSTRAINTS",
+            script,
+        )
+        self.assertIn(
+            'REALTIME_INPUT_NOISE_REDUCTION_TYPE = "far_field"',
+            script,
+        )
+        self.assertIn(
+            "input_audio_noise_reduction: {",
+            script,
+        )
+        self.assertIn(
+            "type: REALTIME_INPUT_NOISE_REDUCTION_TYPE",
+            script,
+        )
+        self.assertIn(
+            "REALTIME_SERVER_VAD_THRESHOLD = 0.8",
+            script,
+        )
+        self.assertIn(
+            "threshold: REALTIME_SERVER_VAD_THRESHOLD",
+            script,
+        )
+        self.assertIn(
+            'type: "server_vad"',
+            script,
+        )
+        self.assertIn(
+            "create_response: true",
+            script,
+        )
+        self.assertIn(
+            "interrupt_response: false",
+            script,
+        )
+
+        # Existing transcription and tool-calling paths must remain present.
+        self.assertIn(
+            'modalities: ["audio", "text"]',
+            script,
+        )
+        self.assertIn(
+            'model: "gpt-4o-mini-transcribe"',
+            script,
+        )
+        self.assertIn(
+            'language: "ja"',
+            script,
+        )
+        self.assertIn(
+            'data.type === "response.function_call_arguments.done"',
+            script,
+        )
+
+    def test_script_guards_barge_in_while_realtime_audio_is_playing(self):
+        script = (
+            BASE_DIR / "static" / "script.js"
+        ).read_text(encoding="utf-8")
+
+        for expected in (
+            "REALTIME_BARGE_IN_GUARD_MS = 600",
+            'data.type === "output_audio_buffer.started"',
+            'data.type === "output_audio_buffer.stopped"',
+            'data.type === "output_audio_buffer.cleared"',
+            'data.type === "input_audio_buffer.speech_started"',
+            'data.type === "input_audio_buffer.speech_stopped"',
+            "if (isRealtimeOutputAudioPlaying)",
+            "startRealtimeBargeInGuard(sessionId)",
+            "clearRealtimeBargeInTimer()",
+            'type: "response.cancel"',
+            'type: "output_audio_buffer.clear"',
+            "resetRealtimeBargeInState();",
+        ):
+            self.assertIn(expected, script)
+
+        cancel_position = script.index('type: "response.cancel"')
+        clear_position = script.index('type: "output_audio_buffer.clear"')
+        self.assertLess(cancel_position, clear_position)
+
 
 if __name__ == "__main__":
     unittest.main()

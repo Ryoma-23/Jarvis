@@ -6,10 +6,25 @@ let remoteAudioElement = null;
 let isRealtimeConnected = false;
 let isRealtimeConnecting = false;
 let activeRealtimeLifecycle = null;
+let realtimeBargeInTimer = null;
+let realtimeBargeInTimerGeneration = 0;
+let isRealtimeUserSpeechActive = false;
+let isRealtimeOutputAudioPlaying = false;
+let isRealtimeResponseActive = false;
+let activeRealtimeResponseId = null;
+let activeRealtimeOutputResponseId = null;
 
 const TRAY_REALTIME_BRIDGE_URL = "http://127.0.0.1:8767";
 const REALTIME_FINISHED_NOTIFY_RETRY_COUNT = 8;
 const REALTIME_FINISHED_NOTIFY_RETRY_DELAY_MS = 500;
+const REALTIME_MEDIA_AUDIO_CONSTRAINTS = Object.freeze({
+    echoCancellation: true,
+    noiseSuppression: true,
+    autoGainControl: true
+});
+const REALTIME_INPUT_NOISE_REDUCTION_TYPE = "far_field";
+const REALTIME_SERVER_VAD_THRESHOLD = 0.8;
+const REALTIME_BARGE_IN_GUARD_MS = 600;
 
 const sendButton = document.getElementById("send-button");
 const messageInput = document.getElementById("message-input");
@@ -179,6 +194,7 @@ async function startRealtimeVoice(
     };
 
     activeRealtimeLifecycle = lifecycle;
+    resetRealtimeBargeInState();
 
     try {
         isRealtimeConnecting = true;
@@ -252,7 +268,7 @@ async function startRealtimeVoice(
         };
 
         localStream = await navigator.mediaDevices.getUserMedia({
-            audio: true
+            audio: REALTIME_MEDIA_AUDIO_CONSTRAINTS
         });
 
         localStream.getTracks().forEach(function(track) {
@@ -274,6 +290,15 @@ async function startRealtimeVoice(
                     input_audio_transcription: {
                         model: "gpt-4o-mini-transcribe",
                         language: "ja"
+                    },
+                    input_audio_noise_reduction: {
+                        type: REALTIME_INPUT_NOISE_REDUCTION_TYPE
+                    },
+                    turn_detection: {
+                        type: "server_vad",
+                        threshold: REALTIME_SERVER_VAD_THRESHOLD,
+                        create_response: true,
+                        interrupt_response: false
                     }
                 }
             };
@@ -518,6 +543,130 @@ async function notifyTrayRealtimeStarted(sessionId) {
 }
 
 
+function clearRealtimeBargeInTimer() {
+    realtimeBargeInTimerGeneration += 1;
+
+    if (realtimeBargeInTimer !== null) {
+        clearTimeout(realtimeBargeInTimer);
+        realtimeBargeInTimer = null;
+    }
+}
+
+
+function resetRealtimeBargeInState() {
+    clearRealtimeBargeInTimer();
+    isRealtimeUserSpeechActive = false;
+    isRealtimeOutputAudioPlaying = false;
+    isRealtimeResponseActive = false;
+    activeRealtimeResponseId = null;
+    activeRealtimeOutputResponseId = null;
+}
+
+
+function startRealtimeBargeInGuard(sessionId) {
+    clearRealtimeBargeInTimer();
+
+    if (
+        !isCurrentRealtimeSession(sessionId) ||
+        !isRealtimeUserSpeechActive ||
+        !isRealtimeOutputAudioPlaying
+    ) {
+        return;
+    }
+
+    const timerGeneration = realtimeBargeInTimerGeneration;
+
+    realtimeBargeInTimer = setTimeout(function() {
+        if (timerGeneration !== realtimeBargeInTimerGeneration) {
+            return;
+        }
+
+        realtimeBargeInTimer = null;
+
+        if (
+            !isCurrentRealtimeSession(sessionId) ||
+            !isRealtimeUserSpeechActive ||
+            !isRealtimeOutputAudioPlaying
+        ) {
+            return;
+        }
+
+        interruptRealtimeResponse(sessionId);
+    }, REALTIME_BARGE_IN_GUARD_MS);
+}
+
+
+function interruptRealtimeResponse(sessionId) {
+    if (
+        !isCurrentRealtimeSession(sessionId) ||
+        !isRealtimeUserSpeechActive ||
+        !isRealtimeOutputAudioPlaying
+    ) {
+        return false;
+    }
+
+    const currentDataChannel = dataChannel;
+
+    if (!currentDataChannel || currentDataChannel.readyState !== "open") {
+        console.warn("Realtime割り込みを送信できません: DataChannel未接続");
+        return false;
+    }
+
+    let eventSent = false;
+
+    if (isRealtimeResponseActive) {
+        const cancelEvent = {
+            type: "response.cancel"
+        };
+        const responseId = (
+            activeRealtimeResponseId || activeRealtimeOutputResponseId
+        );
+
+        if (responseId) {
+            cancelEvent.response_id = responseId;
+        }
+
+        try {
+            currentDataChannel.send(JSON.stringify(cancelEvent));
+            isRealtimeResponseActive = false;
+            activeRealtimeResponseId = null;
+            eventSent = true;
+        } catch (error) {
+            console.warn("Realtime response.cancel送信エラー:", error);
+        }
+    }
+
+    try {
+        currentDataChannel.send(JSON.stringify({
+            type: "output_audio_buffer.clear"
+        }));
+        isRealtimeOutputAudioPlaying = false;
+        activeRealtimeOutputResponseId = null;
+        eventSent = true;
+    } catch (error) {
+        console.warn("Realtime output audio clear送信エラー:", error);
+    }
+
+    clearRealtimeBargeInTimer();
+    return eventSent;
+}
+
+
+function finishRealtimeOutputAudio(responseId) {
+    if (
+        responseId &&
+        activeRealtimeOutputResponseId &&
+        responseId !== activeRealtimeOutputResponseId
+    ) {
+        return;
+    }
+
+    isRealtimeOutputAudioPlaying = false;
+    activeRealtimeOutputResponseId = null;
+    clearRealtimeBargeInTimer();
+}
+
+
 async function handleRealtimeEvent(data, sessionId) {
     if (data.type === "session.created") {
         await notifyTrayRealtimeStarted(sessionId);
@@ -529,17 +678,67 @@ async function handleRealtimeEvent(data, sessionId) {
         return;
     }
 
+    if (data.type === "response.created") {
+        isRealtimeResponseActive = true;
+        activeRealtimeResponseId = data.response
+            ? data.response.id || null
+            : null;
+        return;
+    }
+
+    if (data.type === "output_audio_buffer.started") {
+        isRealtimeOutputAudioPlaying = true;
+        activeRealtimeOutputResponseId = (
+            data.response_id || activeRealtimeResponseId
+        );
+
+        if (isRealtimeUserSpeechActive) {
+            startRealtimeBargeInGuard(sessionId);
+        }
+        return;
+    }
+
+    if (
+        data.type === "output_audio_buffer.stopped" ||
+        data.type === "output_audio_buffer.cleared"
+    ) {
+        finishRealtimeOutputAudio(data.response_id || null);
+        return;
+    }
+
     if (data.type === "input_audio_buffer.speech_started") {
+        isRealtimeUserSpeechActive = true;
+
+        if (isRealtimeOutputAudioPlaying) {
+            startRealtimeBargeInGuard(sessionId);
+        } else {
+            clearRealtimeBargeInTimer();
+        }
+
         updateVoiceStatus("connected", "聞き取り中...");
         return;
     }
 
     if (data.type === "input_audio_buffer.speech_stopped") {
+        isRealtimeUserSpeechActive = false;
+        clearRealtimeBargeInTimer();
         updateVoiceStatus("connected", "考え中...");
         return;
     }
 
     if (data.type === "response.done") {
+        const completedResponseId = data.response
+            ? data.response.id || null
+            : null;
+
+        if (
+            !completedResponseId ||
+            completedResponseId === activeRealtimeResponseId
+        ) {
+            isRealtimeResponseActive = false;
+            activeRealtimeResponseId = null;
+        }
+
         updateVoiceStatus("connected", "接続中");
         return;
     }
@@ -738,6 +937,8 @@ function cleanupRealtimeVoice() {
     const currentLocalStream = localStream;
     const currentRemoteAudioElement = remoteAudioElement;
 
+    resetRealtimeBargeInState();
+
     dataChannel = null;
     peerConnection = null;
     localStream = null;
@@ -827,5 +1028,4 @@ window.addEventListener("beforeunload", function() {
 
     activeRealtimeLifecycle = null;
 });
-
 
