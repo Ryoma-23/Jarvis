@@ -654,6 +654,29 @@ class WindowStaticAssetTests(unittest.TestCase):
         clear_position = script.index('type: "output_audio_buffer.clear"')
         self.assertLess(cancel_position, clear_position)
 
+    def test_script_preserves_realtime_events_tools_and_cleanup(self):
+        script = (
+            BASE_DIR / "static" / "script.js"
+        ).read_text(encoding="utf-8")
+
+        for expected in (
+            'data.type === "session.created"',
+            'data.type === "response.function_call_arguments.done"',
+            'data.type === "input_audio_buffer.speech_started"',
+            'data.type === "input_audio_buffer.speech_stopped"',
+            'data.type === "response.done"',
+            'fetch("/realtime/tools", {',
+            'type: "function_call_output"',
+            'type: "response.create"',
+            "currentDataChannel.close()",
+            "currentPeerConnection.close()",
+            "currentLocalStream.getTracks()",
+            "track.stop()",
+            "currentRemoteAudioElement.srcObject = null",
+            "resetRealtimeBargeInState();",
+        ):
+            self.assertIn(expected, script)
+
 
 if __name__ == "__main__":
     unittest.main()
