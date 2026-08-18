@@ -7,6 +7,7 @@ DATA_DIR = BASE_DIR / "data"
 NOTES_FILE = DATA_DIR / "notes.json"
 TASKS_FILE = DATA_DIR / "tasks.json"
 MEMORY_FILE = DATA_DIR / "memory.json"
+CONVERSATION_DB_FILE = DATA_DIR / "conversations.sqlite3"
 
 PROMPTS_DIR = BASE_DIR / "prompts"
 
