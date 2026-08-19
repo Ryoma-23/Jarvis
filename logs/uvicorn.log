@@ -1175,3 +1175,34 @@ INFO:     127.0.0.1:54852 - "GET /?v=1.5-realtime-barge-in-guard HTTP/1.1" 200 O
 INFO:     127.0.0.1:54852 - "GET /static/script.js?v=1.5-realtime-barge-in-guard HTTP/1.1" 304 Not Modified
 INFO:     127.0.0.1:54852 - "GET /favicon.ico HTTP/1.1" 404 Not Found
 INFO:     127.0.0.1:54852 - "GET /realtime/token HTTP/1.1" 200 OK
+                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   INFO:     127.0.0.1:64139 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64142 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52264 - "GET /?v=1.5-realtime-barge-in-guard HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52264 - "GET /static/script.js?v=1.5-realtime-barge-in-guard HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:52264 - "GET /favicon.ico HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52264 - "GET /realtime/token HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52418 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52423 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53055 - "GET /?v=1.6-conversation-history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53055 - "GET /static/script.js?v=1.6-conversation-history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53055 - "GET /favicon.ico HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:53055 - "GET /realtime/token HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50153 - "POST /chat/stream HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62092 - "POST /chat/stream HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57390 - "POST /chat/stream HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52222 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52225 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55843 - "GET /?v=1.6-conversation-history HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55843 - "GET /static/script.js?v=1.6-conversation-history HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:55843 - "GET /favicon.ico HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:55843 - "GET /realtime/token HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50664 - "POST /chat/stream HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53212 - "POST /realtime/tools HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57739 - "POST /realtime/tools HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60632 - "POST /chat/stream HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50917 - "POST /chat/stream HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50309 - "POST /realtime/tools HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64244 - "POST /realtime/tools HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56900 - "POST /realtime/tools HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56900 - "POST /realtime/tools HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60120 - "POST /realtime/tools HTTP/1.1" 200 OK

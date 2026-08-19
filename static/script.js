@@ -13,6 +13,7 @@ let isRealtimeOutputAudioPlaying = false;
 let isRealtimeResponseActive = false;
 let activeRealtimeResponseId = null;
 let activeRealtimeOutputResponseId = null;
+let activeConversationId = null;
 
 const TRAY_REALTIME_BRIDGE_URL = "http://127.0.0.1:8767";
 const REALTIME_FINISHED_NOTIFY_RETRY_COUNT = 8;
@@ -85,7 +86,8 @@ async function sendMessage() {
             },
 
             body: JSON.stringify({
-                message: message
+                message: message,
+                conversation_id: activeConversationId
             })
         });
 
@@ -120,6 +122,10 @@ async function sendMessage() {
                 const jsonText = event.replace("data: ", "");
 
                 const data = JSON.parse(jsonText);
+
+                if (data.conversation_id) {
+                    activeConversationId = data.conversation_id;
+                }
 
                 if (data.text) {
                     aiMessageDiv.innerHTML += data.text;
@@ -1028,4 +1034,3 @@ window.addEventListener("beforeunload", function() {
 
     activeRealtimeLifecycle = null;
 });
-

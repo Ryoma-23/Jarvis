@@ -37,6 +37,12 @@ class ConversationService:
             make_active=True,
         )
 
+    def set_active_conversation(
+        self,
+        conversation_id: str,
+    ) -> dict[str, Any]:
+        return self.store.set_active_conversation(conversation_id)
+
     def add_user_message(
         self,
         content: str,
@@ -44,17 +50,19 @@ class ConversationService:
         source: str,
         item_id: str | None = None,
         metadata: Mapping[str, Any] | None = None,
+        conversation_id: str | None = None,
     ) -> dict[str, Any]:
         _validate_source(source)
         _validate_completed_content(content)
 
-        return self._add_message_to_active_conversation(
+        return self._add_message_to_conversation(
             role="user",
             content=content,
             source=source,
             status="completed",
             item_id=item_id,
             metadata=metadata,
+            conversation_id=conversation_id,
         )
 
     def add_assistant_message(
@@ -67,13 +75,14 @@ class ConversationService:
         response_id: str | None = None,
         error_message: str | None = None,
         metadata: Mapping[str, Any] | None = None,
+        conversation_id: str | None = None,
     ) -> dict[str, Any]:
         _validate_source(source)
 
         if status == "completed":
             _validate_completed_content(content)
 
-        return self._add_message_to_active_conversation(
+        return self._add_message_to_conversation(
             role="assistant",
             content=content,
             source=source,
@@ -82,6 +91,7 @@ class ConversationService:
             response_id=response_id,
             error_message=error_message,
             metadata=metadata,
+            conversation_id=conversation_id,
         )
 
     def update_assistant_message(
@@ -118,6 +128,7 @@ class ConversationService:
         item_id: str | None = None,
         status: str = "completed",
         error_message: str | None = None,
+        conversation_id: str | None = None,
     ) -> dict[str, Any]:
         if not tool_name.strip():
             raise ValueError("tool_name must not be empty")
@@ -135,7 +146,7 @@ class ConversationService:
             },
         }
 
-        return self._add_message_to_active_conversation(
+        return self._add_message_to_conversation(
             role="tool",
             content="",
             source="tool",
@@ -143,6 +154,7 @@ class ConversationService:
             item_id=item_id,
             error_message=error_message,
             metadata=tool_metadata,
+            conversation_id=conversation_id,
         )
 
     def get_hidden_tool_metadata(
@@ -214,7 +226,7 @@ class ConversationService:
 
         return events
 
-    def _add_message_to_active_conversation(
+    def _add_message_to_conversation(
         self,
         *,
         role: str,
@@ -225,13 +237,17 @@ class ConversationService:
         response_id: str | None = None,
         error_message: str | None = None,
         metadata: Mapping[str, Any] | None = None,
+        conversation_id: str | None = None,
     ) -> dict[str, Any]:
         with self.store.transaction() as connection:
-            conversation = self.store.get_or_create_active_conversation(
-                connection=connection
-            )
+            if conversation_id is None:
+                conversation = self.store.get_or_create_active_conversation(
+                    connection=connection
+                )
+                conversation_id = conversation["id"]
+
             return self.store.add_message(
-                conversation["id"],
+                conversation_id,
                 role=role,
                 content=content,
                 source=source,

@@ -10,6 +10,7 @@ router = APIRouter()
 
 class ChatRequest(BaseModel):
     message: str
+    conversation_id: str | None = None
 
 
 @router.get("/")
@@ -20,6 +21,9 @@ def read_index():
 @router.post("/chat/stream")
 def chat_stream(request: ChatRequest):
     return StreamingResponse(
-        generate_chat_stream(request.message),
+        generate_chat_stream(
+            request.message,
+            conversation_id=request.conversation_id,
+        ),
         media_type="text/event-stream"
     )

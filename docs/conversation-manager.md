@@ -3,8 +3,8 @@
 ## Scope
 
 Phase 2 adds `ConversationService` above the SQLite `ConversationStore`. It is
-the common history boundary for future text and voice integration. The current
-chat and Realtime paths do not import or call it yet.
+the common history boundary for text and voice integration. Phase 3 connects
+the text chat path to it; the Realtime path is not connected yet.
 
 The service provides:
 
@@ -62,11 +62,40 @@ Hidden tool rows remain available through `get_hidden_tool_metadata()` for
 audit and future UI or debugging use, but are excluded from normal LLM context
 and Realtime restoration.
 
+## Text chat integration
+
+`chat_service.generate_chat_stream()` no longer owns a global in-memory
+history. For every text request it now:
+
+1. selects the requested conversation or reuses the persisted active one
+2. stores the user message with `source=text`
+3. routes Memo, Task, Memory, or normal chat behavior
+4. passes the shared 15-turn context to the Responses API for normal chat
+5. streams text deltas to the browser
+6. stores the complete assistant text only after the stream finishes normally
+
+Normal Responses API input still starts with the existing system prompt,
+current time, and long-term memory context. The common user and assistant
+history follows those system messages.
+
+Memo, Task, and Memory operations use their existing intent handlers. Their
+user request and returned result are stored as a normal visible user/assistant
+pair with intent metadata, without making an additional chat-completion call.
+
+If the Responses API reports `response.failed` or `response.incomplete`, the
+stream iterator raises, or the browser closes the stream before completion,
+the partial assistant text is stored with `status=failed` and excluded from
+future context.
+
+`POST /chat/stream` accepts an optional `conversation_id`. Every SSE event
+returns the resolved ID, and the browser sends it with later text requests.
+When no ID is supplied after an application restart, the Store's persisted
+active conversation is reused.
+
 ## Deferred integration
 
 Later phases still need to:
 
-- replace `chat_service.conversation_history` with `ConversationService`
 - persist Realtime transcription and assistant response events
 - send restoration events when Realtime connects
 - expose common history to the chat UI

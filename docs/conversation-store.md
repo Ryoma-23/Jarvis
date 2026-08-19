@@ -2,9 +2,9 @@
 
 ## Scope
 
-Phase 1 adds an independent SQLite persistence layer for future text and voice
-conversation unification. It does not replace `chat_service.conversation_history`
-and it is not called by the current chat, Realtime, window, or tray paths yet.
+Phase 1 adds the SQLite persistence layer for text and voice conversation
+unification. Phase 3 uses it for the current text chat path. Realtime, window,
+and tray conversation events are not connected to it yet.
 
 The database is created only when `ConversationStore` is instantiated. Its
 default location is `data/conversations.sqlite3`, which remains under the
@@ -49,7 +49,6 @@ Phase 2 now provides the Store's common management layer in
 `docs/conversation-manager.md`. The following application-path integrations
 remain deferred:
 
-- replacing the in-memory text `conversation_history`
 - writing Realtime input and output events
 - rendering stored voice transcripts in the chat UI
 - coordinating queued text input with Realtime speech and response state
