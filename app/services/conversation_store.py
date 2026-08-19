@@ -189,18 +189,25 @@ class ConversationStore:
         self,
         *,
         title: str | None = None,
+        connection: sqlite3.Connection | None = None,
     ) -> dict[str, Any]:
-        with self.transaction() as connection:
-            conversation = self._get_active_conversation(connection)
+        if connection is None:
+            with self.transaction() as transaction:
+                return self.get_or_create_active_conversation(
+                    title=title,
+                    connection=transaction,
+                )
 
-            if conversation is not None:
-                return conversation
+        conversation = self._get_active_conversation(connection)
 
-            return self.create_conversation(
-                title=title,
-                make_active=True,
-                connection=connection,
-            )
+        if conversation is not None:
+            return conversation
+
+        return self.create_conversation(
+            title=title,
+            make_active=True,
+            connection=connection,
+        )
 
     def set_active_conversation(
         self,

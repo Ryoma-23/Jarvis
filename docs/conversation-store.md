@@ -45,10 +45,11 @@ this phase.
 
 ## Deferred integration
 
-The following work intentionally remains for later phases:
+Phase 2 now provides the Store's common management layer in
+`docs/conversation-manager.md`. The following application-path integrations
+remain deferred:
 
 - replacing the in-memory text `conversation_history`
 - writing Realtime input and output events
 - rendering stored voice transcripts in the chat UI
-- feeding the active conversation history to a shared Conversation Manager
 - coordinating queued text input with Realtime speech and response state
