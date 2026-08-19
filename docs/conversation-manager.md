@@ -4,7 +4,8 @@
 
 Phase 2 adds `ConversationService` above the SQLite `ConversationStore`. It is
 the common history boundary for text and voice integration. Phase 3 connects
-the text chat path to it; the Realtime path is not connected yet.
+the text chat path to it. Phase 4 connects its text history to the Window; the
+Realtime path is not connected yet.
 
 The service provides:
 
@@ -92,11 +93,43 @@ returns the resolved ID, and the browser sends it with later text requests.
 When no ID is supplied after an application restart, the Store's persisted
 active conversation is reused.
 
+The stream also returns the stored user `message_id` in its first event and the
+stored assistant `message_id` when that message reaches a final completed or
+failed state. This lets newly rendered messages use the same application-owned
+IDs as messages restored from SQLite.
+
+## Conversation API and Window history
+
+Phase 4 adds three local API operations:
+
+- `GET /conversations/active` returns the active conversation, or `null` when
+  no conversation has been created yet.
+- `GET /conversations/{conversation_id}/messages` returns displayable messages
+  in stored order.
+- `POST /conversations` creates a new conversation and makes it active.
+
+On page load and when the Window regains focus, it gets the active conversation,
+creates one if needed, then retrieves and renders its history. A focus refresh
+is skipped while a text stream or another history operation is active. The
+**New Conversation** button creates a separate active conversation and clears
+the current display without deleting older persisted conversations.
+
+`ConversationService.get_display_messages()` is the UI boundary. In Phase 4 it
+returns only non-empty `source=text` user and assistant messages. Voice rows,
+system rows, hidden tool rows, metadata, external Realtime IDs, and internal
+error details are not exposed. Completed and non-empty failed or interrupted
+text are returned with their status so the UI can distinguish them.
+
+The browser renders labels and content using DOM nodes, `textContent`, and text
+nodes rather than `innerHTML`. Each stored message root has a
+`data-message-id`, and the page keeps a Message ID-to-element map for future
+incremental updates.
+
 ## Deferred integration
 
 Later phases still need to:
 
 - persist Realtime transcription and assistant response events
 - send restoration events when Realtime connects
-- expose common history to the chat UI
+- render stored voice transcripts in the chat UI
 - distinguish restoration acknowledgements from newly generated Realtime items

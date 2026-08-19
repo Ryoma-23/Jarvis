@@ -3,7 +3,8 @@
 ## Scope
 
 Phase 1 adds the SQLite persistence layer for text and voice conversation
-unification. Phase 3 uses it for the current text chat path. Realtime, window,
+unification. Phase 3 uses it for the current text chat path, and Phase 4 exposes
+the stored text messages to the Window through the Conversation API. Realtime
 and tray conversation events are not connected to it yet.
 
 The database is created only when `ConversationStore` is instantiated. Its

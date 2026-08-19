@@ -100,10 +100,17 @@ class ChatServiceConversationHistoryTests(unittest.TestCase):
         self.assertEqual(
             parse_sse_payloads(chunks),
             [
-                {"conversation_id": conversation_id},
+                {
+                    "user_message_id": messages[0]["id"],
+                    "conversation_id": conversation_id,
+                },
                 {"text": "こんにちは", "conversation_id": conversation_id},
                 {"text": "。", "conversation_id": conversation_id},
-                {"done": True, "conversation_id": conversation_id},
+                {
+                    "done": True,
+                    "assistant_message_id": messages[1]["id"],
+                    "conversation_id": conversation_id,
+                },
             ],
         )
         self.assertEqual(
@@ -264,9 +271,20 @@ class ChatServiceConversationHistoryTests(unittest.TestCase):
                 self.assertEqual(
                     parse_sse_payloads(chunks),
                     [
-                        {"conversation_id": conversation_id},
-                        {"text": reply, "conversation_id": conversation_id},
-                        {"done": True, "conversation_id": conversation_id},
+                        {
+                            "user_message_id": messages[0]["id"],
+                            "conversation_id": conversation_id,
+                        },
+                        {
+                            "text": reply,
+                            "assistant_message_id": messages[1]["id"],
+                            "conversation_id": conversation_id,
+                        },
+                        {
+                            "done": True,
+                            "assistant_message_id": messages[1]["id"],
+                            "conversation_id": conversation_id,
+                        },
                     ],
                 )
                 handler.assert_called_once_with(message)
@@ -339,9 +357,16 @@ class ChatServiceConversationHistoryTests(unittest.TestCase):
         self.assertEqual(
             parse_sse_payloads(chunks),
             [
-                {"conversation_id": conversation_id},
+                {
+                    "user_message_id": messages[0]["id"],
+                    "conversation_id": conversation_id,
+                },
                 {"text": "途中まで", "conversation_id": conversation_id},
-                {"error": "stream failed", "conversation_id": conversation_id},
+                {
+                    "error": "stream failed",
+                    "assistant_message_id": messages[-1]["id"],
+                    "conversation_id": conversation_id,
+                },
             ],
         )
         self.assertEqual(messages[-1]["role"], "assistant")

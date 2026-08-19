@@ -186,6 +186,57 @@ class ConversationServiceTests(unittest.TestCase):
             [{"role": "user", "content": "メモして"}],
         )
 
+    def test_display_messages_only_return_safe_text_chat_fields(self):
+        text_user = self.service.add_user_message(
+            "<script>alert('unsafe')</script>",
+            source="text",
+        )
+        failed_assistant = self.service.add_assistant_message(
+            "途中のテキスト回答",
+            source="text",
+            status="failed",
+            error_message="internal error",
+            metadata={"private": "not-for-ui"},
+        )
+        self.service.add_user_message("音声入力", source="voice")
+        self.service.add_assistant_message("音声回答", source="voice")
+        self.service.record_hidden_tool_metadata(
+            tool_name="list_notes",
+            call_id="display-call",
+            arguments={},
+            result={"secret": True},
+        )
+
+        messages = self.service.get_display_messages()
+
+        self.assertEqual(
+            messages,
+            [
+                {
+                    "id": text_user["id"],
+                    "conversation_id": text_user["conversation_id"],
+                    "role": "user",
+                    "content": "<script>alert('unsafe')</script>",
+                    "source": "text",
+                    "status": "completed",
+                    "created_at": text_user["created_at"],
+                    "updated_at": text_user["updated_at"],
+                },
+                {
+                    "id": failed_assistant["id"],
+                    "conversation_id": failed_assistant["conversation_id"],
+                    "role": "assistant",
+                    "content": "途中のテキスト回答",
+                    "source": "text",
+                    "status": "failed",
+                    "created_at": failed_assistant["created_at"],
+                    "updated_at": failed_assistant["updated_at"],
+                },
+            ],
+        )
+        self.assertNotIn("metadata", messages[1])
+        self.assertNotIn("error_message", messages[1])
+
     def test_realtime_restore_events_use_text_history_without_hidden_items(self):
         self.service.add_user_message("音声の質問", source="voice")
         self.service.add_assistant_message("音声の回答", source="voice")

@@ -1206,3 +1206,68 @@ INFO:     127.0.0.1:64244 - "POST /realtime/tools HTTP/1.1" 200 OK
 INFO:     127.0.0.1:56900 - "POST /realtime/tools HTTP/1.1" 200 OK
 INFO:     127.0.0.1:56900 - "POST /realtime/tools HTTP/1.1" 200 OK
 INFO:     127.0.0.1:60120 - "POST /realtime/tools HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61493 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61496 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60460 - "GET /?v=1.7-conversation-api HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60460 - "GET /static/script.js?v=1.7-conversation-api HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60460 - "GET /conversations/active HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:60460 - "GET /favicon.ico HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:60460 - "GET /realtime/token HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57199 - "POST /realtime/tools HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54092 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54097 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61688 - "GET /?v=1.7-conversation-api HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61688 - "GET /static/script.js?v=1.7-conversation-api HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:61688 - "GET /conversations/active HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:61688 - "GET /favicon.ico HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:61688 - "GET /realtime/token HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53726 - "POST /chat/stream HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53790 - "POST /chat/stream HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53799 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61451 - "GET /conversations/active HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:54969 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54973 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65412 - "GET /?v=1.7-conversation-api HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65412 - "GET /static/script.js?v=1.7-conversation-api HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:65412 - "GET /conversations/active HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:65412 - "GET /favicon.ico HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:65412 - "GET /realtime/token HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53342 - "GET /conversations/active HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:54840 - "GET /conversations/active HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:59462 - "POST /chat/stream HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59462 - "POST /conversations HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:59462 - "POST /conversations HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:49219 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49222 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52053 - "GET /?v=1.7-conversation-api HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52053 - "GET /static/script.js?v=1.7-conversation-api HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:52053 - "GET /conversations/active HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52053 - "GET /favicon.ico HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:59242 - "GET /conversations/active HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:61839 - "POST /chat/stream HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53807 - "GET /conversations/active HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:53807 - "POST /conversations HTTP/1.1" 404 Not Found
+INFO:     Started server process [2160]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:53475 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53476 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53479 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49935 - "GET /?v=1.7-conversation-api HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49935 - "GET /static/script.js?v=1.7-conversation-api HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:56214 - "GET /favicon.ico HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:49935 - "GET /conversations/active HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49935 - "POST /conversations HTTP/1.1" 200 OK
+INFO:     127.0.0.1:49935 - "GET /conversations/bab9902b82ad495a912c0dccaf5042b4/messages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56214 - "GET /realtime/token HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54270 - "POST /chat/stream HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60268 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60271 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57981 - "GET /?v=1.7-conversation-api HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57981 - "GET /static/script.js?v=1.7-conversation-api HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:57981 - "GET /conversations/active HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51112 - "GET /favicon.ico HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:57981 - "GET /conversations/bab9902b82ad495a912c0dccaf5042b4/messages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57981 - "GET /realtime/token HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59690 - "POST /conversations HTTP/1.1" 200 OK

@@ -13,7 +13,18 @@
 
         <h1>J.A.R.V.I.S</h1>
 
-        <div id="chat-area"></div>
+        <div class="conversation-toolbar">
+            <button id="new-conversation-button">
+                新しい会話
+            </button>
+            <div
+                id="conversation-status"
+                class="conversation-status"
+                aria-live="polite"
+            ></div>
+        </div>
+
+        <div id="chat-area" aria-live="polite"></div>
 
         <div class="input-area">
 
@@ -41,7 +52,7 @@
 
     </div>
 
-    <script src="/static/script.js?v=1.6-conversation-history"></script>
+    <script src="/static/script.js?v=1.7-conversation-api"></script>
 
 </body>
 </html>

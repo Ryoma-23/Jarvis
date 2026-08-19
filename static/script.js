@@ -14,6 +14,10 @@ let isRealtimeResponseActive = false;
 let activeRealtimeResponseId = null;
 let activeRealtimeOutputResponseId = null;
 let activeConversationId = null;
+let isConversationHistoryLoading = false;
+let activeTextRequestCount = 0;
+
+const messageElementsById = new Map();
 
 const TRAY_REALTIME_BRIDGE_URL = "http://127.0.0.1:8767";
 const REALTIME_FINISHED_NOTIFY_RETRY_COUNT = 8;
@@ -28,6 +32,10 @@ const REALTIME_SERVER_VAD_THRESHOLD = 0.8;
 const REALTIME_BARGE_IN_GUARD_MS = 600;
 
 const sendButton = document.getElementById("send-button");
+const newConversationButton = document.getElementById(
+    "new-conversation-button"
+);
+const conversationStatus = document.getElementById("conversation-status");
 const messageInput = document.getElementById("message-input");
 const chatArea = document.getElementById("chat-area");
 const voiceConnectButton = document.getElementById("voice-connect-button");
@@ -46,6 +54,12 @@ voiceReconnectButton.addEventListener("click", function() {
 });
 
 sendButton.addEventListener("click", sendMessage);
+newConversationButton.addEventListener("click", function() {
+    void createNewConversation();
+});
+window.addEventListener("focus", function() {
+    void loadActiveConversationHistory();
+});
 
 updateVoiceStatus("disconnected", "未接続");
 updateVoiceButtons("disconnected");
@@ -60,6 +74,112 @@ messageInput.addEventListener("keydown", function(event) {
     }
 });
 
+void loadActiveConversationHistory();
+
+
+async function loadActiveConversationHistory() {
+    if (isConversationHistoryLoading || activeTextRequestCount > 0) {
+        return;
+    }
+
+    setConversationHistoryLoading(true, "会話履歴を読み込んでいます...");
+
+    try {
+        const activeData = await requestJson("/conversations/active");
+        let conversation = activeData.conversation;
+
+        if (!conversation) {
+            const createdData = await requestJson("/conversations", {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({})
+            });
+            conversation = createdData.conversation;
+        }
+
+        activeConversationId = conversation.id;
+
+        const historyData = await requestJson(
+            `/conversations/${encodeURIComponent(activeConversationId)}` +
+            "/messages"
+        );
+        renderConversationHistory(historyData.messages);
+        conversationStatus.textContent = "";
+
+    } catch (error) {
+        console.error("会話履歴の読み込みに失敗しました。", error);
+        conversationStatus.textContent =
+            "会話履歴を読み込めませんでした";
+
+    } finally {
+        setConversationHistoryLoading(false);
+    }
+}
+
+
+async function createNewConversation() {
+    if (isConversationHistoryLoading || activeTextRequestCount > 0) {
+        return;
+    }
+
+    setConversationHistoryLoading(true, "新しい会話を作成しています...");
+
+    try {
+        const data = await requestJson("/conversations", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({})
+        });
+
+        activeConversationId = data.conversation.id;
+        clearRenderedMessages();
+        conversationStatus.textContent = "";
+        messageInput.focus();
+
+    } catch (error) {
+        console.error("新しい会話の作成に失敗しました。", error);
+        conversationStatus.textContent =
+            "新しい会話を作成できませんでした";
+
+    } finally {
+        setConversationHistoryLoading(false);
+    }
+}
+
+
+async function requestJson(url, options = undefined) {
+    const response = await fetch(url, options);
+
+    if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+    }
+
+    return response.json();
+}
+
+
+function setConversationHistoryLoading(isLoading, message = "") {
+    isConversationHistoryLoading = isLoading;
+    messageInput.disabled = isLoading;
+    sendButton.disabled = isLoading;
+    updateNewConversationButton();
+
+    if (message) {
+        conversationStatus.textContent = message;
+    }
+}
+
+
+function updateNewConversationButton() {
+    newConversationButton.disabled = (
+        isConversationHistoryLoading || activeTextRequestCount > 0
+    );
+}
+
 
 async function sendMessage() {
 
@@ -69,11 +189,22 @@ async function sendMessage() {
         return;
     }
 
-    addMessage("user", message);
+    const userMessageView = renderConversationMessage({
+        role: "user",
+        content: message,
+        status: "completed"
+    });
 
     messageInput.value = "";
 
-    const aiMessageDiv = addMessage("ai", "");
+    const assistantMessageView = renderConversationMessage({
+        role: "assistant",
+        content: "",
+        status: "pending"
+    });
+
+    activeTextRequestCount += 1;
+    updateNewConversationButton();
 
     try {
 
@@ -90,6 +221,10 @@ async function sendMessage() {
                 conversation_id: activeConversationId
             })
         });
+
+        if (!response.ok || !response.body) {
+            throw new Error(`HTTP ${response.status}`);
+        }
 
         const reader = response.body.getReader();
 
@@ -127,13 +262,37 @@ async function sendMessage() {
                     activeConversationId = data.conversation_id;
                 }
 
+                if (data.user_message_id) {
+                    registerMessageElement(
+                        data.user_message_id,
+                        userMessageView.element
+                    );
+                }
+
+                if (data.assistant_message_id) {
+                    registerMessageElement(
+                        data.assistant_message_id,
+                        assistantMessageView.element
+                    );
+                }
+
                 if (data.text) {
-                    aiMessageDiv.innerHTML += data.text;
+                    appendMessageText(assistantMessageView, data.text);
                 }
 
                 if (data.error) {
-                    aiMessageDiv.innerHTML +=
-                        "\nエラーが発生しました: " + data.error;
+                    markMessageStatus(assistantMessageView.element, "failed");
+                    appendMessageText(
+                        assistantMessageView,
+                        "\nエラーが発生しました: " + data.error
+                    );
+                }
+
+                if (data.done) {
+                    markMessageStatus(
+                        assistantMessageView.element,
+                        "completed"
+                    );
                 }
 
                 chatArea.scrollTop =
@@ -143,8 +302,15 @@ async function sendMessage() {
 
     } catch (error) {
 
-        aiMessageDiv.innerHTML +=
-            "\n通信エラーが発生しました";
+        markMessageStatus(assistantMessageView.element, "failed");
+        appendMessageText(
+            assistantMessageView,
+            "\n通信エラーが発生しました"
+        );
+
+    } finally {
+        activeTextRequestCount = Math.max(0, activeTextRequestCount - 1);
+        updateNewConversationButton();
     }
 }
 
@@ -784,31 +950,83 @@ async function handleRealtimeToolCall(data) {
 }
 
 
-function addMessage(sender, text) {
+function renderConversationHistory(messages) {
+    clearRenderedMessages();
 
-    const div = document.createElement("div");
-
-    if (sender === "user") {
-
-        div.className = "user-message";
-
-        div.innerHTML =
-            `<strong>自分:</strong> ${text}`;
-
-    } else {
-
-        div.className = "ai-message";
-
-        div.innerHTML =
-            `<strong>Jarvis:</strong> ${text}`;
+    for (const message of messages) {
+        renderConversationMessage(message);
     }
 
-    chatArea.appendChild(div);
+    chatArea.scrollTop = chatArea.scrollHeight;
+}
 
-    chatArea.scrollTop =
-        chatArea.scrollHeight;
 
-    return div;
+function clearRenderedMessages() {
+    messageElementsById.clear();
+    chatArea.replaceChildren();
+}
+
+
+function renderConversationMessage(message) {
+    const isUser = message.role === "user";
+    const element = document.createElement("div");
+    const label = document.createElement("strong");
+    const contentElement = document.createElement("span");
+
+    element.className = isUser ? "user-message" : "ai-message";
+    label.textContent = isUser ? "自分: " : "Jarvis: ";
+    contentElement.className = "message-content";
+    contentElement.textContent = String(message.content || "");
+
+    element.append(label, contentElement);
+    markMessageStatus(element, message.status || "completed");
+
+    if (message.id) {
+        registerMessageElement(message.id, element);
+    }
+
+    chatArea.appendChild(element);
+    chatArea.scrollTop = chatArea.scrollHeight;
+
+    return {
+        element: element,
+        contentElement: contentElement
+    };
+}
+
+
+function appendMessageText(messageView, text) {
+    messageView.contentElement.append(
+        document.createTextNode(String(text))
+    );
+}
+
+
+function registerMessageElement(messageId, element) {
+    const normalizedMessageId = String(messageId || "").trim();
+
+    if (!normalizedMessageId) {
+        return;
+    }
+
+    const previousMessageId = element.dataset.messageId;
+
+    if (previousMessageId) {
+        messageElementsById.delete(previousMessageId);
+    }
+
+    element.dataset.messageId = normalizedMessageId;
+    messageElementsById.set(normalizedMessageId, element);
+}
+
+
+function markMessageStatus(element, status) {
+    element.dataset.messageStatus = status;
+    element.classList.toggle("message-failed", status === "failed");
+    element.classList.toggle(
+        "message-interrupted",
+        status === "interrupted"
+    );
 }
 
 

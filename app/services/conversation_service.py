@@ -7,6 +7,7 @@ DEFAULT_CONTEXT_TURN_LIMIT = 15
 CONVERSATION_SOURCES = frozenset({"text", "voice"})
 CONTEXT_STATUSES = frozenset({"completed"})
 CONTEXT_ROLES = frozenset({"user", "assistant"})
+DISPLAY_ROLES = frozenset({"user", "assistant"})
 HIDDEN_METADATA_KEY = "hidden"
 TOOL_METADATA_KEY = "tool"
 
@@ -167,6 +168,36 @@ class ConversationService:
             message
             for message in messages
             if message["role"] == "tool" and _is_hidden(message)
+        ]
+
+    def get_display_messages(
+        self,
+        *,
+        conversation_id: str | None = None,
+    ) -> list[dict[str, Any]]:
+        """Return text messages that are safe and relevant for the chat UI."""
+        messages = self._get_conversation_messages(conversation_id)
+        display_fields = (
+            "id",
+            "conversation_id",
+            "role",
+            "content",
+            "source",
+            "status",
+            "created_at",
+            "updated_at",
+        )
+
+        return [
+            {
+                field: message[field]
+                for field in display_fields
+            }
+            for message in messages
+            if message["role"] in DISPLAY_ROLES
+            and message["source"] == "text"
+            and message["content"].strip()
+            and not _is_hidden(message)
         ]
 
     def build_context(

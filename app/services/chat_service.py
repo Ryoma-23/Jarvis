@@ -53,21 +53,23 @@ def generate_chat_stream(
             )
 
         active_conversation_id = conversation["id"]
-        yield _sse_payload({}, active_conversation_id)
-
-        conversation_service.add_user_message(
+        user_message = conversation_service.add_user_message(
             message,
             source="text",
             conversation_id=active_conversation_id,
         )
         user_message_saved = True
+        yield _sse_payload(
+            {"user_message_id": user_message["id"]},
+            active_conversation_id,
+        )
 
         route = route_message(message)
         specialized_reply = _handle_specialized_intent(route, message)
 
         if specialized_reply is not None:
             full_reply = specialized_reply
-            conversation_service.add_assistant_message(
+            assistant_message = conversation_service.add_assistant_message(
                 full_reply,
                 source="text",
                 metadata={"route": route, "kind": "intent_result"},
@@ -76,11 +78,17 @@ def generate_chat_stream(
             assistant_message_saved = True
 
             yield _sse_payload(
-                {"text": full_reply},
+                {
+                    "text": full_reply,
+                    "assistant_message_id": assistant_message["id"],
+                },
                 active_conversation_id,
             )
             yield _sse_payload(
-                {"done": True},
+                {
+                    "done": True,
+                    "assistant_message_id": assistant_message["id"],
+                },
                 active_conversation_id,
             )
             return
@@ -130,7 +138,7 @@ def generate_chat_stream(
             if event.type in {"response.failed", "response.incomplete"}:
                 raise RuntimeError(_response_failure_message(event))
 
-        conversation_service.add_assistant_message(
+        assistant_message = conversation_service.add_assistant_message(
             full_reply,
             source="text",
             response_id=response_id,
@@ -140,7 +148,10 @@ def generate_chat_stream(
         assistant_message_saved = True
 
         yield _sse_payload(
-            {"done": True},
+            {
+                "done": True,
+                "assistant_message_id": assistant_message["id"],
+            },
             active_conversation_id,
         )
 
@@ -157,7 +168,7 @@ def generate_chat_stream(
         raise
 
     except Exception as error:
-        _persist_failed_assistant_message(
+        failed_message = _persist_failed_assistant_message(
             conversation_service=conversation_service,
             conversation_id=active_conversation_id,
             should_persist=user_message_saved and not assistant_message_saved,
@@ -168,7 +179,14 @@ def generate_chat_stream(
         )
 
         yield _sse_payload(
-            {"error": str(error)},
+            {
+                "error": str(error),
+                "assistant_message_id": (
+                    failed_message["id"]
+                    if failed_message is not None
+                    else None
+                ),
+            },
             active_conversation_id,
         )
 
@@ -182,10 +200,10 @@ def _persist_failed_assistant_message(
     response_id: str | None,
     error_message: str,
     route: str | None,
-) -> None:
+) -> dict[str, Any] | None:
     if should_persist and conversation_id is not None:
         try:
-            conversation_service.add_assistant_message(
+            return conversation_service.add_assistant_message(
                 content,
                 source="text",
                 status="failed",
@@ -196,6 +214,8 @@ def _persist_failed_assistant_message(
             )
         except Exception:
             logger.exception("Failed to persist failed chat response")
+
+    return None
 
 
 def _handle_specialized_intent(route: str | None, message: str) -> str | None:
