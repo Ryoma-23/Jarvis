@@ -382,6 +382,27 @@ class ConversationStore:
                 response_id,
             )
 
+    def get_message_by_external_ids(
+        self,
+        *,
+        item_id: str | None = None,
+        response_id: str | None = None,
+        connection: sqlite3.Connection | None = None,
+    ) -> dict[str, Any] | None:
+        if connection is None:
+            with self._read_connection() as read_connection:
+                return self.get_message_by_external_ids(
+                    item_id=item_id,
+                    response_id=response_id,
+                    connection=read_connection,
+                )
+
+        return self._find_duplicate_message(
+            connection,
+            item_id=item_id,
+            response_id=response_id,
+        )
+
     def get_messages(
         self,
         conversation_id: str,

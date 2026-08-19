@@ -186,7 +186,7 @@ class ConversationServiceTests(unittest.TestCase):
             [{"role": "user", "content": "メモして"}],
         )
 
-    def test_display_messages_only_return_safe_text_chat_fields(self):
+    def test_display_messages_return_safe_text_and_voice_chat_fields(self):
         text_user = self.service.add_user_message(
             "<script>alert('unsafe')</script>",
             source="text",
@@ -198,8 +198,14 @@ class ConversationServiceTests(unittest.TestCase):
             error_message="internal error",
             metadata={"private": "not-for-ui"},
         )
-        self.service.add_user_message("音声入力", source="voice")
-        self.service.add_assistant_message("音声回答", source="voice")
+        voice_user = self.service.add_user_message(
+            "音声入力",
+            source="voice",
+        )
+        voice_assistant = self.service.add_assistant_message(
+            "音声回答",
+            source="voice",
+        )
         self.service.record_hidden_tool_metadata(
             tool_name="list_notes",
             call_id="display-call",
@@ -231,6 +237,26 @@ class ConversationServiceTests(unittest.TestCase):
                     "status": "failed",
                     "created_at": failed_assistant["created_at"],
                     "updated_at": failed_assistant["updated_at"],
+                },
+                {
+                    "id": voice_user["id"],
+                    "conversation_id": voice_user["conversation_id"],
+                    "role": "user",
+                    "content": "音声入力",
+                    "source": "voice",
+                    "status": "completed",
+                    "created_at": voice_user["created_at"],
+                    "updated_at": voice_user["updated_at"],
+                },
+                {
+                    "id": voice_assistant["id"],
+                    "conversation_id": voice_assistant["conversation_id"],
+                    "role": "assistant",
+                    "content": "音声回答",
+                    "source": "voice",
+                    "status": "completed",
+                    "created_at": voice_assistant["created_at"],
+                    "updated_at": voice_assistant["updated_at"],
                 },
             ],
         )

@@ -4,8 +4,9 @@
 
 Phase 2 adds `ConversationService` above the SQLite `ConversationStore`. It is
 the common history boundary for text and voice integration. Phase 3 connects
-the text chat path to it. Phase 4 connects its text history to the Window; the
-Realtime path is not connected yet.
+the text chat path to it. Phase 4 connects its history to the Window, and Phase
+5 persists finalized Realtime speech transcripts and renders them in the same
+message list.
 
 The service provides:
 
@@ -114,22 +115,60 @@ is skipped while a text stream or another history operation is active. The
 **New Conversation** button creates a separate active conversation and clears
 the current display without deleting older persisted conversations.
 
-`ConversationService.get_display_messages()` is the UI boundary. In Phase 4 it
-returns only non-empty `source=text` user and assistant messages. Voice rows,
-system rows, hidden tool rows, metadata, external Realtime IDs, and internal
-error details are not exposed. Completed and non-empty failed or interrupted
-text are returned with their status so the UI can distinguish them.
+`ConversationService.get_display_messages()` is the UI boundary. It returns
+non-empty `source=text` and `source=voice` user and assistant messages. System
+rows, hidden tool rows, metadata, external Realtime IDs, and internal error
+details are not exposed. Completed and non-empty failed or interrupted messages
+are returned with their status so the UI can distinguish them.
 
 The browser renders labels and content using DOM nodes, `textContent`, and text
 nodes rather than `innerHTML`. Each stored message root has a
 `data-message-id`, and the page keeps a Message ID-to-element map for future
 incremental updates.
 
+## Realtime transcript integration
+
+Phase 5 handles these server events from the Realtime WebRTC data channel:
+
+- `conversation.item.input_audio_transcription.completed` renders and stores a
+  finalized user transcript with `source=voice` and its `item_id`.
+- `response.output_audio_transcript.delta` appends safe text nodes to one
+  pending Assistant DOM message. It does not write a database row.
+- `response.output_audio_transcript.done` replaces the pending DOM content with
+  the final transcript and stores it once with `source=voice`, `item_id`, and
+  `response_id`.
+
+The Realtime `session.update` configures transcription under
+`session.audio.input.transcription`. The local Window posts accepted finalized
+records to
+`POST /realtime/conversation/messages`. Store uniqueness for non-null
+`item_id` and `response_id` makes repeated Realtime completion events
+idempotent.
+
+VAD automatic response creation and interruption are disabled. For a normal
+voice turn, the Window sends `response.create` at `speech_stopped` to preserve
+the existing response latency, then independently renders and stores the
+finalized transcript. During JARVIS playback, it waits for the finalized
+transcript, which must contain meaningful speech and belong to a turn lasting
+at least 600 ms. Only then does the Window send `response.cancel`, clear WebRTC
+output audio, and create the next response. Empty transcripts and common
+cough/noise markers are ignored and are not stored or displayed.
+
+When a confirmed barge-in clears the output, the Window posts the buffered
+Assistant transcript once to
+`POST /realtime/conversation/assistant/interrupted`. The service creates or
+updates that voice Assistant row as `interrupted`. If the transcript-done event
+arrives later, it can fill an initially empty interrupted row but cannot change
+its status back to `completed`. Interrupted rows remain excluded from LLM
+context.
+
+The Realtime API cannot precisely align generated transcript text with the
+exact audio playback cutoff, so the stored interrupted text is the transcript
+buffered by the Window at the terminal interruption.
+
 ## Deferred integration
 
 Later phases still need to:
 
-- persist Realtime transcription and assistant response events
 - send restoration events when Realtime connects
-- render stored voice transcripts in the chat UI
 - distinguish restoration acknowledgements from newly generated Realtime items

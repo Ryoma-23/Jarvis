@@ -160,23 +160,31 @@ Realtime microphone input now uses the browser's built-in WebRTC processing:
 - `autoGainControl: true`
 
 The Realtime `session.update` keeps the existing Japanese
-`gpt-4o-mini-transcribe` configuration and uses the matching flat Realtime
-session fields already used by this client:
+`gpt-4o-mini-transcribe` configuration and uses the current
+`session.audio.input` Realtime session fields:
 
 - Input noise reduction: `far_field`
 - Turn detection: `server_vad`
 - VAD threshold: `0.8`
-- Automatic response creation: enabled
+- Automatic response creation: disabled; the Window sends `response.create`
+  at a normal speech stop or after accepting a finalized barge-in transcript
 - Server-side automatic response interruption: disabled
 
 `prefix_padding_ms` and `silence_duration_ms` are not set, so the Realtime
 defaults remain in use. `interrupt_response: false` prevents a single
 `speech_started` event from immediately cancelling JARVIS output. While the
-WebRTC output audio buffer is playing, the client waits 600 ms and interrupts
-only if user speech is still active. It sends `response.cancel` for a response
-that is still being generated, followed by `output_audio_buffer.clear` to stop
-buffered WebRTC playback. Outside JARVIS playback, normal server VAD turn
-detection and automatic response creation remain unchanged.
+WebRTC output audio buffer is playing, the client records whether speech lasts
+at least 600 ms but does not interrupt from VAD duration alone. After
+`conversation.item.input_audio_transcription.completed`, it accepts the turn
+only when the transcript contains meaningful speech. An accepted barge-in
+sends `response.cancel` for a response that is still being generated, followed
+by `output_audio_buffer.clear` to stop buffered WebRTC playback, then sends
+`response.create` for the new user turn. During JARVIS playback, empty
+transcripts, common cough/noise labels, filler fragments, one-character
+barge-in fragments, and sub-600 ms detections do not stop JARVIS or create a
+follow-up response. Outside JARVIS playback, the Window sends
+`response.create` at `speech_stopped`, preserving the existing normal-turn
+latency while the finalized transcript is processed separately for history.
 
 The adjustable frontend constants are located together near the top of
 `static/script.js`:
@@ -185,16 +193,28 @@ The adjustable frontend constants are located together near the top of
 - `REALTIME_INPUT_NOISE_REDUCTION_TYPE`
 - `REALTIME_SERVER_VAD_THRESHOLD`
 - `REALTIME_BARGE_IN_GUARD_MS`
+- `REALTIME_BARGE_IN_MIN_TRANSCRIPT_CHARACTERS`
+- `REALTIME_NON_SPEECH_TRANSCRIPTS`
+- `REALTIME_BARGE_IN_FILLER_TRANSCRIPTS`
 
 This processing reduces false activation from steady environmental noise and
 far-field playback, but it does not identify the speaker. Television, video,
 or another person can still activate VAD when their audio is sufficiently loud
 and speech-like.
 
-The 600 ms barge-in guard is cleared when user speech stops, WebRTC playback
-stops or is cleared, a new guard starts, or Realtime cleanup runs. Realtime
-cleanup is shared by disconnect, reconnect, connection failure, data-channel
-failure, and window unload, so an old timer cannot cancel a later session.
+The 600 ms barge-in timer only marks the current input turn as eligible; it no
+longer sends a delayed cancellation by itself. It is cleared when user speech
+stops, WebRTC playback stops or is cleared, a new guard starts, or Realtime
+cleanup runs. Realtime cleanup also clears pending speech-turn records, so an
+old event cannot cancel a later session.
+
+Finalized Realtime user transcriptions and Assistant audio transcripts are now
+shown in the common chat history and stored with `source=voice`. Assistant
+transcript deltas update only the current DOM message. A normal transcript is
+written at the transcript-done event; a confirmed 600 ms barge-in writes or
+updates the current Assistant message once as `interrupted`. Existing Wake Word
+and Realtime microphone lifecycle state remains separate from this history
+persistence.
 
 ## Remaining limitations
 
@@ -364,8 +384,9 @@ microphone and speaker:
     likely to produce `input_audio_buffer.speech_started`.
 11. With television playing, speak near the ReSpeaker and confirm JARVIS still
     recognizes the user from the normal operating distance.
-12. While JARVIS is speaking, play a short television/video utterance or make a
-    short cough/noise and confirm a sub-600 ms detection does not stop JARVIS.
+12. While JARVIS is speaking, make short and slightly longer cough/throat-clear
+    sounds. Confirm they are not displayed as a user turn, do not stop JARVIS,
+    and do not create a separate follow-up response.
 13. While JARVIS is speaking, say a phrase such as “ちょっと待って” for at
     least 600 ms and confirm the response is interrupted and the new user turn
     is accepted.

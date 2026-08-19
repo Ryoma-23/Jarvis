@@ -583,7 +583,7 @@ class WindowStaticAssetTests(unittest.TestCase):
             script,
         )
         self.assertIn(
-            "input_audio_noise_reduction: {",
+            "noise_reduction: {",
             script,
         )
         self.assertIn(
@@ -603,7 +603,7 @@ class WindowStaticAssetTests(unittest.TestCase):
             script,
         )
         self.assertIn(
-            "create_response: true",
+            "create_response: false",
             script,
         )
         self.assertIn(
@@ -613,7 +613,11 @@ class WindowStaticAssetTests(unittest.TestCase):
 
         # Existing transcription and tool-calling paths must remain present.
         self.assertIn(
-            'modalities: ["audio", "text"]',
+            'type: "realtime"',
+            script,
+        )
+        self.assertIn(
+            "transcription: {",
             script,
         )
         self.assertIn(
@@ -636,6 +640,7 @@ class WindowStaticAssetTests(unittest.TestCase):
 
         for expected in (
             "REALTIME_BARGE_IN_GUARD_MS = 600",
+            "REALTIME_BARGE_IN_MIN_TRANSCRIPT_CHARACTERS = 2",
             'data.type === "output_audio_buffer.started"',
             'data.type === "output_audio_buffer.stopped"',
             'data.type === "output_audio_buffer.cleared"',
@@ -644,6 +649,11 @@ class WindowStaticAssetTests(unittest.TestCase):
             "if (isRealtimeOutputAudioPlaying)",
             "startRealtimeBargeInGuard(sessionId)",
             "clearRealtimeBargeInTimer()",
+            "guardedTurn.guardDurationMet = true",
+            "isMeaningfulRealtimeUserTranscript(transcript, isBargeIn)",
+            "(isBargeIn && !passedBargeInGuard)",
+            "speechTurn.responseRequested = requestRealtimeResponse(sessionId)",
+            "requestRealtimeResponse(sessionId)",
             'type: "response.cancel"',
             'type: "output_audio_buffer.clear"',
             "resetRealtimeBargeInState();",
@@ -653,6 +663,11 @@ class WindowStaticAssetTests(unittest.TestCase):
         cancel_position = script.index('type: "response.cancel"')
         clear_position = script.index('type: "output_audio_buffer.clear"')
         self.assertLess(cancel_position, clear_position)
+
+        guard_start = script.index("function startRealtimeBargeInGuard")
+        interrupt_start = script.index("function interruptRealtimeResponse")
+        guard_source = script[guard_start:interrupt_start]
+        self.assertNotIn("interruptRealtimeResponse(sessionId)", guard_source)
 
     def test_script_preserves_realtime_events_tools_and_cleanup(self):
         script = (

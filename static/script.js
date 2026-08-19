@@ -9,6 +9,7 @@ let activeRealtimeLifecycle = null;
 let realtimeBargeInTimer = null;
 let realtimeBargeInTimerGeneration = 0;
 let isRealtimeUserSpeechActive = false;
+let activeRealtimeSpeechTurn = null;
 let isRealtimeOutputAudioPlaying = false;
 let isRealtimeResponseActive = false;
 let activeRealtimeResponseId = null;
@@ -18,6 +19,10 @@ let isConversationHistoryLoading = false;
 let activeTextRequestCount = 0;
 
 const messageElementsById = new Map();
+const realtimeUserMessagesByItemId = new Map();
+const realtimeSpeechTurnsByItemId = new Map();
+const realtimeAssistantMessagesByItemId = new Map();
+const realtimeAssistantMessagesByResponseId = new Map();
 
 const TRAY_REALTIME_BRIDGE_URL = "http://127.0.0.1:8767";
 const REALTIME_FINISHED_NOTIFY_RETRY_COUNT = 8;
@@ -30,6 +35,42 @@ const REALTIME_MEDIA_AUDIO_CONSTRAINTS = Object.freeze({
 const REALTIME_INPUT_NOISE_REDUCTION_TYPE = "far_field";
 const REALTIME_SERVER_VAD_THRESHOLD = 0.8;
 const REALTIME_BARGE_IN_GUARD_MS = 600;
+const REALTIME_BARGE_IN_MIN_TRANSCRIPT_CHARACTERS = 2;
+const REALTIME_NON_SPEECH_TRANSCRIPTS = new Set([
+    "咳",
+    "咳払い",
+    "せき",
+    "せきばらい",
+    "cough",
+    "coughs",
+    "coughing",
+    "throatclearing",
+    "blank_audio",
+    "noise",
+    "雑音",
+    "物音",
+    "無音",
+    "音声なし",
+    "咳き込み",
+    "咳き込む",
+    "ごほん"
+]);
+const REALTIME_BARGE_IN_FILLER_TRANSCRIPTS = new Set([
+    "ん",
+    "んっ",
+    "んん",
+    "あ",
+    "あっ",
+    "あー",
+    "うっ",
+    "うん",
+    "うーん",
+    "え",
+    "えっ",
+    "えー",
+    "ふっ",
+    "はっ"
+]);
 
 const sendButton = document.getElementById("send-button");
 const newConversationButton = document.getElementById(
@@ -78,7 +119,11 @@ void loadActiveConversationHistory();
 
 
 async function loadActiveConversationHistory() {
-    if (isConversationHistoryLoading || activeTextRequestCount > 0) {
+    if (
+        isConversationHistoryLoading ||
+        activeTextRequestCount > 0 ||
+        activeRealtimeLifecycle
+    ) {
         return;
     }
 
@@ -120,7 +165,11 @@ async function loadActiveConversationHistory() {
 
 
 async function createNewConversation() {
-    if (isConversationHistoryLoading || activeTextRequestCount > 0) {
+    if (
+        isConversationHistoryLoading ||
+        activeTextRequestCount > 0 ||
+        activeRealtimeLifecycle
+    ) {
         return;
     }
 
@@ -176,7 +225,9 @@ function setConversationHistoryLoading(isLoading, message = "") {
 
 function updateNewConversationButton() {
     newConversationButton.disabled = (
-        isConversationHistoryLoading || activeTextRequestCount > 0
+        isConversationHistoryLoading ||
+        activeTextRequestCount > 0 ||
+        Boolean(activeRealtimeLifecycle)
     );
 }
 
@@ -367,6 +418,7 @@ async function startRealtimeVoice(
 
     activeRealtimeLifecycle = lifecycle;
     resetRealtimeBargeInState();
+    resetRealtimeConversationTracking();
 
     try {
         isRealtimeConnecting = true;
@@ -458,19 +510,23 @@ async function startRealtimeVoice(
             const event = {
                 type: "session.update",
                 session: {
-                    modalities: ["audio", "text"],
-                    input_audio_transcription: {
-                        model: "gpt-4o-mini-transcribe",
-                        language: "ja"
-                    },
-                    input_audio_noise_reduction: {
-                        type: REALTIME_INPUT_NOISE_REDUCTION_TYPE
-                    },
-                    turn_detection: {
-                        type: "server_vad",
-                        threshold: REALTIME_SERVER_VAD_THRESHOLD,
-                        create_response: true,
-                        interrupt_response: false
+                    type: "realtime",
+                    audio: {
+                        input: {
+                            transcription: {
+                                model: "gpt-4o-mini-transcribe",
+                                language: "ja"
+                            },
+                            noise_reduction: {
+                                type: REALTIME_INPUT_NOISE_REDUCTION_TYPE
+                            },
+                            turn_detection: {
+                                type: "server_vad",
+                                threshold: REALTIME_SERVER_VAD_THRESHOLD,
+                                create_response: false,
+                                interrupt_response: false
+                            }
+                        }
                     }
                 }
             };
@@ -728,6 +784,8 @@ function clearRealtimeBargeInTimer() {
 function resetRealtimeBargeInState() {
     clearRealtimeBargeInTimer();
     isRealtimeUserSpeechActive = false;
+    activeRealtimeSpeechTurn = null;
+    realtimeSpeechTurnsByItemId.clear();
     isRealtimeOutputAudioPlaying = false;
     isRealtimeResponseActive = false;
     activeRealtimeResponseId = null;
@@ -741,11 +799,14 @@ function startRealtimeBargeInGuard(sessionId) {
     if (
         !isCurrentRealtimeSession(sessionId) ||
         !isRealtimeUserSpeechActive ||
-        !isRealtimeOutputAudioPlaying
+        !isRealtimeOutputAudioPlaying ||
+        !activeRealtimeSpeechTurn
     ) {
         return;
     }
 
+    const guardedTurn = activeRealtimeSpeechTurn;
+    guardedTurn.startedWhileOutputPlaying = true;
     const timerGeneration = realtimeBargeInTimerGeneration;
 
     realtimeBargeInTimer = setTimeout(function() {
@@ -758,12 +819,12 @@ function startRealtimeBargeInGuard(sessionId) {
         if (
             !isCurrentRealtimeSession(sessionId) ||
             !isRealtimeUserSpeechActive ||
-            !isRealtimeOutputAudioPlaying
+            activeRealtimeSpeechTurn !== guardedTurn
         ) {
             return;
         }
 
-        interruptRealtimeResponse(sessionId);
+        guardedTurn.guardDurationMet = true;
     }, REALTIME_BARGE_IN_GUARD_MS);
 }
 
@@ -771,7 +832,6 @@ function startRealtimeBargeInGuard(sessionId) {
 function interruptRealtimeResponse(sessionId) {
     if (
         !isCurrentRealtimeSession(sessionId) ||
-        !isRealtimeUserSpeechActive ||
         !isRealtimeOutputAudioPlaying
     ) {
         return false;
@@ -785,14 +845,15 @@ function interruptRealtimeResponse(sessionId) {
     }
 
     let eventSent = false;
+    const interruptedResponseId = (
+        activeRealtimeResponseId || activeRealtimeOutputResponseId
+    );
 
     if (isRealtimeResponseActive) {
         const cancelEvent = {
             type: "response.cancel"
         };
-        const responseId = (
-            activeRealtimeResponseId || activeRealtimeOutputResponseId
-        );
+        const responseId = interruptedResponseId;
 
         if (responseId) {
             cancelEvent.response_id = responseId;
@@ -819,8 +880,159 @@ function interruptRealtimeResponse(sessionId) {
         console.warn("Realtime output audio clear送信エラー:", error);
     }
 
+    if (eventSent) {
+        markActiveRealtimeAssistantInterrupted(
+            sessionId,
+            interruptedResponseId
+        );
+    }
+
     clearRealtimeBargeInTimer();
     return eventSent;
+}
+
+
+function startRealtimeSpeechTurn(data) {
+    const itemId = normalizeRealtimeId(data.item_id);
+    const turn = {
+        itemId: itemId,
+        startedAtMs: Date.now(),
+        startedWhileOutputPlaying: isRealtimeOutputAudioPlaying,
+        guardDurationMet: false,
+        responseRequested: false
+    };
+
+    activeRealtimeSpeechTurn = turn;
+
+    if (itemId) {
+        realtimeSpeechTurnsByItemId.set(itemId, turn);
+    }
+
+    return turn;
+}
+
+
+function stopRealtimeSpeechTurn(data) {
+    const itemId = normalizeRealtimeId(data.item_id);
+    let turn = itemId
+        ? realtimeSpeechTurnsByItemId.get(itemId) || null
+        : null;
+
+    if (!turn) {
+        turn = activeRealtimeSpeechTurn;
+    }
+
+    if (!turn) {
+        return null;
+    }
+
+    if (!turn.itemId && itemId) {
+        turn.itemId = itemId;
+        realtimeSpeechTurnsByItemId.set(itemId, turn);
+    }
+
+    if (
+        turn.startedWhileOutputPlaying &&
+        Date.now() - turn.startedAtMs >= REALTIME_BARGE_IN_GUARD_MS
+    ) {
+        turn.guardDurationMet = true;
+    }
+
+    if (activeRealtimeSpeechTurn === turn) {
+        activeRealtimeSpeechTurn = null;
+    }
+
+    return turn;
+}
+
+
+function getRealtimeSpeechTurn(itemId) {
+    if (itemId && realtimeSpeechTurnsByItemId.has(itemId)) {
+        return realtimeSpeechTurnsByItemId.get(itemId);
+    }
+
+    if (
+        activeRealtimeSpeechTurn &&
+        (!itemId || !activeRealtimeSpeechTurn.itemId)
+    ) {
+        return activeRealtimeSpeechTurn;
+    }
+
+    return null;
+}
+
+
+function discardRealtimeSpeechTurn(turn, itemId) {
+    if (itemId) {
+        realtimeSpeechTurnsByItemId.delete(itemId);
+    }
+
+    if (turn && turn.itemId) {
+        realtimeSpeechTurnsByItemId.delete(turn.itemId);
+    }
+
+    if (activeRealtimeSpeechTurn === turn) {
+        activeRealtimeSpeechTurn = null;
+    }
+}
+
+
+function isMeaningfulRealtimeUserTranscript(transcript, isBargeIn) {
+    const normalized = String(transcript || "").trim();
+
+    if (!normalized) {
+        return false;
+    }
+
+    const compact = normalized
+        .toLowerCase()
+        .replace(/[\s。、！？!?.,…・「」『』\[\]()（）【】<>"'`]/g, "");
+
+    if (
+        !compact ||
+        REALTIME_NON_SPEECH_TRANSCRIPTS.has(compact) ||
+        (isBargeIn && REALTIME_BARGE_IN_FILLER_TRANSCRIPTS.has(compact))
+    ) {
+        return false;
+    }
+
+    const lexicalCharacters = compact.match(
+        /[a-z0-9\u3040-\u30ff\u3400-\u9fff]/g
+    ) || [];
+
+    if (lexicalCharacters.length === 0) {
+        return false;
+    }
+
+    return (
+        !isBargeIn ||
+        lexicalCharacters.length >=
+            REALTIME_BARGE_IN_MIN_TRANSCRIPT_CHARACTERS
+    );
+}
+
+
+function requestRealtimeResponse(sessionId) {
+    if (!isCurrentRealtimeSession(sessionId)) {
+        return false;
+    }
+
+    const currentDataChannel = dataChannel;
+
+    if (!currentDataChannel || currentDataChannel.readyState !== "open") {
+        console.warn("Realtime応答を開始できません: DataChannel未接続");
+        return false;
+    }
+
+    try {
+        currentDataChannel.send(JSON.stringify({
+            type: "response.create"
+        }));
+        return true;
+    } catch (error) {
+        console.warn("Realtime response.create送信エラー:", error);
+        return false;
+    }
 }
 
 
@@ -847,6 +1059,36 @@ async function handleRealtimeEvent(data, sessionId) {
 
     if (data.type === "response.function_call_arguments.done") {
         await handleRealtimeToolCall(data);
+        return;
+    }
+
+    if (
+        data.type ===
+        "conversation.item.input_audio_transcription.completed"
+    ) {
+        await handleRealtimeUserTranscriptionCompleted(data, sessionId);
+        return;
+    }
+
+    if (
+        data.type ===
+        "conversation.item.input_audio_transcription.failed"
+    ) {
+        const itemId = normalizeRealtimeId(data.item_id);
+        const speechTurn = getRealtimeSpeechTurn(itemId);
+        discardRealtimeSpeechTurn(speechTurn, itemId);
+        updateVoiceStatus("connected", "接続中");
+        console.warn("ユーザー音声の文字起こしに失敗しました。", data);
+        return;
+    }
+
+    if (data.type === "response.output_audio_transcript.delta") {
+        handleRealtimeAssistantTranscriptDelta(data);
+        return;
+    }
+
+    if (data.type === "response.output_audio_transcript.done") {
+        await handleRealtimeAssistantTranscriptDone(data, sessionId);
         return;
     }
 
@@ -880,6 +1122,7 @@ async function handleRealtimeEvent(data, sessionId) {
 
     if (data.type === "input_audio_buffer.speech_started") {
         isRealtimeUserSpeechActive = true;
+        startRealtimeSpeechTurn(data);
 
         if (isRealtimeOutputAudioPlaying) {
             startRealtimeBargeInGuard(sessionId);
@@ -893,7 +1136,13 @@ async function handleRealtimeEvent(data, sessionId) {
 
     if (data.type === "input_audio_buffer.speech_stopped") {
         isRealtimeUserSpeechActive = false;
+        const speechTurn = stopRealtimeSpeechTurn(data);
         clearRealtimeBargeInTimer();
+
+        if (speechTurn && !speechTurn.startedWhileOutputPlaying) {
+            speechTurn.responseRequested = requestRealtimeResponse(sessionId);
+        }
+
         updateVoiceStatus("connected", "考え中...");
         return;
     }
@@ -914,6 +1163,315 @@ async function handleRealtimeEvent(data, sessionId) {
         updateVoiceStatus("connected", "接続中");
         return;
     }
+}
+
+
+async function handleRealtimeUserTranscriptionCompleted(data, sessionId) {
+    if (!isCurrentRealtimeSession(sessionId)) {
+        return;
+    }
+
+    const itemId = normalizeRealtimeId(data.item_id);
+    const transcript = String(data.transcript || "");
+    const speechTurn = getRealtimeSpeechTurn(itemId);
+    const isBargeIn = Boolean(
+        speechTurn && speechTurn.startedWhileOutputPlaying
+    );
+    const passedBargeInGuard = Boolean(
+        speechTurn && speechTurn.guardDurationMet
+    );
+    let messageView = realtimeUserMessagesByItemId.get(itemId);
+    const isNewTranscription = !messageView;
+
+    if (
+        !itemId ||
+        !isMeaningfulRealtimeUserTranscript(transcript, isBargeIn) ||
+        (isBargeIn && !passedBargeInGuard)
+    ) {
+        discardRealtimeSpeechTurn(speechTurn, itemId);
+        updateVoiceStatus("connected", "接続中");
+        return;
+    }
+
+    if (
+        isNewTranscription &&
+        !(speechTurn && speechTurn.responseRequested)
+    ) {
+        if (isBargeIn && isRealtimeOutputAudioPlaying) {
+            interruptRealtimeResponse(sessionId);
+        }
+
+        requestRealtimeResponse(sessionId);
+    }
+    discardRealtimeSpeechTurn(speechTurn, itemId);
+
+    if (!messageView) {
+        messageView = renderConversationMessage({
+            role: "user",
+            content: transcript,
+            source: "voice",
+            status: "completed"
+        });
+        realtimeUserMessagesByItemId.set(itemId, messageView);
+    } else {
+        updateMessageContent(messageView, transcript);
+    }
+
+    try {
+        const result = await saveRealtimeVoiceMessage({
+            role: "user",
+            content: transcript,
+            conversation_id: activeConversationId,
+            item_id: itemId
+        });
+        applyPersistedRealtimeMessage(messageView, result);
+
+    } catch (error) {
+        console.error("ユーザー音声履歴の保存に失敗しました。", error);
+        markMessageStatus(messageView.element, "failed");
+    }
+}
+
+
+function handleRealtimeAssistantTranscriptDelta(data) {
+    const state = getRealtimeAssistantTranscriptState(data);
+    const delta = String(data.delta || "");
+
+    if (!state || !delta) {
+        return;
+    }
+
+    state.transcript += delta;
+
+    if (!state.messageView) {
+        state.messageView = renderConversationMessage({
+            role: "assistant",
+            content: state.transcript,
+            source: "voice",
+            status: state.interruptedRequested
+                ? "interrupted"
+                : "pending"
+        });
+    } else {
+        appendMessageText(state.messageView, delta);
+    }
+}
+
+
+async function handleRealtimeAssistantTranscriptDone(data, sessionId) {
+    if (!isCurrentRealtimeSession(sessionId)) {
+        return;
+    }
+
+    const state = getRealtimeAssistantTranscriptState(data);
+
+    if (!state) {
+        return;
+    }
+
+    const transcript = String(data.transcript || state.transcript || "");
+
+    if (!transcript.trim()) {
+        return;
+    }
+
+    state.transcript = transcript;
+
+    if (!state.messageView) {
+        state.messageView = renderConversationMessage({
+            role: "assistant",
+            content: transcript,
+            source: "voice",
+            status: state.interruptedRequested
+                ? "interrupted"
+                : "pending"
+        });
+    } else {
+        updateMessageContent(state.messageView, transcript);
+    }
+
+    try {
+        const result = await saveRealtimeVoiceMessage({
+            role: "assistant",
+            content: transcript,
+            conversation_id: activeConversationId,
+            item_id: state.itemId,
+            response_id: state.responseId
+        });
+        applyPersistedRealtimeMessage(state.messageView, result);
+
+        if (state.interruptedRequested) {
+            markMessageStatus(state.messageView.element, "interrupted");
+
+            if (!state.interruptionPersisted) {
+                void persistRealtimeAssistantInterruption(state, sessionId);
+            }
+        }
+
+    } catch (error) {
+        console.error("Assistant音声履歴の保存に失敗しました。", error);
+        markMessageStatus(state.messageView.element, "failed");
+    }
+}
+
+
+function getRealtimeAssistantTranscriptState(data) {
+    const itemId = normalizeRealtimeId(data.item_id);
+    const responseId = normalizeRealtimeId(data.response_id);
+    let state = null;
+
+    if (itemId) {
+        state = realtimeAssistantMessagesByItemId.get(itemId) || null;
+    }
+
+    if (!state && responseId) {
+        state = (
+            realtimeAssistantMessagesByResponseId.get(responseId) || null
+        );
+    }
+
+    if (!state) {
+        if (!itemId && !responseId) {
+            return null;
+        }
+
+        state = {
+            itemId: itemId,
+            responseId: responseId,
+            transcript: "",
+            messageView: null,
+            interruptedRequested: false,
+            interruptionPersisted: false,
+            interruptionPersistPromise: null
+        };
+    }
+
+    if (itemId) {
+        state.itemId = itemId;
+        realtimeAssistantMessagesByItemId.set(itemId, state);
+    }
+
+    if (responseId) {
+        state.responseId = responseId;
+        realtimeAssistantMessagesByResponseId.set(responseId, state);
+    }
+
+    return state;
+}
+
+
+function markActiveRealtimeAssistantInterrupted(sessionId, responseId) {
+    if (!isCurrentRealtimeSession(sessionId) || !responseId) {
+        return;
+    }
+
+    const state = getRealtimeAssistantTranscriptState({
+        response_id: responseId
+    });
+
+    if (!state) {
+        return;
+    }
+
+    state.interruptedRequested = true;
+
+    if (state.messageView) {
+        markMessageStatus(state.messageView.element, "interrupted");
+    }
+
+    void persistRealtimeAssistantInterruption(state, sessionId);
+}
+
+
+async function persistRealtimeAssistantInterruption(state, sessionId) {
+    if (
+        state.interruptionPersisted ||
+        state.interruptionPersistPromise ||
+        !isCurrentRealtimeSession(sessionId)
+    ) {
+        return;
+    }
+
+    const persistPromise = requestJson(
+        "/realtime/conversation/assistant/interrupted",
+        {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                content: state.transcript,
+                conversation_id: activeConversationId,
+                item_id: state.itemId,
+                response_id: state.responseId
+            })
+        }
+    );
+    state.interruptionPersistPromise = persistPromise;
+
+    try {
+        const result = await persistPromise;
+        state.interruptionPersisted = true;
+
+        if (state.messageView) {
+            applyPersistedRealtimeMessage(state.messageView, result);
+            markMessageStatus(state.messageView.element, "interrupted");
+        }
+
+    } catch (error) {
+        console.error("Assistant割り込み履歴の保存に失敗しました。", error);
+
+    } finally {
+        if (state.interruptionPersistPromise === persistPromise) {
+            state.interruptionPersistPromise = null;
+        }
+    }
+}
+
+
+async function saveRealtimeVoiceMessage(payload) {
+    return requestJson("/realtime/conversation/messages", {
+        method: "POST",
+        headers: {
+            "Content-Type": "application/json"
+        },
+        body: JSON.stringify(payload)
+    });
+}
+
+
+function applyPersistedRealtimeMessage(messageView, result) {
+    const message = result.message;
+
+    if (result.conversation_id) {
+        activeConversationId = result.conversation_id;
+    }
+
+    if (!message) {
+        return;
+    }
+
+    registerMessageElement(message.id, messageView.element);
+    messageView.element.dataset.messageSource = message.source;
+
+    if (String(message.content || "").trim()) {
+        updateMessageContent(messageView, message.content);
+    }
+
+    markMessageStatus(messageView.element, message.status);
+}
+
+
+function normalizeRealtimeId(value) {
+    const normalized = String(value || "").trim();
+    return normalized || null;
+}
+
+
+function resetRealtimeConversationTracking() {
+    realtimeUserMessagesByItemId.clear();
+    realtimeAssistantMessagesByItemId.clear();
+    realtimeAssistantMessagesByResponseId.clear();
 }
 
 
@@ -977,6 +1535,7 @@ function renderConversationMessage(message) {
     label.textContent = isUser ? "自分: " : "Jarvis: ";
     contentElement.className = "message-content";
     contentElement.textContent = String(message.content || "");
+    element.dataset.messageSource = message.source || "text";
 
     element.append(label, contentElement);
     markMessageStatus(element, message.status || "completed");
@@ -999,6 +1558,11 @@ function appendMessageText(messageView, text) {
     messageView.contentElement.append(
         document.createTextNode(String(text))
     );
+}
+
+
+function updateMessageContent(messageView, text) {
+    messageView.contentElement.textContent = String(text || "");
 }
 
 
@@ -1068,6 +1632,8 @@ function updateVoiceButtons(state) {
         voiceDisconnectButton.disabled = true;
         voiceReconnectButton.disabled = false;
     }
+
+    updateNewConversationButton();
 }
 
 
@@ -1162,6 +1728,7 @@ function cleanupRealtimeVoice() {
     const currentRemoteAudioElement = remoteAudioElement;
 
     resetRealtimeBargeInState();
+    resetRealtimeConversationTracking();
 
     dataChannel = null;
     peerConnection = null;
