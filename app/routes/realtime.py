@@ -4,6 +4,7 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from app.services.chat_service import get_conversation_service
+from app.services.conversation_service import DEFAULT_CONTEXT_TURN_LIMIT
 from app.services.conversation_store import (
     ConversationNotFoundError,
     DuplicateMessageError,
@@ -36,8 +37,37 @@ class RealtimeAssistantInterruptedRequest(BaseModel):
 
 
 @router.get("/realtime/token")
-def get_realtime_token():
-    return create_realtime_token()
+def get_realtime_token(conversation_id: str | None = None):
+    conversation_service = get_conversation_service()
+
+    try:
+        conversation = _resolve_realtime_conversation(
+            conversation_service,
+            conversation_id,
+        )
+    except Exception as error:
+        _raise_conversation_http_error(error)
+
+    return create_realtime_token(conversation_id=conversation["id"])
+
+
+@router.get("/realtime/conversation/history")
+def get_realtime_conversation_history(conversation_id: str):
+    conversation_service = get_conversation_service()
+
+    try:
+        events = conversation_service.build_realtime_restore_events(
+            conversation_id=conversation_id,
+            turn_limit=DEFAULT_CONTEXT_TURN_LIMIT,
+        )
+    except Exception as error:
+        _raise_conversation_http_error(error)
+
+    return {
+        "conversation_id": conversation_id,
+        "turn_limit": DEFAULT_CONTEXT_TURN_LIMIT,
+        "events": events,
+    }
 
 
 @router.post("/realtime/tools")
@@ -108,6 +138,21 @@ def _realtime_message_response(message: dict) -> dict:
             for field in display_fields
         },
     }
+
+
+def _resolve_realtime_conversation(
+    conversation_service,
+    conversation_id: str | None,
+) -> dict:
+    if conversation_id is None:
+        return conversation_service.get_or_create_active_conversation()
+
+    conversation = conversation_service.get_conversation(conversation_id)
+
+    if conversation is None:
+        raise ConversationNotFoundError(conversation_id)
+
+    return conversation
 
 
 def _raise_conversation_http_error(error: Exception) -> None:

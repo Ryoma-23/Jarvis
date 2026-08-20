@@ -6,6 +6,7 @@ let remoteAudioElement = null;
 let isRealtimeConnected = false;
 let isRealtimeConnecting = false;
 let activeRealtimeLifecycle = null;
+let activeRealtimeHistoryRestore = null;
 let realtimeBargeInTimer = null;
 let realtimeBargeInTimerGeneration = 0;
 let isRealtimeUserSpeechActive = false;
@@ -17,16 +18,21 @@ let activeRealtimeOutputResponseId = null;
 let activeConversationId = null;
 let isConversationHistoryLoading = false;
 let activeTextRequestCount = 0;
+let realtimeHistorySyncGeneration = 0;
+let realtimeTextContextSyncQueue = Promise.resolve();
 
 const messageElementsById = new Map();
 const realtimeUserMessagesByItemId = new Map();
 const realtimeSpeechTurnsByItemId = new Map();
+const realtimeRestoredItemIds = new Set();
 const realtimeAssistantMessagesByItemId = new Map();
 const realtimeAssistantMessagesByResponseId = new Map();
 
 const TRAY_REALTIME_BRIDGE_URL = "http://127.0.0.1:8767";
 const REALTIME_FINISHED_NOTIFY_RETRY_COUNT = 8;
 const REALTIME_FINISHED_NOTIFY_RETRY_DELAY_MS = 500;
+const REALTIME_HISTORY_RESTORE_TIMEOUT_MS = 5000;
+const REALTIME_HISTORY_EVENT_ID_PREFIX = "jarvis_history_restore";
 const REALTIME_MEDIA_AUDIO_CONSTRAINTS = Object.freeze({
     echoCancellation: true,
     noiseSuppression: true,
@@ -256,6 +262,7 @@ async function sendMessage() {
 
     activeTextRequestCount += 1;
     updateNewConversationButton();
+    let fullAssistantText = "";
 
     try {
 
@@ -328,6 +335,7 @@ async function sendMessage() {
                 }
 
                 if (data.text) {
+                    fullAssistantText += data.text;
                     appendMessageText(assistantMessageView, data.text);
                 }
 
@@ -343,6 +351,11 @@ async function sendMessage() {
                     markMessageStatus(
                         assistantMessageView.element,
                         "completed"
+                    );
+                    await queueRealtimeTextContextSync(
+                        message,
+                        fullAssistantText,
+                        activeConversationId
                     );
                 }
 
@@ -412,6 +425,9 @@ async function startRealtimeVoice(
         source: source,
         trayAccepted: false,
         startedNotified: false,
+        sessionCreatedReceived: false,
+        historyRestoring: true,
+        conversationId: null,
         finishing: false,
         finishPromise: null
     };
@@ -433,7 +449,11 @@ async function startRealtimeVoice(
 
         lifecycle.trayAccepted = true;
 
-        const tokenResponse = await fetch("/realtime/token");
+        const tokenUrl = activeConversationId
+            ? "/realtime/token?conversation_id=" +
+                encodeURIComponent(activeConversationId)
+            : "/realtime/token";
+        const tokenResponse = await fetch(tokenUrl);
 
         if (!tokenResponse.ok) {
             throw new Error(`Realtime token取得失敗: ${tokenResponse.status}`);
@@ -442,10 +462,16 @@ async function startRealtimeVoice(
         const tokenData = await tokenResponse.json();
 
         const ephemeralKey = tokenData.value;
+        const realtimeConversationId = normalizeRealtimeId(
+            tokenData.conversation_id
+        );
 
-        if (!ephemeralKey) {
+        if (!ephemeralKey || !realtimeConversationId) {
             throw new Error("Realtime用の一時トークンが取得できませんでした。");
         }
+
+        activeConversationId = realtimeConversationId;
+        lifecycle.conversationId = realtimeConversationId;
 
         const currentPeerConnection = new RTCPeerConnection();
         peerConnection = currentPeerConnection;
@@ -473,7 +499,12 @@ async function startRealtimeVoice(
                 isRealtimeConnected = true;
                 isRealtimeConnecting = false;
 
-                updateVoiceStatus("connected", "接続中");
+                updateVoiceStatus(
+                    "connected",
+                    lifecycle.historyRestoring
+                        ? "履歴復元中..."
+                        : "接続中"
+                );
                 updateVoiceButtons("connected");
             }
 
@@ -491,12 +522,14 @@ async function startRealtimeVoice(
             }
         };
 
-        localStream = await navigator.mediaDevices.getUserMedia({
+        const currentLocalStream = await navigator.mediaDevices.getUserMedia({
             audio: REALTIME_MEDIA_AUDIO_CONSTRAINTS
         });
+        localStream = currentLocalStream;
 
-        localStream.getTracks().forEach(function(track) {
-            currentPeerConnection.addTrack(track, localStream);
+        currentLocalStream.getTracks().forEach(function(track) {
+            track.enabled = false;
+            currentPeerConnection.addTrack(track, currentLocalStream);
         });
 
         const currentDataChannel = (
@@ -506,32 +539,12 @@ async function startRealtimeVoice(
 
         currentDataChannel.onopen = function() {
             console.log("Realtime data channel opened");
-
-            const event = {
-                type: "session.update",
-                session: {
-                    type: "realtime",
-                    audio: {
-                        input: {
-                            transcription: {
-                                model: "gpt-4o-mini-transcribe",
-                                language: "ja"
-                            },
-                            noise_reduction: {
-                                type: REALTIME_INPUT_NOISE_REDUCTION_TYPE
-                            },
-                            turn_detection: {
-                                type: "server_vad",
-                                threshold: REALTIME_SERVER_VAD_THRESHOLD,
-                                create_response: false,
-                                interrupt_response: false
-                            }
-                        }
-                    }
-                }
-            };
-
-            currentDataChannel.send(JSON.stringify(event));
+            void initializeRealtimeDataChannel(
+                currentDataChannel,
+                currentLocalStream,
+                sessionId,
+                realtimeConversationId
+            );
         };
 
         currentDataChannel.onmessage = async function(event) {
@@ -606,7 +619,7 @@ async function startRealtimeVoice(
         isRealtimeConnected = true;
         isRealtimeConnecting = false;
 
-        updateVoiceStatus("connected", "接続中");
+        updateVoiceStatus("connected", "履歴復元中...");
         updateVoiceButtons("connected");
 
         return true;
@@ -626,6 +639,527 @@ async function startRealtimeVoice(
         }
         return false;
     }
+}
+
+
+async function initializeRealtimeDataChannel(
+    currentDataChannel,
+    currentLocalStream,
+    sessionId,
+    conversationId
+) {
+    try {
+        if (
+            !isCurrentRealtimeSession(sessionId) ||
+            dataChannel !== currentDataChannel
+        ) {
+            return false;
+        }
+
+        currentDataChannel.send(JSON.stringify({
+            type: "session.update",
+            session: {
+                type: "realtime",
+                audio: {
+                    input: {
+                        transcription: {
+                            model: "gpt-4o-mini-transcribe",
+                            language: "ja"
+                        },
+                        noise_reduction: {
+                            type: REALTIME_INPUT_NOISE_REDUCTION_TYPE
+                        },
+                        turn_detection: {
+                            type: "server_vad",
+                            threshold: REALTIME_SERVER_VAD_THRESHOLD,
+                            create_response: false,
+                            interrupt_response: false
+                        }
+                    }
+                }
+            }
+        }));
+
+        updateVoiceStatus("connected", "履歴復元中...");
+        await restoreRealtimeConversationHistory(
+            currentDataChannel,
+            sessionId,
+            conversationId
+        );
+
+        const lifecycle = getRealtimeLifecycle(sessionId);
+
+        if (
+            !lifecycle ||
+            lifecycle.finishing ||
+            dataChannel !== currentDataChannel ||
+            localStream !== currentLocalStream
+        ) {
+            return false;
+        }
+
+        setRealtimeMicrophoneEnabled(currentLocalStream, true);
+        lifecycle.historyRestoring = false;
+        updateVoiceStatus("connected", "接続中");
+
+        if (lifecycle.sessionCreatedReceived) {
+            await notifyTrayRealtimeStarted(sessionId);
+        }
+
+        return true;
+
+    } catch (error) {
+        console.error("Realtime履歴の復元に失敗しました。", error);
+
+        if (isCurrentRealtimeSession(sessionId)) {
+            await finishRealtimeVoice(
+                "history_restore_failed",
+                sessionId,
+                "error",
+                "履歴復元失敗"
+            );
+        }
+
+        return false;
+    }
+}
+
+
+async function restoreRealtimeConversationHistory(
+    currentDataChannel,
+    sessionId,
+    conversationId
+) {
+    const historyUrl =
+        "/realtime/conversation/history?conversation_id=" +
+        encodeURIComponent(conversationId);
+    const abortController = new AbortController();
+    const fetchTimeoutId = setTimeout(function() {
+        abortController.abort();
+    }, REALTIME_HISTORY_RESTORE_TIMEOUT_MS);
+    let response;
+
+    try {
+        response = await fetch(historyUrl, {
+            signal: abortController.signal
+        });
+    } catch (error) {
+        if (error.name === "AbortError") {
+            throw new Error("Realtime履歴取得がタイムアウトしました。");
+        }
+
+        throw error;
+    } finally {
+        clearTimeout(fetchTimeoutId);
+    }
+
+    if (!response.ok) {
+        throw new Error(`Realtime履歴取得失敗: ${response.status}`);
+    }
+
+    const historyData = await response.json();
+    const restoredConversationId = normalizeRealtimeId(
+        historyData.conversation_id
+    );
+    const events = historyData.events;
+
+    if (
+        restoredConversationId !== conversationId ||
+        !Array.isArray(events)
+    ) {
+        throw new Error("Realtime履歴レスポンスが不正です。");
+    }
+
+    if (events.length === 0) {
+        return;
+    }
+
+    await sendRealtimeHistoryItemsAndWait(
+        currentDataChannel,
+        sessionId,
+        events
+    );
+}
+
+
+async function sendRealtimeHistoryItemsAndWait(
+    currentDataChannel,
+    sessionId,
+    events
+) {
+    const restoreState = beginRealtimeHistoryRestore(
+        sessionId,
+        events
+    );
+
+    try {
+        events.forEach(function(event, index) {
+            if (
+                !isCurrentRealtimeSession(sessionId) ||
+                dataChannel !== currentDataChannel ||
+                currentDataChannel.readyState !== "open"
+            ) {
+                throw new Error("Realtime履歴復元中に接続が終了しました。");
+            }
+
+            const eventId = [
+                REALTIME_HISTORY_EVENT_ID_PREFIX,
+                sessionId,
+                restoreState.syncGeneration,
+                index
+            ].join("_");
+            const restoreEvent = Object.assign({}, event, {
+                event_id: eventId
+            });
+
+            restoreState.eventIds.add(eventId);
+            currentDataChannel.send(JSON.stringify(restoreEvent));
+        });
+
+        await restoreState.promise;
+
+    } catch (error) {
+        failRealtimeHistoryRestore(restoreState, error);
+        throw error;
+    }
+}
+
+
+function beginRealtimeHistoryRestore(sessionId, events) {
+    cancelRealtimeHistoryRestore("新しい履歴復元を開始します。");
+    realtimeHistorySyncGeneration += 1;
+
+    let resolveRestore;
+    let rejectRestore;
+    const promise = new Promise(function(resolve, reject) {
+        resolveRestore = resolve;
+        rejectRestore = reject;
+    });
+    const restoreState = {
+        sessionId: sessionId,
+        syncGeneration: realtimeHistorySyncGeneration,
+        remainingItemCount: events.length,
+        eventIds: new Set(),
+        expectedItemSignatures: events.map(function(event) {
+            return createRealtimeHistoryItemSignature(event.item);
+        }),
+        matchedSignatureIndexes: new Set(),
+        addedItemIds: new Set(),
+        completedItemIds: new Set(),
+        timeoutId: null,
+        resolve: resolveRestore,
+        reject: rejectRestore,
+        promise: promise
+    };
+
+    restoreState.timeoutId = setTimeout(function() {
+        failRealtimeHistoryRestore(
+            restoreState,
+            new Error("Realtime履歴復元がタイムアウトしました。")
+        );
+    }, REALTIME_HISTORY_RESTORE_TIMEOUT_MS);
+    activeRealtimeHistoryRestore = restoreState;
+    return restoreState;
+}
+
+
+function registerRealtimeHistoryItemAdded(data, sessionId) {
+    const restoreState = activeRealtimeHistoryRestore;
+
+    if (!restoreState || restoreState.sessionId !== sessionId) {
+        return false;
+    }
+
+    const itemId = normalizeRealtimeId(
+        data.item ? data.item.id : null
+    );
+
+    if (!itemId) {
+        return true;
+    }
+
+    const itemSignature = createRealtimeHistoryItemSignature(data.item);
+    const signatureIndex = restoreState.expectedItemSignatures.findIndex(
+        function(expectedSignature, index) {
+            return (
+                !restoreState.matchedSignatureIndexes.has(index) &&
+                expectedSignature === itemSignature
+            );
+        }
+    );
+
+    if (signatureIndex < 0) {
+        return false;
+    }
+
+    restoreState.matchedSignatureIndexes.add(signatureIndex);
+    restoreState.addedItemIds.add(itemId);
+    realtimeRestoredItemIds.add(itemId);
+    return true;
+}
+
+
+function createRealtimeHistoryItemSignature(item) {
+    const content = item && Array.isArray(item.content)
+        ? item.content
+        : [];
+
+    return JSON.stringify({
+        role: item ? item.role || "" : "",
+        content: content.map(function(part) {
+            return {
+                type: part ? part.type || "" : "",
+                text: part ? String(part.text || "") : ""
+            };
+        })
+    });
+}
+
+
+function acknowledgeRealtimeHistoryItemDone(data, sessionId) {
+    const restoreState = activeRealtimeHistoryRestore;
+
+    if (!restoreState || restoreState.sessionId !== sessionId) {
+        return false;
+    }
+
+    const itemId = normalizeRealtimeId(
+        data.item ? data.item.id : null
+    );
+
+    if (!itemId || !restoreState.addedItemIds.has(itemId)) {
+        return false;
+    }
+
+    if (restoreState.completedItemIds.has(itemId)) {
+        return true;
+    }
+
+    restoreState.completedItemIds.add(itemId);
+    restoreState.remainingItemCount -= 1;
+
+    if (restoreState.remainingItemCount <= 0) {
+        completeRealtimeHistoryRestore(restoreState);
+    }
+
+    return true;
+}
+
+
+function queueRealtimeTextContextSync(
+    userText,
+    assistantText,
+    conversationId
+) {
+    const normalizedUserText = String(userText || "").trim();
+    const normalizedAssistantText = String(assistantText || "").trim();
+    const normalizedConversationId = normalizeRealtimeId(conversationId);
+    const lifecycle = activeRealtimeLifecycle;
+
+    if (
+        !normalizedUserText ||
+        !normalizedAssistantText ||
+        !normalizedConversationId ||
+        !lifecycle ||
+        lifecycle.finishing ||
+        lifecycle.conversationId !== normalizedConversationId
+    ) {
+        return Promise.resolve(false);
+    }
+
+    const sessionId = lifecycle.sessionId;
+
+    realtimeTextContextSyncQueue = realtimeTextContextSyncQueue
+        .catch(function(error) {
+            console.warn("前回のRealtimeテキスト履歴同期に失敗しました。", error);
+            return false;
+        })
+        .then(function() {
+            return syncCompletedTextExchangeToRealtime(
+                normalizedUserText,
+                normalizedAssistantText,
+                normalizedConversationId,
+                sessionId
+            );
+        });
+
+    return realtimeTextContextSyncQueue;
+}
+
+
+async function syncCompletedTextExchangeToRealtime(
+    userText,
+    assistantText,
+    conversationId,
+    sessionId
+) {
+    const lifecycle = getRealtimeLifecycle(sessionId);
+    const currentDataChannel = dataChannel;
+    const currentLocalStream = localStream;
+
+    if (
+        !lifecycle ||
+        lifecycle.finishing ||
+        lifecycle.historyRestoring ||
+        lifecycle.conversationId !== conversationId ||
+        !currentDataChannel ||
+        currentDataChannel.readyState !== "open" ||
+        !currentLocalStream
+    ) {
+        return false;
+    }
+
+    const events = [
+        {
+            type: "conversation.item.create",
+            item: {
+                type: "message",
+                role: "user",
+                content: [
+                    {
+                        type: "input_text",
+                        text: userText
+                    }
+                ]
+            }
+        },
+        {
+            type: "conversation.item.create",
+            item: {
+                type: "message",
+                role: "assistant",
+                status: "completed",
+                content: [
+                    {
+                        type: "output_text",
+                        text: assistantText
+                    }
+                ]
+            }
+        }
+    ];
+
+    setRealtimeMicrophoneEnabled(currentLocalStream, false);
+    updateVoiceStatus("connected", "テキスト履歴同期中...");
+
+    try {
+        await sendRealtimeHistoryItemsAndWait(
+            currentDataChannel,
+            sessionId,
+            events
+        );
+    } catch (error) {
+        console.error("Realtimeへのテキスト履歴同期に失敗しました。", error);
+
+        if (isCurrentRealtimeSession(sessionId)) {
+            await finishRealtimeVoice(
+                "text_context_sync_failed",
+                sessionId,
+                "error",
+                "履歴同期失敗"
+            );
+        }
+
+        return false;
+    }
+
+    if (
+        !isCurrentRealtimeSession(sessionId) ||
+        dataChannel !== currentDataChannel ||
+        localStream !== currentLocalStream
+    ) {
+        return false;
+    }
+
+    setRealtimeMicrophoneEnabled(currentLocalStream, true);
+    updateVoiceStatus("connected", "接続中");
+    return true;
+}
+
+
+function completeRealtimeHistoryRestore(restoreState) {
+    if (activeRealtimeHistoryRestore !== restoreState) {
+        return;
+    }
+
+    activeRealtimeHistoryRestore = null;
+    clearTimeout(restoreState.timeoutId);
+    restoreState.resolve();
+}
+
+
+function failRealtimeHistoryRestore(restoreState, error) {
+    if (activeRealtimeHistoryRestore !== restoreState) {
+        return;
+    }
+
+    activeRealtimeHistoryRestore = null;
+    clearTimeout(restoreState.timeoutId);
+    restoreState.reject(error);
+}
+
+
+function rejectRealtimeHistoryRestoreFromServer(data, sessionId) {
+    const restoreState = activeRealtimeHistoryRestore;
+
+    if (!restoreState || restoreState.sessionId !== sessionId) {
+        return false;
+    }
+
+    const eventId = normalizeRealtimeId(
+        data.event_id || (data.error ? data.error.event_id : null)
+    );
+
+    if (!eventId || !restoreState.eventIds.has(eventId)) {
+        return false;
+    }
+
+    const message = data.message || (
+        data.error ? data.error.message : "Realtime履歴復元エラー"
+    );
+    failRealtimeHistoryRestore(restoreState, new Error(message));
+    return true;
+}
+
+
+function cancelRealtimeHistoryRestore(reason) {
+    const restoreState = activeRealtimeHistoryRestore;
+
+    if (!restoreState) {
+        return;
+    }
+
+    failRealtimeHistoryRestore(restoreState, new Error(reason));
+}
+
+
+function setRealtimeMicrophoneEnabled(stream, enabled) {
+    if (!stream) {
+        return;
+    }
+
+    let tracks = [];
+
+    try {
+        tracks = stream.getTracks();
+    } catch (error) {
+        console.warn("Realtime microphone track取得エラー:", error);
+        return;
+    }
+
+    tracks.forEach(function(track) {
+        try {
+            track.enabled = enabled;
+        } catch (error) {
+            console.warn("Realtime microphone切替エラー:", error);
+        }
+    });
+}
+
+
+function isRestoredRealtimeItem(data) {
+    const itemId = normalizeRealtimeId(data.item_id);
+    return itemId ? realtimeRestoredItemIds.has(itemId) : false;
 }
 
 
@@ -1052,8 +1586,36 @@ function finishRealtimeOutputAudio(responseId) {
 
 
 async function handleRealtimeEvent(data, sessionId) {
+    if (rejectRealtimeHistoryRestoreFromServer(data, sessionId)) {
+        return;
+    }
+
+    if (
+        data.type === "conversation.item.added" &&
+        registerRealtimeHistoryItemAdded(data, sessionId)
+    ) {
+        return;
+    }
+
+    if (
+        data.type === "conversation.item.done" &&
+        acknowledgeRealtimeHistoryItemDone(data, sessionId)
+    ) {
+        return;
+    }
+
     if (data.type === "session.created") {
-        await notifyTrayRealtimeStarted(sessionId);
+        const lifecycle = getRealtimeLifecycle(sessionId);
+
+        if (!lifecycle) {
+            return;
+        }
+
+        lifecycle.sessionCreatedReceived = true;
+
+        if (!lifecycle.historyRestoring) {
+            await notifyTrayRealtimeStarted(sessionId);
+        }
         return;
     }
 
@@ -1167,7 +1729,10 @@ async function handleRealtimeEvent(data, sessionId) {
 
 
 async function handleRealtimeUserTranscriptionCompleted(data, sessionId) {
-    if (!isCurrentRealtimeSession(sessionId)) {
+    if (
+        !isCurrentRealtimeSession(sessionId) ||
+        isRestoredRealtimeItem(data)
+    ) {
         return;
     }
 
@@ -1234,6 +1799,10 @@ async function handleRealtimeUserTranscriptionCompleted(data, sessionId) {
 
 
 function handleRealtimeAssistantTranscriptDelta(data) {
+    if (isRestoredRealtimeItem(data)) {
+        return;
+    }
+
     const state = getRealtimeAssistantTranscriptState(data);
     const delta = String(data.delta || "");
 
@@ -1259,7 +1828,10 @@ function handleRealtimeAssistantTranscriptDelta(data) {
 
 
 async function handleRealtimeAssistantTranscriptDone(data, sessionId) {
-    if (!isCurrentRealtimeSession(sessionId)) {
+    if (
+        !isCurrentRealtimeSession(sessionId) ||
+        isRestoredRealtimeItem(data)
+    ) {
         return;
     }
 
@@ -1470,6 +2042,7 @@ function normalizeRealtimeId(value) {
 
 function resetRealtimeConversationTracking() {
     realtimeUserMessagesByItemId.clear();
+    realtimeRestoredItemIds.clear();
     realtimeAssistantMessagesByItemId.clear();
     realtimeAssistantMessagesByResponseId.clear();
 }
@@ -1727,6 +2300,7 @@ function cleanupRealtimeVoice() {
     const currentLocalStream = localStream;
     const currentRemoteAudioElement = remoteAudioElement;
 
+    cancelRealtimeHistoryRestore("Realtime接続を終了しました。");
     resetRealtimeBargeInState();
     resetRealtimeConversationTracking();
 

@@ -22,6 +22,12 @@ class ConversationService:
     def get_active_conversation(self) -> dict[str, Any] | None:
         return self.store.get_active_conversation()
 
+    def get_conversation(
+        self,
+        conversation_id: str,
+    ) -> dict[str, Any] | None:
+        return self.store.get_conversation(conversation_id)
+
     def get_or_create_active_conversation(
         self,
         *,

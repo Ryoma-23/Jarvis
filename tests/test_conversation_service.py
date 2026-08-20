@@ -88,6 +88,13 @@ class ConversationServiceTests(unittest.TestCase):
             {"role": "assistant", "content": "assistant-16"},
         )
 
+        restore_events = self.service.build_realtime_restore_events()
+        self.assertEqual(len(restore_events), 30)
+        self.assertEqual(
+            restore_events[0]["item"]["content"][0],
+            {"type": "input_text", "text": "user-2"},
+        )
+
     def test_context_excludes_interrupted_pending_failed_and_hidden_messages(self):
         self.service.add_user_message("質問1", source="voice")
         self.service.add_assistant_message(
@@ -270,6 +277,12 @@ class ConversationServiceTests(unittest.TestCase):
             "中断された回答",
             source="voice",
             status="interrupted",
+        )
+        self.service.add_assistant_message(
+            "失敗した回答",
+            source="voice",
+            status="failed",
+            error_message="generation failed",
         )
         self.service.record_hidden_tool_metadata(
             tool_name="list_notes",

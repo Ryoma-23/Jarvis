@@ -79,7 +79,7 @@ tool実行後は、実行結果を自然な日本語で短く伝えてくださ�
 """
 
 
-def create_realtime_token():
+def create_realtime_token(*, conversation_id: str):
     instructions = build_realtime_instructions()
 
     response = requests.post(
@@ -106,4 +106,6 @@ def create_realtime_token():
 
     response.raise_for_status()
 
-    return response.json()
+    token_data = response.json()
+    token_data["conversation_id"] = conversation_id
+    return token_data

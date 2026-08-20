@@ -216,6 +216,34 @@ updates the current Assistant message once as `interrupted`. Existing Wake Word
 and Realtime microphone lifecycle state remains separate from this history
 persistence.
 
+## Realtime shared-history restoration
+
+Every manual or Wake Word Realtime start now carries the active local
+`conversation_id` through token creation. Once the DataChannel opens, the
+Window fetches the most recent 15 shared user turns and sends their eligible
+user and Assistant messages as ordered `conversation.item.create` events.
+Completed text and voice messages are included. Interrupted, failed, pending,
+hidden tool, system, and tool rows are excluded.
+
+Browser microphone tracks are disabled before they are added to WebRTC and are
+enabled only after all restored items first receive `conversation.item.added`
+and then reach `conversation.item.done`. Restored item IDs are ignored by the
+transcript persistence handlers, so reconnecting does not insert duplicate
+SQLite rows. Restoration does not send `response.create`, execute tools, or
+replay audio.
+
+When a text response finishes while Realtime remains connected, the Window also
+adds that completed user/Assistant pair to the current Realtime conversation.
+The microphone is paused until both items reach `conversation.item.done`. This
+allows the next voice turn to refer to text added after Realtime startup without
+requiring a disconnect and reconnect.
+
+The adjustable `REALTIME_HISTORY_RESTORE_TIMEOUT_MS` constant is located near
+the other Realtime frontend constants in `static/script.js`. A history request,
+server rejection, acknowledgement timeout, disconnect, or cleanup failure
+terminates the Realtime attempt without enabling microphone input and returns
+through the existing Tray cleanup and Wake Word recovery flow.
+
 ## Remaining limitations
 
 - Abrupt termination of a window process that was launched independently and
@@ -392,6 +420,16 @@ microphone and speaker:
     is accepted.
 14. Repeat JARVIS response → user interruption → next response → interruption
     several times and confirm no delayed cancellation occurs.
+15. Complete a text conversation, connect Realtime, and ask a follow-up that
+    depends on the text context. Confirm JARVIS answers with that context.
+16. Speak to JARVIS, disconnect Realtime, reconnect, and ask a follow-up.
+    Confirm the voice context continues and the restored messages are not
+    duplicated in the chat history or SQLite.
+17. During a Realtime start, confirm the status shows `履歴復元中...` before
+    `接続中`, and that speech during restoration is not accepted as input.
+18. While Realtime remains connected, complete a text exchange and confirm the
+    status briefly shows `テキスト履歴同期中...`. Then ask a voice follow-up
+    that depends on that text and confirm the context is understood.
 
 For each run, check that only one Realtime connection is created, the browser
 and wake-word microphones are never active together, and no Python window or

@@ -6,7 +6,8 @@ Phase 2 adds `ConversationService` above the SQLite `ConversationStore`. It is
 the common history boundary for text and voice integration. Phase 3 connects
 the text chat path to it. Phase 4 connects its history to the Window, and Phase
 5 persists finalized Realtime speech transcripts and renders them in the same
-message list.
+message list. Phase 6 restores the shared history into every new Realtime
+session.
 
 The service provides:
 
@@ -51,8 +52,36 @@ Assistant items are marked `completed`.
 
 The service intentionally does not restore audio bytes, send `response.create`,
 or replay tool calls. Replaying a tool call could repeat a side effect such as
-adding or deleting a note. The future Realtime integration layer is responsible
-for sending all restoration events once when a new Realtime session starts.
+adding or deleting a note.
+
+`GET /realtime/token` accepts the local `conversation_id` and returns it with
+the ephemeral token. After the WebRTC DataChannel opens, the Window requests
+`GET /realtime/conversation/history` and sends the returned events in stored
+order. The API always uses `DEFAULT_CONTEXT_TURN_LIMIT`, currently 15 user
+turns.
+
+Microphone tracks are attached in a disabled state so SDP audio negotiation can
+complete without sending user audio. Each restoration event has a local
+`event_id`. The Window records the server item ID at `conversation.item.added`,
+then waits for the corresponding `conversation.item.done` event before counting
+that item as restored. Microphone tracks are enabled only after every restored
+item is done. Restored server item IDs are tracked and excluded from transcript
+persistence, and restoration never sends `response.create`.
+
+If a text exchange completes while the same Realtime session is already open,
+the finalized user and Assistant text messages are appended to that session as
+an ordered pair of `conversation.item.create` events. The microphone is disabled
+while those two items are synchronized and is re-enabled only after both
+`conversation.item.done` events. This keeps a following voice turn aware of text
+that was added after the initial connection without asking the Realtime model to
+generate a duplicate response.
+
+History HTTP requests and acknowledgement waits both have a five-second
+timeout. An HTTP error, invalid response, rejected client event, timeout,
+DataChannel closure, or manual disconnect leaves the microphone disabled and
+uses the existing Realtime cleanup path. Cleanup cancels the pending restore,
+stops microphone tracks, closes WebRTC, and notifies the Tray so Wake Word can
+resume.
 
 ## Hidden tool metadata
 
@@ -165,10 +194,3 @@ context.
 The Realtime API cannot precisely align generated transcript text with the
 exact audio playback cutoff, so the stored interrupted text is the transcript
 buffered by the Window at the terminal interruption.
-
-## Deferred integration
-
-Later phases still need to:
-
-- send restoration events when Realtime connects
-- distinguish restoration acknowledgements from newly generated Realtime items

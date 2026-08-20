@@ -1342,3 +1342,130 @@ INFO:     127.0.0.1:58576 - "POST /realtime/conversation/messages HTTP/1.1" 200 
 INFO:     127.0.0.1:51744 - "POST /realtime/conversation/messages HTTP/1.1" 200 OK
 INFO:     127.0.0.1:64736 - "POST /realtime/conversation/messages HTTP/1.1" 200 OK
 INFO:     127.0.0.1:64736 - "POST /realtime/conversation/messages HTTP/1.1" 200 OK
+INFO:     Started server process [11760]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:57478 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56345 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53848 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64162 - "GET /?v=1.9-realtime-history-restore HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64162 - "GET /static/script.js?v=1.9-realtime-history-restore HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64162 - "GET /conversations/active HTTP/1.1" 200 OK
+INFO:     127.0.0.1:64162 - "GET /favicon.ico HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:50290 - "GET /conversations/d7663afa00714837a660c199553c1e64/messages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50290 - "GET /realtime/token?conversation_id=d7663afa00714837a660c199553c1e64 HTTP/1.1" 200 OK
+INFO:     Started server process [15804]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:58139 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58143 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58146 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65325 - "GET /?v=1.9-realtime-history-restore HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65325 - "GET /static/script.js?v=1.9-realtime-history-restore HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:65325 - "GET /conversations/active HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65325 - "GET /favicon.ico HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:52147 - "GET /conversations/d7663afa00714837a660c199553c1e64/messages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52147 - "GET /realtime/token?conversation_id=d7663afa00714837a660c199553c1e64 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59572 - "GET /realtime/conversation/history?conversation_id=d7663afa00714837a660c199553c1e64 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62169 - "POST /chat/stream HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58901 - "POST /realtime/conversation/messages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58901 - "POST /realtime/conversation/messages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53756 - "POST /realtime/conversation/messages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53756 - "POST /realtime/conversation/messages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57884 - "POST /realtime/conversation/messages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57884 - "POST /realtime/conversation/messages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63027 - "POST /realtime/conversation/messages HTTP/1.1" 409 Conflict
+INFO:     127.0.0.1:65511 - "POST /realtime/conversation/messages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65511 - "POST /realtime/conversation/assistant/interrupted HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52306 - "POST /realtime/conversation/messages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52306 - "POST /realtime/conversation/messages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52306 - "POST /realtime/conversation/messages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53621 - "POST /realtime/conversation/messages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53621 - "POST /realtime/conversation/messages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53621 - "POST /realtime/conversation/messages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53621 - "POST /realtime/conversation/messages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53621 - "POST /realtime/conversation/messages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58925 - "POST /realtime/conversation/messages HTTP/1.1" 409 Conflict
+INFO:     127.0.0.1:52050 - "POST /chat/stream HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61549 - "POST /realtime/conversation/messages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61549 - "POST /realtime/conversation/messages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54957 - "POST /realtime/conversation/messages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54957 - "POST /realtime/conversation/messages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54957 - "POST /realtime/conversation/messages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54957 - "POST /realtime/conversation/messages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54957 - "POST /realtime/conversation/messages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57011 - "POST /realtime/conversation/messages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57011 - "POST /realtime/conversation/assistant/interrupted HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54290 - "POST /realtime/conversation/messages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54290 - "POST /realtime/conversation/messages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54290 - "POST /realtime/conversation/messages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60397 - "POST /realtime/conversation/messages HTTP/1.1" 409 Conflict
+INFO:     127.0.0.1:52316 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52319 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56200 - "GET /?v=1.9-realtime-history-restore HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56200 - "GET /static/script.js?v=1.9-realtime-history-restore HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:56200 - "GET /conversations/active HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55736 - "GET /favicon.ico HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:56200 - "GET /conversations/d7663afa00714837a660c199553c1e64/messages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56200 - "GET /realtime/token?conversation_id=d7663afa00714837a660c199553c1e64 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56200 - "GET /realtime/conversation/history?conversation_id=d7663afa00714837a660c199553c1e64 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55970 - "POST /realtime/conversation/messages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55970 - "POST /realtime/conversation/messages HTTP/1.1" 200 OK
+INFO:     Started server process [21664]
+INFO:     Waiting for application startup.
+INFO:     Application startup complete.
+INFO:     Uvicorn running on http://127.0.0.1:8000 (Press CTRL+C to quit)
+INFO:     127.0.0.1:56585 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56589 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56592 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56078 - "GET /?v=1.9.1-realtime-live-history-sync HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56078 - "GET /static/script.js?v=1.9.1-realtime-live-history-sync HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56078 - "GET /conversations/active HTTP/1.1" 200 OK
+INFO:     127.0.0.1:63808 - "GET /favicon.ico HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:56078 - "GET /conversations/d7663afa00714837a660c199553c1e64/messages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56078 - "GET /realtime/token?conversation_id=d7663afa00714837a660c199553c1e64 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:54360 - "GET /realtime/conversation/history?conversation_id=d7663afa00714837a660c199553c1e64 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61986 - "POST /realtime/conversation/messages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61986 - "POST /realtime/conversation/messages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58415 - "POST /realtime/conversation/messages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58415 - "POST /realtime/conversation/messages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61716 - "POST /chat/stream HTTP/1.1" 200 OK
+INFO:     127.0.0.1:59119 - "POST /realtime/conversation/messages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:55442 - "POST /realtime/conversation/messages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52313 - "POST /realtime/conversation/messages HTTP/1.1" 409 Conflict
+INFO:     127.0.0.1:62847 - "POST /realtime/conversation/messages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62847 - "POST /realtime/conversation/messages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53301 - "POST /conversations HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53302 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53301 - "GET /conversations/active HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53301 - "GET /conversations/f38ec7ede003463ba1f076a3c45b5cd6/messages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53301 - "GET /realtime/token?conversation_id=f38ec7ede003463ba1f076a3c45b5cd6 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:53301 - "GET /realtime/conversation/history?conversation_id=f38ec7ede003463ba1f076a3c45b5cd6 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51321 - "POST /chat/stream HTTP/1.1" 200 OK
+INFO:     127.0.0.1:65132 - "POST /realtime/conversation/messages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60786 - "POST /realtime/conversation/messages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62271 - "POST /realtime/conversation/messages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62271 - "POST /realtime/conversation/messages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:50978 - "POST /chat/stream HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51052 - "POST /realtime/conversation/messages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51052 - "POST /realtime/conversation/messages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57385 - "POST /realtime/conversation/messages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57385 - "POST /realtime/conversation/messages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:57385 - "POST /realtime/conversation/assistant/interrupted HTTP/1.1" 200 OK
+INFO:     127.0.0.1:61976 - "POST /realtime/conversation/messages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58588 - "POST /realtime/conversation/messages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:56482 - "POST /realtime/conversation/messages HTTP/1.1" 409 Conflict
+INFO:     127.0.0.1:60475 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:60478 - "GET / HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51031 - "GET /?v=1.9.1-realtime-live-history-sync HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51031 - "GET /static/script.js?v=1.9.1-realtime-live-history-sync HTTP/1.1" 304 Not Modified
+INFO:     127.0.0.1:51031 - "GET /conversations/active HTTP/1.1" 200 OK
+INFO:     127.0.0.1:62299 - "GET /favicon.ico HTTP/1.1" 404 Not Found
+INFO:     127.0.0.1:51031 - "GET /conversations/f38ec7ede003463ba1f076a3c45b5cd6/messages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51031 - "GET /realtime/token?conversation_id=f38ec7ede003463ba1f076a3c45b5cd6 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:51031 - "GET /realtime/conversation/history?conversation_id=f38ec7ede003463ba1f076a3c45b5cd6 HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58274 - "POST /realtime/conversation/messages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:58274 - "POST /realtime/conversation/messages HTTP/1.1" 200 OK
+INFO:     127.0.0.1:52240 - "POST /realtime/conversation/messages HTTP/1.1" 409 Conflict
