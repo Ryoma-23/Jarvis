@@ -47,6 +47,58 @@ class RealtimeConversationHistoryTests(unittest.TestCase):
             [("user", "voice"), ("assistant", "voice")],
         )
 
+    def test_realtime_text_turn_is_saved_once_with_text_source(self):
+        user = self.service.record_realtime_user_message(
+            "画面からの質問",
+            source="text",
+            item_id="text-user-item-1",
+        )
+        user_retry = self.service.record_realtime_user_message(
+            "画面からの質問",
+            source="text",
+            item_id="text-user-item-1",
+        )
+        assistant = self.service.record_realtime_assistant_message(
+            "音声でも再生される回答",
+            source="text",
+            item_id="text-assistant-item-1",
+            response_id="text-response-1",
+        )
+        assistant_retry = self.service.record_realtime_assistant_message(
+            "音声でも再生される回答",
+            source="text",
+            item_id="text-assistant-item-1",
+            response_id="text-response-1",
+        )
+
+        conversation = self.service.get_active_conversation()
+        messages = self.service.store.get_messages(conversation["id"])
+
+        self.assertEqual(user_retry["id"], user["id"])
+        self.assertEqual(assistant_retry["id"], assistant["id"])
+        self.assertEqual(
+            [(message["role"], message["source"]) for message in messages],
+            [("user", "text"), ("assistant", "text")],
+        )
+
+    def test_realtime_text_assistant_can_be_marked_interrupted(self):
+        completed = self.service.record_realtime_assistant_message(
+            "テキスト起点の回答",
+            source="text",
+            item_id="text-assistant-interrupted",
+            response_id="text-response-interrupted",
+        )
+        interrupted = self.service.interrupt_realtime_assistant_message(
+            content="テキスト起点の回答",
+            source="text",
+            item_id="text-assistant-interrupted",
+            response_id="text-response-interrupted",
+        )
+
+        self.assertEqual(interrupted["id"], completed["id"])
+        self.assertEqual(interrupted["source"], "text")
+        self.assertEqual(interrupted["status"], "interrupted")
+
     def test_interruption_before_done_keeps_partial_transcript_interrupted(self):
         interrupted = self.service.interrupt_realtime_assistant_message(
             content="回答の途中",
@@ -115,8 +167,8 @@ class RealtimeConversationEventContractTests(unittest.TestCase):
         delta_source = script[delta_start:done_start]
         done_source = script[done_start:]
 
-        self.assertNotIn("saveRealtimeVoiceMessage", delta_source)
-        self.assertIn("saveRealtimeVoiceMessage", done_source)
+        self.assertNotIn("saveRealtimeConversationMessage", delta_source)
+        self.assertIn("saveRealtimeConversationMessage", done_source)
         self.assertIn("appendMessageText", delta_source)
         self.assertIn("markActiveRealtimeAssistantInterrupted", script)
 
@@ -153,7 +205,7 @@ class RealtimeConversationEventContractTests(unittest.TestCase):
             handler_source,
         )
         self.assertIn(
-            "saveRealtimeVoiceMessage({",
+            "saveRealtimeConversationMessage({",
             handler_source,
         )
         self.assertIn(
@@ -172,8 +224,9 @@ class RealtimeConversationEventContractTests(unittest.TestCase):
             '@router.post("/realtime/conversation/assistant/interrupted")',
             route,
         )
-        self.assertIn("record_realtime_user_transcript", route)
-        self.assertIn("record_realtime_assistant_transcript", route)
+        self.assertIn('source: Literal["text", "voice"] = "voice"', route)
+        self.assertIn("record_realtime_user_message", route)
+        self.assertIn("record_realtime_assistant_message", route)
         self.assertIn("interrupt_realtime_assistant_message", route)
 
 

@@ -14,7 +14,7 @@ TOOL_METADATA_KEY = "tool"
 
 
 class ConversationService:
-    """Common conversation manager shared by future text and voice paths."""
+    """Common conversation manager shared by text and voice paths."""
 
     def __init__(self, store: ConversationStore | None = None):
         self.store = store or ConversationStore()
@@ -133,17 +133,33 @@ class ConversationService:
         item_id: str,
         conversation_id: str | None = None,
     ) -> dict[str, Any]:
+        return self.record_realtime_user_message(
+            content,
+            source="voice",
+            item_id=item_id,
+            conversation_id=conversation_id,
+        )
+
+    def record_realtime_user_message(
+        self,
+        content: str,
+        *,
+        source: str,
+        item_id: str,
+        conversation_id: str | None = None,
+    ) -> dict[str, Any]:
+        _validate_source(source)
         normalized_item_id = _normalize_external_id(item_id, "item_id")
         message = self.add_user_message(
             content,
-            source="voice",
+            source=source,
             item_id=normalized_item_id,
             conversation_id=conversation_id,
         )
 
-        if message["role"] != "user" or message["source"] != "voice":
+        if message["role"] != "user" or message["source"] != source:
             raise ValueError(
-                "item_id must identify a voice user message"
+                "item_id must identify the requested Realtime user message"
             )
 
         return message
@@ -156,6 +172,24 @@ class ConversationService:
         response_id: str | None = None,
         conversation_id: str | None = None,
     ) -> dict[str, Any]:
+        return self.record_realtime_assistant_message(
+            content,
+            source="voice",
+            item_id=item_id,
+            response_id=response_id,
+            conversation_id=conversation_id,
+        )
+
+    def record_realtime_assistant_message(
+        self,
+        content: str,
+        *,
+        source: str,
+        item_id: str | None = None,
+        response_id: str | None = None,
+        conversation_id: str | None = None,
+    ) -> dict[str, Any]:
+        _validate_source(source)
         _validate_completed_content(content)
         item_id, response_id = _normalize_external_ids(
             item_id=item_id,
@@ -178,7 +212,7 @@ class ConversationService:
                     conversation_id,
                     role="assistant",
                     content=content,
-                    source="voice",
+                    source=source,
                     status="completed",
                     item_id=item_id,
                     response_id=response_id,
@@ -188,12 +222,13 @@ class ConversationService:
             self._validate_realtime_assistant_message(
                 existing,
                 conversation_id=conversation_id,
+                source=source,
             )
             existing = self.store.add_message(
                 conversation_id,
                 role="assistant",
                 content=existing["content"],
-                source="voice",
+                source=source,
                 status=existing["status"],
                 item_id=item_id,
                 response_id=response_id,
@@ -227,8 +262,10 @@ class ConversationService:
         content: str = "",
         item_id: str | None = None,
         response_id: str | None = None,
+        source: str = "voice",
         conversation_id: str | None = None,
     ) -> dict[str, Any]:
+        _validate_source(source)
         item_id, response_id = _normalize_external_ids(
             item_id=item_id,
             response_id=response_id,
@@ -250,7 +287,7 @@ class ConversationService:
                     conversation_id,
                     role="assistant",
                     content=content,
-                    source="voice",
+                    source=source,
                     status="interrupted",
                     item_id=item_id,
                     response_id=response_id,
@@ -260,12 +297,13 @@ class ConversationService:
             self._validate_realtime_assistant_message(
                 existing,
                 conversation_id=conversation_id,
+                source=source,
             )
             existing = self.store.add_message(
                 conversation_id,
                 role="assistant",
                 content=existing["content"],
-                source="voice",
+                source=source,
                 status=existing["status"],
                 item_id=item_id,
                 response_id=response_id,
@@ -470,15 +508,17 @@ class ConversationService:
         message: Mapping[str, Any],
         *,
         conversation_id: str,
+        source: str,
     ) -> None:
         if message["conversation_id"] != conversation_id:
             raise ValueError(
                 "Realtime message belongs to another conversation"
             )
 
-        if message["role"] != "assistant" or message["source"] != "voice":
+        if message["role"] != "assistant" or message["source"] != source:
             raise ValueError(
-                "External IDs must identify a voice assistant message"
+                "External IDs must identify the requested Realtime "
+                "assistant message"
             )
 
     def _get_context_messages(

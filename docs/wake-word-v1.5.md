@@ -232,11 +232,18 @@ transcript persistence handlers, so reconnecting does not insert duplicate
 SQLite rows. Restoration does not send `response.create`, execute tools, or
 replay audio.
 
-When a text response finishes while Realtime remains connected, the Window also
-adds that completed user/Assistant pair to the current Realtime conversation.
-The microphone is paused until both items reach `conversation.item.done`. This
-allows the next voice turn to refer to text added after Realtime startup without
-requiring a disconnect and reconnect.
+While Realtime remains connected, new Window text input is sent directly to the
+same Realtime conversation as `input_text`. Once the user item is accepted and
+stored, the Window sends `response.create`; the answer is played through WebRTC,
+rendered from audio transcript deltas, and stored with `source=text`. When
+Realtime is not active, the existing `/chat/stream` path remains unchanged.
+
+Realtime text requests wait during active microphone speech and are serialized
+behind another text-origin response. A text request made while JARVIS audio is
+playing uses the existing explicit response cancellation and audio-clear path
+before it starts; this also clears any buffered tail from a completed response.
+Tool calling continues through the existing function-call output and follow-up
+response flow.
 
 The adjustable `REALTIME_HISTORY_RESTORE_TIMEOUT_MS` constant is located near
 the other Realtime frontend constants in `static/script.js`. A history request,
@@ -428,8 +435,16 @@ microphone and speaker:
 17. During a Realtime start, confirm the status shows `履歴復元中...` before
     `接続中`, and that speech during restoration is not accepted as input.
 18. While Realtime remains connected, complete a text exchange and confirm the
-    status briefly shows `テキスト履歴同期中...`. Then ask a voice follow-up
-    that depends on that text and confirm the context is understood.
+    answer is both displayed and played through the speaker. Then ask a voice
+    follow-up that depends on that text and confirm the context is understood.
+19. Start with a voice question, enter a text follow-up without disconnecting,
+    and confirm the text response uses the voice context and is stored after a
+    Window or server restart.
+20. While a Realtime text response is running, submit another text request and
+    confirm it waits until the current response finishes. Also confirm a text
+    request during active microphone speech does not start a competing response.
+21. Use a Memo, Task, or Memory request through Realtime text input and confirm
+    tool execution and its spoken/displayed follow-up response still complete.
 
 For each run, check that only one Realtime connection is created, the browser
 and wake-word microphones are never active together, and no Python window or

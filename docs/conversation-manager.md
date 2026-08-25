@@ -7,7 +7,7 @@ the common history boundary for text and voice integration. Phase 3 connects
 the text chat path to it. Phase 4 connects its history to the Window, and Phase
 5 persists finalized Realtime speech transcripts and renders them in the same
 message list. Phase 6 restores the shared history into every new Realtime
-session.
+session. Phase 7 routes text input through that session while it is connected.
 
 The service provides:
 
@@ -68,13 +68,33 @@ that item as restored. Microphone tracks are enabled only after every restored
 item is done. Restored server item IDs are tracked and excluded from transcript
 persistence, and restoration never sends `response.create`.
 
-If a text exchange completes while the same Realtime session is already open,
-the finalized user and Assistant text messages are appended to that session as
-an ordered pair of `conversation.item.create` events. The microphone is disabled
-while those two items are synchronized and is re-enabled only after both
-`conversation.item.done` events. This keeps a following voice turn aware of text
-that was added after the initial connection without asking the Realtime model to
-generate a duplicate response.
+## Realtime text input
+
+While a Realtime lifecycle is active, the Window no longer sends new text input
+to `POST /chat/stream`. It queues the text locally, sends it as a user
+`conversation.item.create` with `input_text`, and waits for the server-assigned
+item ID. The accepted user item is stored through Conversation Service with
+`source=text`. After the item reaches `conversation.item.done` and persistence
+has succeeded, the Window sends `response.create`.
+
+The Realtime response keeps the session's audio output, so it is played by the
+existing WebRTC remote audio element. Existing audio transcript delta handling
+renders the answer incrementally in the common message list. Transcript done
+stores the Assistant message with `source=text`, its Realtime `item_id`, and
+`response_id`. No extra Responses API request or history reinsertion is made.
+
+If no Realtime lifecycle is active, text input continues to use the existing
+`POST /chat/stream` Responses API path. Text entered during Realtime startup is
+queued until history restoration finishes. Text entered during microphone
+speech waits; text entered while a voice-origin Assistant response is playing
+uses the existing explicit interruption path. The same rule applies if buffered
+audio from a completed text turn is still playing. Additional text requests
+remain queued until the current text turn finishes.
+
+Tool calls use the existing `/realtime/tools` execution route and
+`function_call_output` item. The follow-up `response.create` carries the same
+text-turn association, so its spoken/displayed final answer is saved as the
+Assistant half of the original text turn.
 
 History HTTP requests and acknowledgement waits both have a five-second
 timeout. An HTTP error, invalid response, rejected client event, timeout,

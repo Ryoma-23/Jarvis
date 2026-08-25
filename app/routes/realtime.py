@@ -21,9 +21,10 @@ class RealtimeToolRequest(BaseModel):
     arguments: dict
 
 
-class RealtimeVoiceMessageRequest(BaseModel):
+class RealtimeConversationMessageRequest(BaseModel):
     role: Literal["user", "assistant"]
     content: str
+    source: Literal["text", "voice"] = "voice"
     conversation_id: str | None = None
     item_id: str | None = None
     response_id: str | None = None
@@ -31,6 +32,7 @@ class RealtimeVoiceMessageRequest(BaseModel):
 
 class RealtimeAssistantInterruptedRequest(BaseModel):
     content: str = ""
+    source: Literal["text", "voice"] = "voice"
     conversation_id: str | None = None
     item_id: str | None = None
     response_id: str | None = None
@@ -76,20 +78,24 @@ def execute_tool(request: RealtimeToolRequest):
 
 
 @router.post("/realtime/conversation/messages")
-def save_realtime_voice_message(request: RealtimeVoiceMessageRequest):
+def save_realtime_conversation_message(
+    request: RealtimeConversationMessageRequest,
+):
     conversation_service = get_conversation_service()
 
     try:
         if request.role == "user":
-            message = conversation_service.record_realtime_user_transcript(
+            message = conversation_service.record_realtime_user_message(
                 request.content,
+                source=request.source,
                 item_id=request.item_id or "",
                 conversation_id=request.conversation_id,
             )
         else:
             message = (
-                conversation_service.record_realtime_assistant_transcript(
+                conversation_service.record_realtime_assistant_message(
                     request.content,
+                    source=request.source,
                     item_id=request.item_id,
                     response_id=request.response_id,
                     conversation_id=request.conversation_id,
@@ -112,6 +118,7 @@ def interrupt_realtime_assistant_message(
             content=request.content,
             item_id=request.item_id,
             response_id=request.response_id,
+            source=request.source,
             conversation_id=request.conversation_id,
         )
     except Exception as error:

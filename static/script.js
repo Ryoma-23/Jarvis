@@ -15,11 +15,16 @@ let isRealtimeOutputAudioPlaying = false;
 let isRealtimeResponseActive = false;
 let activeRealtimeResponseId = null;
 let activeRealtimeOutputResponseId = null;
+let isRealtimeResponseCancelPending = false;
 let activeConversationId = null;
 let isConversationHistoryLoading = false;
 let activeTextRequestCount = 0;
 let realtimeHistorySyncGeneration = 0;
 let realtimeTextContextSyncQueue = Promise.resolve();
+let realtimeTextTurnSequence = 0;
+let activeRealtimeTextTurn = null;
+let pendingRealtimeTextResponseTurn = null;
+let realtimePendingResponseRequestCount = 0;
 
 const messageElementsById = new Map();
 const realtimeUserMessagesByItemId = new Map();
@@ -27,12 +32,16 @@ const realtimeSpeechTurnsByItemId = new Map();
 const realtimeRestoredItemIds = new Set();
 const realtimeAssistantMessagesByItemId = new Map();
 const realtimeAssistantMessagesByResponseId = new Map();
+const realtimeTextInputQueue = [];
+const realtimeTextTurnsByResponseId = new Map();
 
 const TRAY_REALTIME_BRIDGE_URL = "http://127.0.0.1:8767";
 const REALTIME_FINISHED_NOTIFY_RETRY_COUNT = 8;
 const REALTIME_FINISHED_NOTIFY_RETRY_DELAY_MS = 500;
 const REALTIME_HISTORY_RESTORE_TIMEOUT_MS = 5000;
 const REALTIME_HISTORY_EVENT_ID_PREFIX = "jarvis_history_restore";
+const REALTIME_TEXT_INPUT_ACK_TIMEOUT_MS = 5000;
+const REALTIME_TEXT_EVENT_ID_PREFIX = "jarvis_text_input";
 const REALTIME_MEDIA_AUDIO_CONSTRAINTS = Object.freeze({
     echoCancellation: true,
     noiseSuppression: true,
@@ -239,20 +248,30 @@ function updateNewConversationButton() {
 
 
 async function sendMessage() {
-
     const message = messageInput.value.trim();
 
     if (!message) {
         return;
     }
 
+    messageInput.value = "";
+
+    if (shouldUseRealtimeTextInput()) {
+        enqueueRealtimeTextInput(message);
+        return;
+    }
+
+    await sendHttpChatMessage(message);
+}
+
+
+async function sendHttpChatMessage(message) {
+
     const userMessageView = renderConversationMessage({
         role: "user",
         content: message,
         status: "completed"
     });
-
-    messageInput.value = "";
 
     const assistantMessageView = renderConversationMessage({
         role: "assistant",
@@ -376,6 +395,334 @@ async function sendMessage() {
         activeTextRequestCount = Math.max(0, activeTextRequestCount - 1);
         updateNewConversationButton();
     }
+}
+
+
+function shouldUseRealtimeTextInput() {
+    return Boolean(
+        activeRealtimeLifecycle &&
+        !activeRealtimeLifecycle.finishing
+    );
+}
+
+
+function enqueueRealtimeTextInput(message) {
+    const lifecycle = activeRealtimeLifecycle;
+
+    if (!lifecycle || lifecycle.finishing) {
+        void sendHttpChatMessage(message);
+        return;
+    }
+
+    const messageView = renderConversationMessage({
+        role: "user",
+        content: message,
+        source: "text",
+        status: "pending"
+    });
+    const turn = {
+        sessionId: lifecycle.sessionId,
+        conversationId: lifecycle.conversationId || activeConversationId,
+        text: message,
+        messageView: messageView,
+        inputEventId: null,
+        inputSignature: null,
+        userItemId: null,
+        userPersistPromise: null,
+        userPersisted: false,
+        responseRequested: false,
+        responseEventIds: new Set(),
+        responseIds: new Set(),
+        ackTimeoutId: null,
+        completed: false,
+        failed: false
+    };
+
+    realtimeTextInputQueue.push(turn);
+    activeTextRequestCount += 1;
+    updateNewConversationButton();
+    processRealtimeTextInputQueue();
+}
+
+
+function processRealtimeTextInputQueue() {
+    const lifecycle = activeRealtimeLifecycle;
+    const currentDataChannel = dataChannel;
+
+    if (
+        activeRealtimeTextTurn ||
+        realtimeTextInputQueue.length === 0 ||
+        !lifecycle ||
+        lifecycle.finishing ||
+        lifecycle.historyRestoring ||
+        !isRealtimeConnected ||
+        !currentDataChannel ||
+        currentDataChannel.readyState !== "open" ||
+        isRealtimeUserSpeechActive ||
+        isRealtimeResponseCancelPending
+    ) {
+        return;
+    }
+
+    if (
+        realtimePendingResponseRequestCount > 0 ||
+        isRealtimeResponseActive ||
+        isRealtimeOutputAudioPlaying
+    ) {
+        if (!isRealtimeOutputAudioPlaying) {
+            return;
+        }
+
+        if (!interruptRealtimeResponse(lifecycle.sessionId)) {
+            return;
+        }
+
+        return;
+    }
+
+    const turn = realtimeTextInputQueue.shift();
+
+    if (turn.sessionId !== lifecycle.sessionId) {
+        failRealtimeTextTurn(turn, "Realtimeセッションが変更されました。");
+        processRealtimeTextInputQueue();
+        return;
+    }
+
+    activeRealtimeTextTurn = turn;
+    turn.conversationId = lifecycle.conversationId || activeConversationId;
+    realtimeTextTurnSequence += 1;
+    turn.inputEventId = [
+        REALTIME_TEXT_EVENT_ID_PREFIX,
+        turn.sessionId,
+        realtimeTextTurnSequence,
+        "input"
+    ].join("_");
+    const inputEvent = {
+        event_id: turn.inputEventId,
+        type: "conversation.item.create",
+        item: {
+            type: "message",
+            role: "user",
+            content: [
+                {
+                    type: "input_text",
+                    text: turn.text
+                }
+            ]
+        }
+    };
+    turn.inputSignature = createRealtimeHistoryItemSignature(
+        inputEvent.item
+    );
+    turn.ackTimeoutId = setTimeout(function() {
+        failRealtimeTextTurn(
+            turn,
+            "Realtimeテキスト入力の確認がタイムアウトしました。"
+        );
+    }, REALTIME_TEXT_INPUT_ACK_TIMEOUT_MS);
+
+    try {
+        currentDataChannel.send(JSON.stringify(inputEvent));
+        updateVoiceStatus("connected", "テキスト送信中...");
+    } catch (error) {
+        failRealtimeTextTurn(turn, String(error));
+    }
+}
+
+
+async function handleRealtimeTextInputItemAdded(data, sessionId) {
+    const turn = activeRealtimeTextTurn;
+
+    if (
+        !turn ||
+        turn.sessionId !== sessionId ||
+        turn.userItemId ||
+        createRealtimeHistoryItemSignature(data.item) !== turn.inputSignature
+    ) {
+        return false;
+    }
+
+    const itemId = normalizeRealtimeId(data.item ? data.item.id : null);
+
+    if (!itemId) {
+        failRealtimeTextTurn(turn, "Realtimeテキスト入力IDがありません。");
+        return true;
+    }
+
+    turn.userItemId = itemId;
+    turn.userPersistPromise = saveRealtimeConversationMessage({
+        role: "user",
+        source: "text",
+        content: turn.text,
+        conversation_id: turn.conversationId,
+        item_id: itemId
+    });
+
+    try {
+        const result = await turn.userPersistPromise;
+        turn.userPersisted = true;
+        applyPersistedRealtimeMessage(turn.messageView, result);
+    } catch (error) {
+        console.error("Realtimeテキスト入力の保存に失敗しました。", error);
+        failRealtimeTextTurn(turn, "テキスト履歴を保存できませんでした。");
+    }
+
+    return true;
+}
+
+
+async function handleRealtimeTextInputItemDone(data, sessionId) {
+    const turn = activeRealtimeTextTurn;
+    const itemId = normalizeRealtimeId(data.item ? data.item.id : null);
+
+    if (
+        !turn ||
+        turn.sessionId !== sessionId ||
+        !itemId ||
+        itemId !== turn.userItemId
+    ) {
+        return false;
+    }
+
+    if (turn.userPersistPromise) {
+        try {
+            await turn.userPersistPromise;
+        } catch (error) {
+            return true;
+        }
+    }
+
+    if (turn.failed || turn.responseRequested) {
+        return true;
+    }
+
+    clearTimeout(turn.ackTimeoutId);
+    turn.ackTimeoutId = null;
+    turn.responseRequested = requestRealtimeResponse(sessionId, turn);
+
+    if (!turn.responseRequested) {
+        failRealtimeTextTurn(turn, "Realtime応答を開始できませんでした。");
+        return true;
+    }
+
+    updateVoiceStatus("connected", "考え中...");
+    return true;
+}
+
+
+function rejectRealtimeTextTurnFromServer(data, sessionId) {
+    const turn = activeRealtimeTextTurn;
+
+    if (!turn || turn.sessionId !== sessionId) {
+        return false;
+    }
+
+    const eventId = normalizeRealtimeId(
+        data.event_id || (data.error ? data.error.event_id : null)
+    );
+
+    if (
+        !eventId ||
+        (
+            eventId !== turn.inputEventId &&
+            !turn.responseEventIds.has(eventId)
+        )
+    ) {
+        return false;
+    }
+
+    const message = data.message || (
+        data.error ? data.error.message : "Realtimeテキスト入力エラー"
+    );
+
+    if (turn.responseEventIds.has(eventId)) {
+        realtimePendingResponseRequestCount = Math.max(
+            0,
+            realtimePendingResponseRequestCount - 1
+        );
+    }
+
+    failRealtimeTextTurn(turn, message);
+    return true;
+}
+
+
+function failRealtimeTextTurn(turn, reason, continueQueue = true) {
+    if (!turn || turn.completed || turn.failed) {
+        return;
+    }
+
+    turn.failed = true;
+    clearTimeout(turn.ackTimeoutId);
+    turn.ackTimeoutId = null;
+
+    if (activeRealtimeTextTurn === turn) {
+        activeRealtimeTextTurn = null;
+    }
+
+    if (pendingRealtimeTextResponseTurn === turn) {
+        pendingRealtimeTextResponseTurn = null;
+    }
+
+    if (!turn.userPersisted) {
+        markMessageStatus(turn.messageView.element, "failed");
+    }
+
+    renderConversationMessage({
+        role: "assistant",
+        content: "Realtimeテキスト処理に失敗しました。",
+        source: "text",
+        status: "failed"
+    });
+    console.error("Realtimeテキスト処理に失敗しました。", reason);
+    activeTextRequestCount = Math.max(0, activeTextRequestCount - 1);
+    updateNewConversationButton();
+
+    if (continueQueue) {
+        processRealtimeTextInputQueue();
+    }
+}
+
+
+function completeRealtimeTextTurn(turn) {
+    if (!turn || turn.completed || turn.failed) {
+        return;
+    }
+
+    turn.completed = true;
+    clearTimeout(turn.ackTimeoutId);
+    turn.ackTimeoutId = null;
+
+    if (activeRealtimeTextTurn === turn) {
+        activeRealtimeTextTurn = null;
+    }
+
+    if (pendingRealtimeTextResponseTurn === turn) {
+        pendingRealtimeTextResponseTurn = null;
+    }
+
+    activeTextRequestCount = Math.max(0, activeTextRequestCount - 1);
+    updateNewConversationButton();
+    processRealtimeTextInputQueue();
+}
+
+
+function failPendingRealtimeTextTurns(reason) {
+    const turns = [];
+
+    if (activeRealtimeTextTurn) {
+        turns.push(activeRealtimeTextTurn);
+    }
+
+    turns.push(...realtimeTextInputQueue.splice(0));
+
+    for (const turn of turns) {
+        failRealtimeTextTurn(turn, reason, false);
+    }
+
+    activeRealtimeTextTurn = null;
+    pendingRealtimeTextResponseTurn = null;
+    realtimePendingResponseRequestCount = 0;
 }
 
 
@@ -701,6 +1048,7 @@ async function initializeRealtimeDataChannel(
         setRealtimeMicrophoneEnabled(currentLocalStream, true);
         lifecycle.historyRestoring = false;
         updateVoiceStatus("connected", "接続中");
+        processRealtimeTextInputQueue();
 
         if (lifecycle.sessionCreatedReceived) {
             await notifyTrayRealtimeStarted(sessionId);
@@ -1324,6 +1672,7 @@ function resetRealtimeBargeInState() {
     isRealtimeResponseActive = false;
     activeRealtimeResponseId = null;
     activeRealtimeOutputResponseId = null;
+    isRealtimeResponseCancelPending = false;
 }
 
 
@@ -1397,6 +1746,7 @@ function interruptRealtimeResponse(sessionId) {
             currentDataChannel.send(JSON.stringify(cancelEvent));
             isRealtimeResponseActive = false;
             activeRealtimeResponseId = null;
+            isRealtimeResponseCancelPending = true;
             eventSent = true;
         } catch (error) {
             console.warn("Realtime response.cancel送信エラー:", error);
@@ -1546,7 +1896,7 @@ function isMeaningfulRealtimeUserTranscript(transcript, isBargeIn) {
 }
 
 
-function requestRealtimeResponse(sessionId) {
+function requestRealtimeResponse(sessionId, textTurn = null) {
     if (!isCurrentRealtimeSession(sessionId)) {
         return false;
     }
@@ -1558,12 +1908,37 @@ function requestRealtimeResponse(sessionId) {
         return false;
     }
 
+    const responseEvent = {
+        type: "response.create"
+    };
+
+    if (textTurn) {
+        realtimeTextTurnSequence += 1;
+        responseEvent.event_id = [
+            REALTIME_TEXT_EVENT_ID_PREFIX,
+            sessionId,
+            realtimeTextTurnSequence,
+            "response"
+        ].join("_");
+        textTurn.responseEventIds.add(responseEvent.event_id);
+        pendingRealtimeTextResponseTurn = textTurn;
+    }
+
+    realtimePendingResponseRequestCount += 1;
+
     try {
-        currentDataChannel.send(JSON.stringify({
-            type: "response.create"
-        }));
+        currentDataChannel.send(JSON.stringify(responseEvent));
         return true;
     } catch (error) {
+        realtimePendingResponseRequestCount = Math.max(
+            0,
+            realtimePendingResponseRequestCount - 1
+        );
+
+        if (pendingRealtimeTextResponseTurn === textTurn) {
+            pendingRealtimeTextResponseTurn = null;
+        }
+
         console.warn("Realtime response.create送信エラー:", error);
         return false;
     }
@@ -1590,6 +1965,10 @@ async function handleRealtimeEvent(data, sessionId) {
         return;
     }
 
+    if (rejectRealtimeTextTurnFromServer(data, sessionId)) {
+        return;
+    }
+
     if (
         data.type === "conversation.item.added" &&
         registerRealtimeHistoryItemAdded(data, sessionId)
@@ -1598,8 +1977,22 @@ async function handleRealtimeEvent(data, sessionId) {
     }
 
     if (
+        data.type === "conversation.item.added" &&
+        await handleRealtimeTextInputItemAdded(data, sessionId)
+    ) {
+        return;
+    }
+
+    if (
         data.type === "conversation.item.done" &&
         acknowledgeRealtimeHistoryItemDone(data, sessionId)
+    ) {
+        return;
+    }
+
+    if (
+        data.type === "conversation.item.done" &&
+        await handleRealtimeTextInputItemDone(data, sessionId)
     ) {
         return;
     }
@@ -1620,7 +2013,7 @@ async function handleRealtimeEvent(data, sessionId) {
     }
 
     if (data.type === "response.function_call_arguments.done") {
-        await handleRealtimeToolCall(data);
+        await handleRealtimeToolCall(data, sessionId);
         return;
     }
 
@@ -1641,6 +2034,7 @@ async function handleRealtimeEvent(data, sessionId) {
         discardRealtimeSpeechTurn(speechTurn, itemId);
         updateVoiceStatus("connected", "接続中");
         console.warn("ユーザー音声の文字起こしに失敗しました。", data);
+        processRealtimeTextInputQueue();
         return;
     }
 
@@ -1655,10 +2049,24 @@ async function handleRealtimeEvent(data, sessionId) {
     }
 
     if (data.type === "response.created") {
+        realtimePendingResponseRequestCount = Math.max(
+            0,
+            realtimePendingResponseRequestCount - 1
+        );
         isRealtimeResponseActive = true;
-        activeRealtimeResponseId = data.response
-            ? data.response.id || null
-            : null;
+        activeRealtimeResponseId = normalizeRealtimeId(
+            data.response ? data.response.id : null
+        );
+
+        if (pendingRealtimeTextResponseTurn && activeRealtimeResponseId) {
+            const turn = pendingRealtimeTextResponseTurn;
+            pendingRealtimeTextResponseTurn = null;
+            turn.responseIds.add(activeRealtimeResponseId);
+            realtimeTextTurnsByResponseId.set(
+                activeRealtimeResponseId,
+                turn
+            );
+        }
         return;
     }
 
@@ -1679,6 +2087,7 @@ async function handleRealtimeEvent(data, sessionId) {
         data.type === "output_audio_buffer.cleared"
     ) {
         finishRealtimeOutputAudio(data.response_id || null);
+        processRealtimeTextInputQueue();
         return;
     }
 
@@ -1710,9 +2119,23 @@ async function handleRealtimeEvent(data, sessionId) {
     }
 
     if (data.type === "response.done") {
-        const completedResponseId = data.response
-            ? data.response.id || null
+        const completedResponseId = normalizeRealtimeId(
+            data.response ? data.response.id : null
+        );
+        const textTurn = completedResponseId
+            ? realtimeTextTurnsByResponseId.get(completedResponseId) || null
             : null;
+        const responseStatus = data.response
+            ? String(data.response.status || "")
+            : "";
+        const hasFunctionCall = realtimeResponseHasFunctionCall(
+            data.response
+        );
+        const isCompletedFunctionCall = (
+            hasFunctionCall && responseStatus === "completed"
+        );
+
+        isRealtimeResponseCancelPending = false;
 
         if (
             !completedResponseId ||
@@ -1722,9 +2145,64 @@ async function handleRealtimeEvent(data, sessionId) {
             activeRealtimeResponseId = null;
         }
 
+        if (textTurn && !isCompletedFunctionCall) {
+            const assistantState = completedResponseId
+                ? realtimeAssistantMessagesByResponseId.get(
+                    completedResponseId
+                ) || null
+                : null;
+
+            if (assistantState && assistantState.persistPromise) {
+                try {
+                    await assistantState.persistPromise;
+                } catch (error) {
+                    failRealtimeTextTurn(
+                        textTurn,
+                        "Realtime回答を保存できませんでした。"
+                    );
+                    updateVoiceStatus("connected", "接続中");
+                    return;
+                }
+            }
+
+            if (
+                responseStatus === "completed" ||
+                responseStatus === "cancelled"
+            ) {
+                if (
+                    responseStatus === "completed" &&
+                    (!assistantState || !assistantState.persisted)
+                ) {
+                    failRealtimeTextTurn(
+                        textTurn,
+                        "Realtime回答のtranscriptを保存できませんでした。"
+                    );
+                } else {
+                    completeRealtimeTextTurn(textTurn);
+                }
+            } else {
+                failRealtimeTextTurn(
+                    textTurn,
+                    `Realtime応答終了: ${responseStatus || "unknown"}`
+                );
+            }
+        } else if (!textTurn) {
+            processRealtimeTextInputQueue();
+        }
+
         updateVoiceStatus("connected", "接続中");
         return;
     }
+}
+
+
+function realtimeResponseHasFunctionCall(response) {
+    const output = response && Array.isArray(response.output)
+        ? response.output
+        : [];
+    return output.some(function(item) {
+        return item && item.type === "function_call";
+    });
 }
 
 
@@ -1755,6 +2233,7 @@ async function handleRealtimeUserTranscriptionCompleted(data, sessionId) {
     ) {
         discardRealtimeSpeechTurn(speechTurn, itemId);
         updateVoiceStatus("connected", "接続中");
+        processRealtimeTextInputQueue();
         return;
     }
 
@@ -1783,8 +2262,9 @@ async function handleRealtimeUserTranscriptionCompleted(data, sessionId) {
     }
 
     try {
-        const result = await saveRealtimeVoiceMessage({
+        const result = await saveRealtimeConversationMessage({
             role: "user",
+            source: "voice",
             content: transcript,
             conversation_id: activeConversationId,
             item_id: itemId
@@ -1816,7 +2296,7 @@ function handleRealtimeAssistantTranscriptDelta(data) {
         state.messageView = renderConversationMessage({
             role: "assistant",
             content: state.transcript,
-            source: "voice",
+            source: state.source,
             status: state.interruptedRequested
                 ? "interrupted"
                 : "pending"
@@ -1853,7 +2333,7 @@ async function handleRealtimeAssistantTranscriptDone(data, sessionId) {
         state.messageView = renderConversationMessage({
             role: "assistant",
             content: transcript,
-            source: "voice",
+            source: state.source,
             status: state.interruptedRequested
                 ? "interrupted"
                 : "pending"
@@ -1863,13 +2343,17 @@ async function handleRealtimeAssistantTranscriptDone(data, sessionId) {
     }
 
     try {
-        const result = await saveRealtimeVoiceMessage({
+        const persistPromise = saveRealtimeConversationMessage({
             role: "assistant",
+            source: state.source,
             content: transcript,
             conversation_id: activeConversationId,
             item_id: state.itemId,
             response_id: state.responseId
         });
+        state.persistPromise = persistPromise;
+        const result = await persistPromise;
+        state.persisted = true;
         applyPersistedRealtimeMessage(state.messageView, result);
 
         if (state.interruptedRequested) {
@@ -1910,11 +2394,16 @@ function getRealtimeAssistantTranscriptState(data) {
         state = {
             itemId: itemId,
             responseId: responseId,
+            source: responseId && realtimeTextTurnsByResponseId.has(responseId)
+                ? "text"
+                : "voice",
             transcript: "",
             messageView: null,
             interruptedRequested: false,
             interruptionPersisted: false,
-            interruptionPersistPromise: null
+            interruptionPersistPromise: null,
+            persistPromise: null,
+            persisted: false
         };
     }
 
@@ -1925,6 +2414,11 @@ function getRealtimeAssistantTranscriptState(data) {
 
     if (responseId) {
         state.responseId = responseId;
+
+        if (realtimeTextTurnsByResponseId.has(responseId)) {
+            state.source = "text";
+        }
+
         realtimeAssistantMessagesByResponseId.set(responseId, state);
     }
 
@@ -1973,6 +2467,7 @@ async function persistRealtimeAssistantInterruption(state, sessionId) {
             },
             body: JSON.stringify({
                 content: state.transcript,
+                source: state.source,
                 conversation_id: activeConversationId,
                 item_id: state.itemId,
                 response_id: state.responseId
@@ -2001,7 +2496,7 @@ async function persistRealtimeAssistantInterruption(state, sessionId) {
 }
 
 
-async function saveRealtimeVoiceMessage(payload) {
+async function saveRealtimeConversationMessage(payload) {
     return requestJson("/realtime/conversation/messages", {
         method: "POST",
         headers: {
@@ -2045,39 +2540,79 @@ function resetRealtimeConversationTracking() {
     realtimeRestoredItemIds.clear();
     realtimeAssistantMessagesByItemId.clear();
     realtimeAssistantMessagesByResponseId.clear();
+    realtimeTextTurnsByResponseId.clear();
+    pendingRealtimeTextResponseTurn = null;
+    realtimePendingResponseRequestCount = 0;
 }
 
 
-async function handleRealtimeToolCall(data) {
+async function handleRealtimeToolCall(data, sessionId) {
     const toolName = data.name;
     const callId = data.call_id;
-    const argumentsJson = JSON.parse(data.arguments);
+    const responseId = normalizeRealtimeId(
+        data.response_id || activeRealtimeResponseId
+    );
+    const textTurn = responseId
+        ? realtimeTextTurnsByResponseId.get(responseId) || null
+        : null;
+    const currentDataChannel = dataChannel;
 
-    const toolResponse = await fetch("/realtime/tools", {
-        method: "POST",
-        headers: {
-            "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-            tool_name: toolName,
-            arguments: argumentsJson
-        })
-    });
+    if (
+        !isCurrentRealtimeSession(sessionId) ||
+        !currentDataChannel ||
+        currentDataChannel.readyState !== "open"
+    ) {
+        return;
+    }
 
-    const result = await toolResponse.json();
+    try {
+        const argumentsJson = JSON.parse(data.arguments);
 
-    dataChannel.send(JSON.stringify({
-        type: "conversation.item.create",
-        item: {
-            type: "function_call_output",
-            call_id: callId,
-            output: JSON.stringify(result)
+        const toolResponse = await fetch("/realtime/tools", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                tool_name: toolName,
+                arguments: argumentsJson
+            })
+        });
+
+        if (!toolResponse.ok) {
+            throw new Error(`Realtime tool実行失敗: ${toolResponse.status}`);
         }
-    }));
 
-    dataChannel.send(JSON.stringify({
-        type: "response.create"
-    }));
+        const result = await toolResponse.json();
+
+        if (
+            !isCurrentRealtimeSession(sessionId) ||
+            dataChannel !== currentDataChannel ||
+            currentDataChannel.readyState !== "open"
+        ) {
+            return;
+        }
+
+        currentDataChannel.send(JSON.stringify({
+            type: "conversation.item.create",
+            item: {
+                type: "function_call_output",
+                call_id: callId,
+                output: JSON.stringify(result)
+            }
+        }));
+
+        if (!requestRealtimeResponse(sessionId, textTurn)) {
+            throw new Error("tool結果後のRealtime応答を開始できませんでした。");
+        }
+
+    } catch (error) {
+        console.error("Realtime tool callingに失敗しました。", error);
+
+        if (textTurn) {
+            failRealtimeTextTurn(textTurn, String(error));
+        }
+    }
 }
 
 
@@ -2301,6 +2836,7 @@ function cleanupRealtimeVoice() {
     const currentRemoteAudioElement = remoteAudioElement;
 
     cancelRealtimeHistoryRestore("Realtime接続を終了しました。");
+    failPendingRealtimeTextTurns("Realtime接続が終了しました。");
     resetRealtimeBargeInState();
     resetRealtimeConversationTracking();
 
