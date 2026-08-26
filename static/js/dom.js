@@ -16,6 +16,7 @@
         voiceReconnectButton: byId("voice-reconnect-button"),
         voiceStatus: byId("voice-status"),
         coreArea: byId("core-area"),
+        coreCanvas: byId("jarvis-core-canvas"),
         coreState: byId("core-state"),
         coreCaption: byId("core-caption"),
         systemLog: byId("system-log"),

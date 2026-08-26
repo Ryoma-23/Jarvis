@@ -170,6 +170,53 @@ class UiFoundationContractTests(unittest.TestCase):
         self.assertIn('"connecting"', jarvis_state)
         self.assertIn('body[data-jarvis-state="connecting"]', style)
 
+    def test_phase_five_core_uses_local_three_module_with_css_fallback(self):
+        index = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
+        dom = (STATIC_DIR / "js" / "dom.js").read_text(encoding="utf-8")
+        style = (STATIC_DIR / "style.css").read_text(encoding="utf-8")
+        core = (
+            STATIC_DIR / "js" / "core" / "jarvis-core.js"
+        ).read_text(encoding="utf-8")
+        three_module = STATIC_DIR / "vendor" / "three" / "three.min.js"
+        three_license = (
+            STATIC_DIR / "vendor" / "three" / "LICENSE"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn('id="jarvis-core-canvas"', index)
+        self.assertNotIn('type="module"', index)
+        self.assertIn('/static/vendor/three/three.min.js?v=0.128.0', index)
+        self.assertIn("/static/js/core/jarvis-core.js", index)
+        self.assertLess(
+            index.index("/static/vendor/three/three.min.js"),
+            index.index("/static/js/core/jarvis-core.js"),
+        )
+        self.assertIn('byId("jarvis-core-canvas")', dom)
+        self.assertIn("const THREE = global.THREE;", core)
+        self.assertIn("CORE_WEBGL_DEPENDENCY_UNAVAILABLE", core)
+        self.assertIn("new THREE.WebGLRenderer", core)
+        self.assertIn("new THREE.Points(", core)
+        self.assertIn("new THREE.SphereGeometry", core)
+        self.assertIn('stage.dataset.renderer = "webgl"', core)
+        self.assertIn('stage.dataset.renderer = "fallback"', core)
+        self.assertIn('.core-stage[data-renderer="webgl"] .core-canvas', style)
+        self.assertGreater(three_module.stat().st_size, 300_000)
+        self.assertIn("MIT License", three_license)
+        self.assertIn("Copyright", three_license)
+
+    def test_phase_five_core_limits_background_rendering_and_gpu_cost(self):
+        core = (
+            STATIC_DIR / "js" / "core" / "jarvis-core.js"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("const particleCount = 1000", core)
+        self.assertIn("const targetFrameDurationMs = 1000 / 30", core)
+        self.assertIn('powerPreference: "low-power"', core)
+        self.assertIn("Math.min(window.devicePixelRatio || 1, 1.5)", core)
+        self.assertIn('document.addEventListener("visibilitychange"', core)
+        self.assertIn("document.hidden", core)
+        self.assertIn("reducedMotion.matches", core)
+        self.assertIn("renderer.dispose()", core)
+
     def test_existing_script_publishes_voice_status_to_ui_state(self):
         script = (STATIC_DIR / "script.js").read_text(encoding="utf-8")
 

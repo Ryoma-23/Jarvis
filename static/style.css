@@ -346,11 +346,32 @@ h2 {
     mask-image: radial-gradient(circle, black, transparent 67%);
 }
 
+.core-canvas {
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    transition: opacity 500ms ease;
+}
+
+.core-stage[data-renderer="webgl"] .core-canvas {
+    opacity: 1;
+}
+
+.core-stage[data-renderer="webgl"] .core-visual {
+    opacity: 0;
+    pointer-events: none;
+}
+
 .core-visual {
     position: relative;
     width: clamp(230px, 36vw, 450px);
     aspect-ratio: 1;
     filter: drop-shadow(0 0 35px rgba(var(--color-state-rgb), 0.13));
+    transition: opacity 500ms ease;
 }
 
 .core-orbit,

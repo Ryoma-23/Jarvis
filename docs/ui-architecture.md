@@ -86,6 +86,24 @@ in `docs/ui-state-machine.md`. The controller owns display signals only; the
 existing lifecycle flags in `static/script.js` remain authoritative for audio,
 conversation, Tool, Tray, and cleanup behavior.
 
+## Phase 5 Three.js Core
+
+Phase 5 adds a local Three.js renderer while preserving the Phase 2 CSS Core as
+the fallback. The initial WebGL scene contains only a 1,000-point Particle
+Sphere and two lightweight Inner Core meshes. Connection lines, post
+processing, Bloom, and audio analysis remain intentionally out of scope.
+
+The renderer uses a 30 FPS cap, a 1.5 device-pixel-ratio cap, the low-power GPU
+preference, ResizeObserver sizing, reduced-motion support, and full pause while
+the document is hidden. Geometry, materials, and the renderer are disposed on
+page unload or WebGL context loss. The Canvas becomes visible only after
+successful initialization; otherwise the CSS Core remains visible.
+
+Three.js 0.128.0 is vendored under `static/vendor/three/` so Jarvis does not
+depend on a CDN at runtime. Its MIT license is stored beside the runtime file.
+Jarvis loads the classic browser build before `jarvis-core.js`, avoiding an ES
+Module compatibility dependency in the embedded pywebview runtime.
+
 ## State ownership
 
 `JarvisUI.state` is display-only. It must not control the Realtime lifecycle,
