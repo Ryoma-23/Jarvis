@@ -129,6 +129,24 @@ uses the existing Realtime cleanup path. Cleanup cancels the pending restore,
 stops microphone tracks, closes WebRTC, and notifies the Tray so Wake Word can
 resume.
 
+## Realtime inactivity termination
+
+After shared-history restoration succeeds and the microphone is enabled, the
+Window starts a 60-second client-side inactivity interval. Accepted voice or
+Realtime text input refreshes the interval. Response generation/playback,
+queued text turns, persistence-related active turns, and tool calls hold the
+timer so the session cannot end while work is still in progress. Completion
+starts a fresh full interval.
+
+When the interval expires in an idle state, the Window calls the existing
+`finishRealtimeVoice()` path with reason `idle_timeout`. Normal cleanup closes
+the data channel and peer connection, stops microphone tracks, notifies the
+Tray, and lets the Wake Word manager return to waiting. Cleanup and reconnect
+also invalidate the old timer generation. The timeout is configured by
+`REALTIME_CONVERSATION_IDLE_TIMEOUT_MS` in `static/script.js`; Realtime server
+`idle_timeout_ms` is not used because it creates an automatic model turn rather
+than terminating the connection.
+
 ## Hidden tool metadata
 
 Tool executions are stored as hidden `role=tool`, `source=tool` message rows.

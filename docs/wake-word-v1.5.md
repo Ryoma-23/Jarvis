@@ -125,6 +125,22 @@ The fourth v1.5.2 implementation phase is complete:
   completed session IDs without changing the current state.
 - `response.done` remains a per-response event and does not end the Realtime
   conversation.
+- After history restoration and microphone enablement, the Window starts a
+  client-side 60-second inactivity timer. If no conversation is in progress
+  when it expires, it ends the session with reason `idle_timeout` through the
+  same `finishRealtimeVoice()` cleanup path.
+- The inactivity timer does not run while the user is speaking, a response is
+  pending or playing, Realtime text input is queued, or a tool call is running.
+  Accepted voice/text activity and completed output restart the 60-second
+  interval.
+- Cleanup and reconnect invalidate the previous timer generation, preventing
+  an old session timer from closing a newer connection.
+- Realtime `idle_timeout_ms` is intentionally not configured: that server
+  setting prompts an additional model response rather than disconnecting the
+  WebRTC session.
+
+The inactivity duration can be adjusted with
+`REALTIME_CONVERSATION_IDLE_TIMEOUT_MS` in `static/script.js`.
 
 ## Abnormal recovery and device resilience
 
@@ -463,6 +479,16 @@ microphone and speaker:
     final retry logs an error and the Window shows the small history warning.
 24. Disconnect Realtime while a persistence retry is pending. Confirm browser
     microphone cleanup, Tray notification, and Wake Word resume are not delayed.
+25. Connect Realtime and leave it without recognizable conversation for one
+    minute. Confirm it changes to `1分間会話がなかったため終了しました`,
+    releases the Realtime microphone, and resumes Wake Word waiting.
+26. Speak again before one minute has elapsed and confirm the timeout restarts
+    from that turn rather than closing at the original deadline.
+27. Make JARVIS produce a response or tool call that crosses the deadline and
+    confirm the session does not close mid-response; it should close only after
+    a full idle interval following completion.
+28. Disconnect and reconnect shortly before an old idle deadline. Confirm the
+    old timer does not close the new Realtime session.
 
 For each run, check that only one Realtime connection is created, the browser
 and wake-word microphones are never active together, and no Python window or

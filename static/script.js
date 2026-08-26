@@ -25,6 +25,10 @@ let realtimeTextTurnSequence = 0;
 let activeRealtimeTextTurn = null;
 let pendingRealtimeTextResponseTurn = null;
 let realtimePendingResponseRequestCount = 0;
+let realtimeIdleTimer = null;
+let realtimeIdleTimerGeneration = 0;
+let realtimeLastMeaningfulActivityAt = 0;
+let activeRealtimeToolCallCount = 0;
 let hasConversationPersistenceWarning = false;
 
 const messageElementsById = new Map();
@@ -54,6 +58,7 @@ const REALTIME_MEDIA_AUDIO_CONSTRAINTS = Object.freeze({
 const REALTIME_INPUT_NOISE_REDUCTION_TYPE = "far_field";
 const REALTIME_SERVER_VAD_THRESHOLD = 0.8;
 const REALTIME_SERVER_VAD_SILENCE_DURATION_MS = 1200;
+const REALTIME_CONVERSATION_IDLE_TIMEOUT_MS = 60_000;
 const REALTIME_BARGE_IN_GUARD_MS = 600;
 const REALTIME_BARGE_IN_MIN_TRANSCRIPT_CHARACTERS = 2;
 const REALTIME_NON_SPEECH_TRANSCRIPTS = new Set([
@@ -480,6 +485,12 @@ async function sendHttpChatMessage(message) {
     } finally {
         activeTextRequestCount = Math.max(0, activeTextRequestCount - 1);
         updateNewConversationButton();
+
+        const lifecycle = activeRealtimeLifecycle;
+
+        if (lifecycle && !lifecycle.finishing) {
+            markRealtimeConversationActivity(lifecycle.sessionId);
+        }
     }
 }
 
@@ -527,6 +538,7 @@ function enqueueRealtimeTextInput(message) {
     realtimeTextInputQueue.push(turn);
     activeTextRequestCount += 1;
     updateNewConversationButton();
+    markRealtimeConversationActivity(turn.sessionId);
     processRealtimeTextInputQueue();
 }
 
@@ -763,6 +775,7 @@ function failRealtimeTextTurn(turn, reason, continueQueue = true) {
     console.error("Realtimeテキスト処理に失敗しました。", reason);
     activeTextRequestCount = Math.max(0, activeTextRequestCount - 1);
     updateNewConversationButton();
+    markRealtimeConversationActivity(turn.sessionId);
 
     if (continueQueue) {
         processRealtimeTextInputQueue();
@@ -789,6 +802,7 @@ function completeRealtimeTextTurn(turn) {
 
     activeTextRequestCount = Math.max(0, activeTextRequestCount - 1);
     updateNewConversationButton();
+    markRealtimeConversationActivity(turn.sessionId);
     processRealtimeTextInputQueue();
 }
 
@@ -868,6 +882,7 @@ async function startRealtimeVoice(
     activeRealtimeLifecycle = lifecycle;
     resetRealtimeBargeInState();
     resetRealtimeConversationTracking();
+    resetRealtimeIdleState();
 
     try {
         isRealtimeConnecting = true;
@@ -1135,6 +1150,7 @@ async function initializeRealtimeDataChannel(
 
         setRealtimeMicrophoneEnabled(currentLocalStream, true);
         lifecycle.historyRestoring = false;
+        markRealtimeConversationActivity(sessionId);
         updateVoiceStatus("connected", "接続中");
         processRealtimeTextInputQueue();
 
@@ -1741,6 +1757,131 @@ async function notifyTrayRealtimeStarted(sessionId) {
 }
 
 
+function clearRealtimeIdleTimer(resetActivity = false) {
+    realtimeIdleTimerGeneration += 1;
+
+    if (realtimeIdleTimer !== null) {
+        clearTimeout(realtimeIdleTimer);
+        realtimeIdleTimer = null;
+    }
+
+    if (resetActivity) {
+        realtimeLastMeaningfulActivityAt = 0;
+    }
+}
+
+
+function resetRealtimeIdleState() {
+    clearRealtimeIdleTimer(true);
+    activeRealtimeToolCallCount = 0;
+}
+
+
+function pauseRealtimeIdleTimer() {
+    clearRealtimeIdleTimer(false);
+}
+
+
+function markRealtimeConversationActivity(sessionId) {
+    const lifecycle = getRealtimeLifecycle(sessionId);
+
+    if (!lifecycle || lifecycle.finishing) {
+        return false;
+    }
+
+    realtimeLastMeaningfulActivityAt = Date.now();
+    scheduleRealtimeIdleTimeout(sessionId);
+    return true;
+}
+
+
+function isRealtimeConversationBusy(sessionId) {
+    const lifecycle = getRealtimeLifecycle(sessionId);
+
+    return Boolean(
+        !lifecycle ||
+        lifecycle.finishing ||
+        lifecycle.historyRestoring ||
+        activeRealtimeHistoryRestore ||
+        !isRealtimeConnected ||
+        isRealtimeConnecting ||
+        isRealtimeUserSpeechActive ||
+        isRealtimeResponseActive ||
+        isRealtimeOutputAudioPlaying ||
+        isRealtimeResponseCancelPending ||
+        realtimePendingResponseRequestCount > 0 ||
+        activeRealtimeTextTurn ||
+        pendingRealtimeTextResponseTurn ||
+        realtimeTextInputQueue.length > 0 ||
+        activeTextRequestCount > 0 ||
+        activeRealtimeToolCallCount > 0
+    );
+}
+
+
+function scheduleRealtimeIdleTimeout(sessionId) {
+    if (!isCurrentRealtimeSession(sessionId)) {
+        return false;
+    }
+
+    clearRealtimeIdleTimer(false);
+
+    if (
+        realtimeLastMeaningfulActivityAt <= 0 ||
+        isRealtimeConversationBusy(sessionId)
+    ) {
+        return false;
+    }
+
+    const elapsedMs = Math.max(
+        0,
+        Date.now() - realtimeLastMeaningfulActivityAt
+    );
+    const delayMs = Math.max(
+        0,
+        REALTIME_CONVERSATION_IDLE_TIMEOUT_MS - elapsedMs
+    );
+    const timerGeneration = realtimeIdleTimerGeneration;
+
+    realtimeIdleTimer = setTimeout(function() {
+        void handleRealtimeIdleTimeout(sessionId, timerGeneration);
+    }, delayMs);
+    return true;
+}
+
+
+async function handleRealtimeIdleTimeout(sessionId, timerGeneration) {
+    if (
+        timerGeneration !== realtimeIdleTimerGeneration ||
+        !isCurrentRealtimeSession(sessionId)
+    ) {
+        return false;
+    }
+
+    realtimeIdleTimer = null;
+
+    if (isRealtimeConversationBusy(sessionId)) {
+        return false;
+    }
+
+    const elapsedMs = Math.max(
+        0,
+        Date.now() - realtimeLastMeaningfulActivityAt
+    );
+
+    if (elapsedMs < REALTIME_CONVERSATION_IDLE_TIMEOUT_MS) {
+        return scheduleRealtimeIdleTimeout(sessionId);
+    }
+
+    return finishRealtimeVoice(
+        "idle_timeout",
+        sessionId,
+        "disconnected",
+        "1分間会話がなかったため終了しました"
+    );
+}
+
+
 function clearRealtimeBargeInTimer() {
     realtimeBargeInTimerGeneration += 1;
 
@@ -2013,6 +2154,7 @@ function requestRealtimeResponse(sessionId, textTurn = null) {
     }
 
     realtimePendingResponseRequestCount += 1;
+    pauseRealtimeIdleTimer();
 
     try {
         currentDataChannel.send(JSON.stringify(responseEvent));
@@ -2028,6 +2170,7 @@ function requestRealtimeResponse(sessionId, textTurn = null) {
         }
 
         console.warn("Realtime response.create送信エラー:", error);
+        scheduleRealtimeIdleTimeout(sessionId);
         return false;
     }
 }
@@ -2123,6 +2266,7 @@ async function handleRealtimeEvent(data, sessionId) {
         updateVoiceStatus("connected", "接続中");
         console.warn("ユーザー音声の文字起こしに失敗しました。", data);
         processRealtimeTextInputQueue();
+        scheduleRealtimeIdleTimeout(sessionId);
         return;
     }
 
@@ -2137,6 +2281,7 @@ async function handleRealtimeEvent(data, sessionId) {
     }
 
     if (data.type === "response.created") {
+        pauseRealtimeIdleTimer();
         realtimePendingResponseRequestCount = Math.max(
             0,
             realtimePendingResponseRequestCount - 1
@@ -2159,6 +2304,7 @@ async function handleRealtimeEvent(data, sessionId) {
     }
 
     if (data.type === "output_audio_buffer.started") {
+        pauseRealtimeIdleTimer();
         isRealtimeOutputAudioPlaying = true;
         activeRealtimeOutputResponseId = (
             data.response_id || activeRealtimeResponseId
@@ -2176,10 +2322,12 @@ async function handleRealtimeEvent(data, sessionId) {
     ) {
         finishRealtimeOutputAudio(data.response_id || null);
         processRealtimeTextInputQueue();
+        markRealtimeConversationActivity(sessionId);
         return;
     }
 
     if (data.type === "input_audio_buffer.speech_started") {
+        pauseRealtimeIdleTimer();
         isRealtimeUserSpeechActive = true;
         startRealtimeSpeechTurn(data);
 
@@ -2203,6 +2351,7 @@ async function handleRealtimeEvent(data, sessionId) {
         }
 
         updateVoiceStatus("connected", "考え中...");
+        scheduleRealtimeIdleTimeout(sessionId);
         return;
     }
 
@@ -2279,6 +2428,7 @@ async function handleRealtimeEvent(data, sessionId) {
         }
 
         updateVoiceStatus("connected", "接続中");
+        markRealtimeConversationActivity(sessionId);
         return;
     }
 }
@@ -2322,8 +2472,11 @@ async function handleRealtimeUserTranscriptionCompleted(data, sessionId) {
         discardRealtimeSpeechTurn(speechTurn, itemId);
         updateVoiceStatus("connected", "接続中");
         processRealtimeTextInputQueue();
+        scheduleRealtimeIdleTimeout(sessionId);
         return;
     }
+
+    markRealtimeConversationActivity(sessionId);
 
     if (
         isNewTranscription &&
@@ -2656,6 +2809,9 @@ async function handleRealtimeToolCall(data, sessionId) {
         return;
     }
 
+    activeRealtimeToolCallCount += 1;
+    markRealtimeConversationActivity(sessionId);
+
     try {
         const argumentsJson = JSON.parse(data.arguments);
 
@@ -2703,6 +2859,13 @@ async function handleRealtimeToolCall(data, sessionId) {
         if (textTurn) {
             failRealtimeTextTurn(textTurn, String(error));
         }
+
+    } finally {
+        activeRealtimeToolCallCount = Math.max(
+            0,
+            activeRealtimeToolCallCount - 1
+        );
+        markRealtimeConversationActivity(sessionId);
     }
 }
 
@@ -2928,6 +3091,7 @@ function cleanupRealtimeVoice() {
 
     cancelRealtimeHistoryRestore("Realtime接続を終了しました。");
     failPendingRealtimeTextTurns("Realtime接続が終了しました。");
+    resetRealtimeIdleState();
     resetRealtimeBargeInState();
     resetRealtimeConversationTracking();
 

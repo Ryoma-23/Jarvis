@@ -217,6 +217,35 @@ class TrayRealtimeBridgeTests(unittest.TestCase):
         self.assertEqual(duplicate_status, 409)
         self.assertEqual(self.listener.resume_calls, 1)
 
+    def test_idle_timeout_finished_resumes_wakeword_waiting(self):
+        for path in ("starting", "started"):
+            status, _headers, body = self.request(
+                f"/realtime/{path}",
+                method="POST",
+                payload={
+                    "source": "manual",
+                    "session_id": "idle-session",
+                },
+                origin=SERVER_URL,
+            )
+            self.assertEqual(status, 200)
+            self.assertTrue(body["accepted"])
+
+        status, _headers, body = self.request(
+            "/realtime/finished",
+            method="POST",
+            payload={
+                "reason": "idle_timeout",
+                "session_id": "idle-session",
+            },
+            origin=SERVER_URL,
+        )
+
+        self.assertEqual(status, 200)
+        self.assertTrue(body["accepted"])
+        self.assertEqual(self.manager.state, WakeWordState.WAITING)
+        self.assertEqual(self.listener.resume_calls, 1)
+
     def test_stale_session_notifications_are_rejected(self):
         self.request(
             "/realtime/starting",

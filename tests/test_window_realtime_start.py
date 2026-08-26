@@ -681,6 +681,39 @@ class WindowStaticAssetTests(unittest.TestCase):
         guard_source = script[guard_start:interrupt_start]
         self.assertNotIn("interruptRealtimeResponse(sessionId)", guard_source)
 
+    def test_script_ends_idle_realtime_through_existing_cleanup(self):
+        script = (
+            BASE_DIR / "static" / "script.js"
+        ).read_text(encoding="utf-8")
+
+        for expected in (
+            "REALTIME_CONVERSATION_IDLE_TIMEOUT_MS = 60_000",
+            "function scheduleRealtimeIdleTimeout(sessionId)",
+            "async function handleRealtimeIdleTimeout",
+            "timerGeneration !== realtimeIdleTimerGeneration",
+            "isRealtimeConversationBusy(sessionId)",
+            '"idle_timeout"',
+            '"1分間会話がなかったため終了しました"',
+            "resetRealtimeIdleState();",
+            "activeRealtimeToolCallCount > 0",
+        ):
+            self.assertIn(expected, script)
+
+        idle_start = script.index(
+            "async function handleRealtimeIdleTimeout"
+        )
+        idle_end = script.index("function clearRealtimeBargeInTimer")
+        idle_source = script[idle_start:idle_end]
+        self.assertIn("return finishRealtimeVoice(", idle_source)
+
+        cleanup_start = script.index("function cleanupRealtimeVoice")
+        cleanup_end = script.index("async function reconnectRealtimeVoice")
+        cleanup_source = script[cleanup_start:cleanup_end]
+        self.assertIn("resetRealtimeIdleState();", cleanup_source)
+
+        # The server setting prompts a model response; it does not disconnect.
+        self.assertNotIn("idle_timeout_ms", script)
+
     def test_script_preserves_realtime_events_tools_and_cleanup(self):
         script = (
             BASE_DIR / "static" / "script.js"
