@@ -96,6 +96,32 @@ Tool calls use the existing `/realtime/tools` execution route and
 text-turn association, so its spoken/displayed final answer is saved as the
 Assistant half of the original text turn.
 
+## Save failure and retry
+
+Text chat and Realtime transcript writes share a process-local SQLite retry
+boundary. If the initial write raises a SQLite exception, the server returns an
+accepted placeholder with the stable application Message ID and a persistence
+operation ID. The response stream, Realtime `response.create`, transcript
+display, and audio playback continue normally.
+
+The failed operation is retried up to three times at one-second intervals. The
+same Message ID is reused on every attempt; Realtime operations additionally
+derive it from their `item_id` or `response_id`, so duplicate browser/server
+events join the same operation. Later writes for the same conversation wait in
+FIFO order behind the failed write.
+
+`GET /conversations/persistence/{operation_id}` reports `pending`, `succeeded`,
+or `failed`. The Window polls only operations that were initially deferred. It
+shows no warning during retries and displays a small toolbar warning only after
+the final attempt fails. Final failures are logged by the retry worker; earlier
+attempts are not logged as terminal errors.
+
+For Responses API chat, a user message accepted into the retry queue is added
+directly to that request's in-memory model context, so the current question is
+still answered even before SQLite recovers. The retry daemon and browser status
+polling are independent of Realtime cleanup, microphone release, Tray
+notification, and Wake Word recovery.
+
 History HTTP requests and acknowledgement waits both have a five-second
 timeout. An HTTP error, invalid response, rejected client event, timeout,
 DataChannel closure, or manual disconnect leaves the microphone disabled and

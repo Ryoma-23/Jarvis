@@ -292,6 +292,43 @@ class ConversationStore:
         if self._get_conversation(connection, conversation_id) is None:
             raise ConversationNotFoundError(conversation_id)
 
+        if message_id is not None:
+            existing_by_message_id = self._get_message(
+                connection,
+                message_id,
+            )
+
+            if existing_by_message_id is not None:
+                duplicate_by_external_id = self._find_duplicate_message(
+                    connection,
+                    item_id=item_id,
+                    response_id=response_id,
+                )
+
+                if (
+                    duplicate_by_external_id is not None
+                    and duplicate_by_external_id["id"] != message_id
+                ):
+                    raise DuplicateMessageError(
+                        "External message ID belongs to another message_id"
+                    )
+
+                _validate_message_retry(
+                    existing_by_message_id,
+                    conversation_id=conversation_id,
+                    role=role,
+                    content=content,
+                    source=source,
+                    status=status,
+                )
+                self._add_missing_external_ids(
+                    connection,
+                    existing_by_message_id,
+                    item_id=item_id,
+                    response_id=response_id,
+                )
+                return self._get_message(connection, message_id)
+
         duplicate = self._find_duplicate_message(
             connection,
             item_id=item_id,
@@ -612,6 +649,29 @@ def _validate_choice(name: str, value: str, choices: frozenset[str]) -> None:
     if value not in choices:
         options = ", ".join(sorted(choices))
         raise ValueError(f"{name} must be one of: {options}")
+
+
+def _validate_message_retry(
+    message: Mapping[str, Any],
+    *,
+    conversation_id: str,
+    role: str,
+    content: str,
+    source: str,
+    status: str,
+) -> None:
+    expected = {
+        "conversation_id": conversation_id,
+        "role": role,
+        "content": content,
+        "source": source,
+        "status": status,
+    }
+
+    if any(message[field] != value for field, value in expected.items()):
+        raise DuplicateMessageError(
+            "message_id already identifies a different message"
+        )
 
 
 def _conversation_from_row(row: sqlite3.Row) -> dict[str, Any]:

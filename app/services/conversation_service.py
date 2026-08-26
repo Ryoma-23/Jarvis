@@ -56,6 +56,7 @@ class ConversationService:
         content: str,
         *,
         source: str,
+        message_id: str | None = None,
         item_id: str | None = None,
         metadata: Mapping[str, Any] | None = None,
         conversation_id: str | None = None,
@@ -68,6 +69,7 @@ class ConversationService:
             content=content,
             source=source,
             status="completed",
+            message_id=message_id,
             item_id=item_id,
             metadata=metadata,
             conversation_id=conversation_id,
@@ -79,6 +81,7 @@ class ConversationService:
         *,
         source: str,
         status: str = "completed",
+        message_id: str | None = None,
         item_id: str | None = None,
         response_id: str | None = None,
         error_message: str | None = None,
@@ -95,6 +98,7 @@ class ConversationService:
             content=content,
             source=source,
             status=status,
+            message_id=message_id,
             item_id=item_id,
             response_id=response_id,
             error_message=error_message,
@@ -131,12 +135,14 @@ class ConversationService:
         content: str,
         *,
         item_id: str,
+        message_id: str | None = None,
         conversation_id: str | None = None,
     ) -> dict[str, Any]:
         return self.record_realtime_user_message(
             content,
             source="voice",
             item_id=item_id,
+            message_id=message_id,
             conversation_id=conversation_id,
         )
 
@@ -146,6 +152,7 @@ class ConversationService:
         *,
         source: str,
         item_id: str,
+        message_id: str | None = None,
         conversation_id: str | None = None,
     ) -> dict[str, Any]:
         _validate_source(source)
@@ -153,6 +160,7 @@ class ConversationService:
         message = self.add_user_message(
             content,
             source=source,
+            message_id=message_id,
             item_id=normalized_item_id,
             conversation_id=conversation_id,
         )
@@ -170,6 +178,7 @@ class ConversationService:
         *,
         item_id: str | None = None,
         response_id: str | None = None,
+        message_id: str | None = None,
         conversation_id: str | None = None,
     ) -> dict[str, Any]:
         return self.record_realtime_assistant_message(
@@ -177,6 +186,7 @@ class ConversationService:
             source="voice",
             item_id=item_id,
             response_id=response_id,
+            message_id=message_id,
             conversation_id=conversation_id,
         )
 
@@ -187,6 +197,7 @@ class ConversationService:
         source: str,
         item_id: str | None = None,
         response_id: str | None = None,
+        message_id: str | None = None,
         conversation_id: str | None = None,
     ) -> dict[str, Any]:
         _validate_source(source)
@@ -214,6 +225,7 @@ class ConversationService:
                     content=content,
                     source=source,
                     status="completed",
+                    message_id=message_id,
                     item_id=item_id,
                     response_id=response_id,
                     connection=connection,
@@ -230,6 +242,7 @@ class ConversationService:
                 content=existing["content"],
                 source=source,
                 status=existing["status"],
+                message_id=message_id,
                 item_id=item_id,
                 response_id=response_id,
                 connection=connection,
@@ -263,6 +276,7 @@ class ConversationService:
         item_id: str | None = None,
         response_id: str | None = None,
         source: str = "voice",
+        message_id: str | None = None,
         conversation_id: str | None = None,
     ) -> dict[str, Any]:
         _validate_source(source)
@@ -289,6 +303,7 @@ class ConversationService:
                     content=content,
                     source=source,
                     status="interrupted",
+                    message_id=message_id,
                     item_id=item_id,
                     response_id=response_id,
                     connection=connection,
@@ -305,6 +320,7 @@ class ConversationService:
                 content=existing["content"],
                 source=source,
                 status=existing["status"],
+                message_id=message_id,
                 item_id=item_id,
                 response_id=response_id,
                 connection=connection,
@@ -464,6 +480,7 @@ class ConversationService:
         content: str,
         source: str,
         status: str,
+        message_id: str | None = None,
         item_id: str | None = None,
         response_id: str | None = None,
         error_message: str | None = None,
@@ -482,6 +499,7 @@ class ConversationService:
                 content=content,
                 source=source,
                 status=status,
+                message_id=message_id,
                 item_id=item_id,
                 response_id=response_id,
                 error_message=error_message,

@@ -4,6 +4,10 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from app.services.chat_service import get_conversation_service
+from app.services.conversation_retry_service import (
+    ConversationPersistenceOutcome,
+    persist_conversation_message,
+)
 from app.services.conversation_service import DEFAULT_CONTEXT_TURN_LIMIT
 from app.services.conversation_store import (
     ConversationNotFoundError,
@@ -84,27 +88,65 @@ def save_realtime_conversation_message(
     conversation_service = get_conversation_service()
 
     try:
+        conversation_id = _resolve_realtime_message_conversation_id(
+            conversation_service,
+            request.conversation_id,
+        )
+
         if request.role == "user":
-            message = conversation_service.record_realtime_user_message(
-                request.content,
+            identity_key = (
+                "realtime-user:"
+                f"{conversation_id}:{request.item_id or ''}:"
+                f"{request.source}:{request.content}"
+            )
+            outcome = persist_conversation_message(
+                operation=lambda message_id: (
+                    conversation_service.record_realtime_user_message(
+                        request.content,
+                        source=request.source,
+                        item_id=request.item_id or "",
+                        message_id=message_id,
+                        conversation_id=conversation_id,
+                    )
+                ),
+                conversation_id=conversation_id,
+                role="user",
+                content=request.content,
                 source=request.source,
-                item_id=request.item_id or "",
-                conversation_id=request.conversation_id,
+                status="completed",
+                identity_key=identity_key,
             )
         else:
-            message = (
-                conversation_service.record_realtime_assistant_message(
-                    request.content,
-                    source=request.source,
-                    item_id=request.item_id,
-                    response_id=request.response_id,
-                    conversation_id=request.conversation_id,
-                )
+            identity_key = _realtime_assistant_identity_key(
+                "completed",
+                conversation_id=conversation_id,
+                item_id=request.item_id,
+                response_id=request.response_id,
+                source=request.source,
+                content=request.content,
+            )
+            outcome = persist_conversation_message(
+                operation=lambda message_id: (
+                    conversation_service.record_realtime_assistant_message(
+                        request.content,
+                        source=request.source,
+                        item_id=request.item_id,
+                        response_id=request.response_id,
+                        message_id=message_id,
+                        conversation_id=conversation_id,
+                    )
+                ),
+                conversation_id=conversation_id,
+                role="assistant",
+                content=request.content,
+                source=request.source,
+                status="completed",
+                identity_key=identity_key,
             )
     except Exception as error:
         _raise_conversation_http_error(error)
 
-    return _realtime_message_response(message)
+    return _realtime_message_response(outcome)
 
 
 @router.post("/realtime/conversation/assistant/interrupted")
@@ -114,20 +156,46 @@ def interrupt_realtime_assistant_message(
     conversation_service = get_conversation_service()
 
     try:
-        message = conversation_service.interrupt_realtime_assistant_message(
-            content=request.content,
+        conversation_id = _resolve_realtime_message_conversation_id(
+            conversation_service,
+            request.conversation_id,
+        )
+        identity_key = _realtime_assistant_identity_key(
+            "interrupted",
+            conversation_id=conversation_id,
             item_id=request.item_id,
             response_id=request.response_id,
             source=request.source,
-            conversation_id=request.conversation_id,
+            content=request.content,
+        )
+        outcome = persist_conversation_message(
+            operation=lambda message_id: (
+                conversation_service.interrupt_realtime_assistant_message(
+                    content=request.content,
+                    item_id=request.item_id,
+                    response_id=request.response_id,
+                    source=request.source,
+                    message_id=message_id,
+                    conversation_id=conversation_id,
+                )
+            ),
+            conversation_id=conversation_id,
+            role="assistant",
+            content=request.content,
+            source=request.source,
+            status="interrupted",
+            identity_key=identity_key,
         )
     except Exception as error:
         _raise_conversation_http_error(error)
 
-    return _realtime_message_response(message)
+    return _realtime_message_response(outcome)
 
 
-def _realtime_message_response(message: dict) -> dict:
+def _realtime_message_response(
+    outcome: ConversationPersistenceOutcome,
+) -> dict:
+    message = outcome.message
     display_fields = (
         "id",
         "conversation_id",
@@ -138,13 +206,52 @@ def _realtime_message_response(message: dict) -> dict:
         "created_at",
         "updated_at",
     )
-    return {
+    response = {
         "conversation_id": message["conversation_id"],
         "message": {
             field: message[field]
             for field in display_fields
         },
     }
+
+    persistence = outcome.status_payload()
+
+    if persistence is not None:
+        response["persistence"] = persistence
+
+    return response
+
+
+def _resolve_realtime_message_conversation_id(
+    conversation_service,
+    conversation_id: str | None,
+) -> str:
+    normalized_conversation_id = str(conversation_id or "").strip()
+
+    if normalized_conversation_id:
+        return normalized_conversation_id
+
+    conversation = _resolve_realtime_conversation(
+        conversation_service,
+        None,
+    )
+    return conversation["id"]
+
+
+def _realtime_assistant_identity_key(
+    action: str,
+    *,
+    conversation_id: str,
+    item_id: str | None,
+    response_id: str | None,
+    source: str,
+    content: str,
+) -> str:
+    external_id = response_id or item_id or "missing"
+    return (
+        f"realtime-assistant:{action}:{conversation_id}:{external_id}:"
+        f"{source}:{content}"
+    )
 
 
 def _resolve_realtime_conversation(

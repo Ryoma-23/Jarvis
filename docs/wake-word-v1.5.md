@@ -245,6 +245,13 @@ before it starts; this also clears any buffered tail from a completed response.
 Tool calling continues through the existing function-call output and follow-up
 response flow.
 
+Conversation-history SQLite failures do not terminate Realtime. Failed user,
+Assistant, or interruption transcript writes are accepted into a process-local
+three-attempt retry queue with a stable Message ID. Audio and transcript display
+continue, and Realtime cleanup does not wait for the retry worker or browser
+status polling. Only an exhausted operation produces a server log and the small
+`一部の会話履歴を保存できませんでした` Window toolbar warning.
+
 The adjustable `REALTIME_HISTORY_RESTORE_TIMEOUT_MS` constant is located near
 the other Realtime frontend constants in `static/script.js`. A history request,
 server rejection, acknowledgement timeout, disconnect, or cleanup failure
@@ -445,6 +452,12 @@ microphone and speaker:
     request during active microphone speech does not start a competing response.
 21. Use a Memo, Task, or Memory request through Realtime text input and confirm
     tool execution and its spoken/displayed follow-up response still complete.
+22. Under an injected transient SQLite message-write failure, confirm the text
+    or voice answer continues and no warning appears if a retry succeeds.
+23. Under an injected permanent SQLite message-write failure, confirm only the
+    final retry logs an error and the Window shows the small history warning.
+24. Disconnect Realtime while a persistence retry is pending. Confirm browser
+    microphone cleanup, Tray notification, and Wake Word resume are not delayed.
 
 For each run, check that only one Realtime connection is created, the browser
 and wake-word microphones are never active together, and no Python window or

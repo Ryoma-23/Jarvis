@@ -35,6 +35,10 @@ h1 {
     font-size: 14px;
 }
 
+.conversation-status.warning {
+    color: #d6a84b;
+}
+
 #chat-area {
     height: 800px;
 

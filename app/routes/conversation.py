@@ -2,6 +2,9 @@ from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 
 from app.services.chat_service import get_conversation_service
+from app.services.conversation_retry_service import (
+    get_conversation_persistence_retry_queue,
+)
 from app.services.conversation_store import ConversationNotFoundError
 
 
@@ -18,6 +21,21 @@ def get_active_conversation():
     return {
         "conversation": conversation_service.get_active_conversation(),
     }
+
+
+@router.get("/persistence/{operation_id}")
+def get_conversation_persistence_status(operation_id: str):
+    status = get_conversation_persistence_retry_queue().get_status(
+        operation_id
+    )
+
+    if status is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Persistence operation not found",
+        )
+
+    return status
 
 
 @router.get("/{conversation_id}/messages")

@@ -1,5 +1,6 @@
 import json
 import logging
+import sqlite3
 
 from datetime import datetime
 from functools import lru_cache
@@ -7,6 +8,10 @@ from typing import Any
 
 from app.config import SYSTEM_PROMPT_PATH
 from app.openai_client import client
+from app.services.conversation_retry_service import (
+    ConversationPersistenceOutcome,
+    persist_conversation_message,
+)
 from app.services.conversation_service import ConversationService
 from app.services.intent_service import (
     handle_memory_intent,
@@ -43,24 +48,24 @@ def generate_chat_stream(
     route = None
 
     try:
-        if active_conversation_id is None:
-            conversation = (
-                conversation_service.get_or_create_active_conversation()
-            )
-        else:
-            conversation = conversation_service.set_active_conversation(
-                active_conversation_id
-            )
+        conversation = _resolve_chat_conversation(
+            conversation_service,
+            active_conversation_id,
+        )
 
         active_conversation_id = conversation["id"]
-        user_message = conversation_service.add_user_message(
-            message,
-            source="text",
+        user_outcome = _persist_user_message(
+            conversation_service=conversation_service,
             conversation_id=active_conversation_id,
+            content=message,
         )
+        user_message = user_outcome.message
         user_message_saved = True
         yield _sse_payload(
-            {"user_message_id": user_message["id"]},
+            _with_persistence_status(
+                {"user_message_id": user_message["id"]},
+                user_outcome,
+            ),
             active_conversation_id,
         )
 
@@ -69,26 +74,34 @@ def generate_chat_stream(
 
         if specialized_reply is not None:
             full_reply = specialized_reply
-            assistant_message = conversation_service.add_assistant_message(
-                full_reply,
-                source="text",
+            assistant_outcome = _persist_assistant_message(
+                conversation_service=conversation_service,
+                content=full_reply,
+                status="completed",
                 metadata={"route": route, "kind": "intent_result"},
                 conversation_id=active_conversation_id,
             )
+            assistant_message = assistant_outcome.message
             assistant_message_saved = True
 
             yield _sse_payload(
-                {
-                    "text": full_reply,
-                    "assistant_message_id": assistant_message["id"],
-                },
+                _with_persistence_status(
+                    {
+                        "text": full_reply,
+                        "assistant_message_id": assistant_message["id"],
+                    },
+                    assistant_outcome,
+                ),
                 active_conversation_id,
             )
             yield _sse_payload(
-                {
-                    "done": True,
-                    "assistant_message_id": assistant_message["id"],
-                },
+                _with_persistence_status(
+                    {
+                        "done": True,
+                        "assistant_message_id": assistant_message["id"],
+                    },
+                    assistant_outcome,
+                ),
                 active_conversation_id,
             )
             return
@@ -96,9 +109,18 @@ def generate_chat_stream(
         current_time = datetime.now().strftime("%Y-%m-%d %H:%M:%S (%A)")
         system_prompt = load_system_prompt()
         memory_context = format_memory_for_prompt()
-        context = conversation_service.build_context(
-            conversation_id=active_conversation_id
-        )
+        try:
+            context = conversation_service.build_context(
+                conversation_id=active_conversation_id
+            )
+        except sqlite3.Error:
+            context = []
+
+        current_user_context = {"role": "user", "content": message}
+
+        if not context or context[-1] != current_user_context:
+            context.append(current_user_context)
+
         messages = [
             {
                 "role": "system",
@@ -138,20 +160,25 @@ def generate_chat_stream(
             if event.type in {"response.failed", "response.incomplete"}:
                 raise RuntimeError(_response_failure_message(event))
 
-        assistant_message = conversation_service.add_assistant_message(
-            full_reply,
-            source="text",
+        assistant_outcome = _persist_assistant_message(
+            conversation_service=conversation_service,
+            content=full_reply,
+            status="completed",
             response_id=response_id,
             metadata={"route": route or "chat"},
             conversation_id=active_conversation_id,
         )
+        assistant_message = assistant_outcome.message
         assistant_message_saved = True
 
         yield _sse_payload(
-            {
-                "done": True,
-                "assistant_message_id": assistant_message["id"],
-            },
+            _with_persistence_status(
+                {
+                    "done": True,
+                    "assistant_message_id": assistant_message["id"],
+                },
+                assistant_outcome,
+            ),
             active_conversation_id,
         )
 
@@ -168,7 +195,7 @@ def generate_chat_stream(
         raise
 
     except Exception as error:
-        failed_message = _persist_failed_assistant_message(
+        failed_outcome = _persist_failed_assistant_message(
             conversation_service=conversation_service,
             conversation_id=active_conversation_id,
             should_persist=user_message_saved and not assistant_message_saved,
@@ -178,17 +205,112 @@ def generate_chat_stream(
             route=route,
         )
 
+        error_payload = {
+            "error": str(error),
+            "assistant_message_id": (
+                failed_outcome.message["id"]
+                if failed_outcome is not None
+                else None
+            ),
+        }
+
+        if failed_outcome is not None:
+            error_payload = _with_persistence_status(
+                error_payload,
+                failed_outcome,
+            )
+
         yield _sse_payload(
-            {
-                "error": str(error),
-                "assistant_message_id": (
-                    failed_message["id"]
-                    if failed_message is not None
-                    else None
-                ),
-            },
+            error_payload,
             active_conversation_id,
         )
+
+
+def _persist_user_message(
+    *,
+    conversation_service: ConversationService,
+    conversation_id: str,
+    content: str,
+) -> ConversationPersistenceOutcome:
+    return persist_conversation_message(
+        operation=lambda message_id: conversation_service.add_user_message(
+            content,
+            source="text",
+            message_id=message_id,
+            conversation_id=conversation_id,
+        ),
+        conversation_id=conversation_id,
+        role="user",
+        content=content,
+        source="text",
+        status="completed",
+    )
+
+
+def _resolve_chat_conversation(
+    conversation_service: ConversationService,
+    conversation_id: str | None,
+) -> dict[str, Any]:
+    if conversation_id is None:
+        return conversation_service.get_or_create_active_conversation()
+
+    try:
+        return conversation_service.set_active_conversation(conversation_id)
+    except sqlite3.Error:
+        conversation = conversation_service.get_conversation(conversation_id)
+
+        if conversation is None:
+            raise
+
+        return conversation
+
+
+def _persist_assistant_message(
+    *,
+    conversation_service: ConversationService,
+    conversation_id: str,
+    content: str,
+    status: str,
+    response_id: str | None = None,
+    error_message: str | None = None,
+    metadata: dict[str, Any] | None = None,
+) -> ConversationPersistenceOutcome:
+    identity_key = (
+        f"chat-assistant:{conversation_id}:{response_id}:{status}:{content}"
+        if response_id
+        else None
+    )
+    return persist_conversation_message(
+        operation=lambda message_id: conversation_service.add_assistant_message(
+            content,
+            source="text",
+            status=status,
+            message_id=message_id,
+            response_id=response_id,
+            error_message=error_message,
+            metadata=metadata,
+            conversation_id=conversation_id,
+        ),
+        conversation_id=conversation_id,
+        role="assistant",
+        content=content,
+        source="text",
+        status=status,
+        identity_key=identity_key,
+    )
+
+
+def _with_persistence_status(
+    payload: dict[str, Any],
+    outcome: ConversationPersistenceOutcome,
+) -> dict[str, Any]:
+    data = dict(payload)
+    persistence = outcome.status_payload()
+
+    if persistence is not None:
+        data["persistence"] = persistence
+
+    return data
 
 
 def _persist_failed_assistant_message(
@@ -200,17 +322,17 @@ def _persist_failed_assistant_message(
     response_id: str | None,
     error_message: str,
     route: str | None,
-) -> dict[str, Any] | None:
+) -> ConversationPersistenceOutcome | None:
     if should_persist and conversation_id is not None:
         try:
-            return conversation_service.add_assistant_message(
-                content,
-                source="text",
+            return _persist_assistant_message(
+                conversation_service=conversation_service,
+                conversation_id=conversation_id,
+                content=content,
                 status="failed",
                 response_id=response_id,
                 error_message=error_message,
                 metadata={"route": route or "unknown"},
-                conversation_id=conversation_id,
             )
         except Exception:
             logger.exception("Failed to persist failed chat response")

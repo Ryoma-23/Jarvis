@@ -225,6 +225,9 @@ class RealtimeConversationEventContractTests(unittest.TestCase):
             route,
         )
         self.assertIn('source: Literal["text", "voice"] = "voice"', route)
+        self.assertIn("persist_conversation_message", route)
+        self.assertIn("identity_key=identity_key", route)
+        self.assertIn('response["persistence"] = persistence', route)
         self.assertIn("record_realtime_user_message", route)
         self.assertIn("record_realtime_assistant_message", route)
         self.assertIn("interrupt_realtime_assistant_message", route)

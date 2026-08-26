@@ -25,6 +25,7 @@ let realtimeTextTurnSequence = 0;
 let activeRealtimeTextTurn = null;
 let pendingRealtimeTextResponseTurn = null;
 let realtimePendingResponseRequestCount = 0;
+let hasConversationPersistenceWarning = false;
 
 const messageElementsById = new Map();
 const realtimeUserMessagesByItemId = new Map();
@@ -34,6 +35,7 @@ const realtimeAssistantMessagesByItemId = new Map();
 const realtimeAssistantMessagesByResponseId = new Map();
 const realtimeTextInputQueue = [];
 const realtimeTextTurnsByResponseId = new Map();
+const monitoredConversationPersistenceOperations = new Set();
 
 const TRAY_REALTIME_BRIDGE_URL = "http://127.0.0.1:8767";
 const REALTIME_FINISHED_NOTIFY_RETRY_COUNT = 8;
@@ -42,6 +44,8 @@ const REALTIME_HISTORY_RESTORE_TIMEOUT_MS = 5000;
 const REALTIME_HISTORY_EVENT_ID_PREFIX = "jarvis_history_restore";
 const REALTIME_TEXT_INPUT_ACK_TIMEOUT_MS = 5000;
 const REALTIME_TEXT_EVENT_ID_PREFIX = "jarvis_text_input";
+const CONVERSATION_PERSISTENCE_POLL_INTERVAL_MS = 500;
+const CONVERSATION_PERSISTENCE_MAX_POLLS = 80;
 const REALTIME_MEDIA_AUDIO_CONSTRAINTS = Object.freeze({
     echoCancellation: true,
     noiseSuppression: true,
@@ -166,7 +170,7 @@ async function loadActiveConversationHistory() {
             "/messages"
         );
         renderConversationHistory(historyData.messages);
-        conversationStatus.textContent = "";
+        restoreConversationPersistenceWarning();
 
     } catch (error) {
         console.error("会話履歴の読み込みに失敗しました。", error);
@@ -201,7 +205,7 @@ async function createNewConversation() {
 
         activeConversationId = data.conversation.id;
         clearRenderedMessages();
-        conversationStatus.textContent = "";
+        restoreConversationPersistenceWarning();
         messageInput.focus();
 
     } catch (error) {
@@ -223,6 +227,86 @@ async function requestJson(url, options = undefined) {
     }
 
     return response.json();
+}
+
+
+function monitorConversationPersistence(persistence) {
+    const operationId = persistence
+        ? String(persistence.operation_id || "").trim()
+        : "";
+
+    if (
+        !operationId ||
+        persistence.status !== "pending" ||
+        monitoredConversationPersistenceOperations.has(operationId)
+    ) {
+        return;
+    }
+
+    monitoredConversationPersistenceOperations.add(operationId);
+    void pollConversationPersistence(operationId);
+}
+
+
+async function pollConversationPersistence(operationId) {
+    try {
+        for (
+            let pollCount = 0;
+            pollCount < CONVERSATION_PERSISTENCE_MAX_POLLS;
+            pollCount += 1
+        ) {
+            if (pollCount > 0) {
+                await new Promise(function(resolve) {
+                    setTimeout(
+                        resolve,
+                        CONVERSATION_PERSISTENCE_POLL_INTERVAL_MS
+                    );
+                });
+            }
+
+            let status;
+
+            try {
+                status = await requestJson(
+                    "/conversations/persistence/" +
+                    encodeURIComponent(operationId)
+                );
+            } catch (error) {
+                continue;
+            }
+
+            if (status.status === "succeeded") {
+                return;
+            }
+
+            if (status.status === "failed") {
+                showConversationPersistenceWarning();
+                return;
+            }
+        }
+
+    } finally {
+        monitoredConversationPersistenceOperations.delete(operationId);
+    }
+}
+
+
+function showConversationPersistenceWarning() {
+    hasConversationPersistenceWarning = true;
+    conversationStatus.classList.add("warning");
+    conversationStatus.textContent =
+        "一部の会話履歴を保存できませんでした";
+}
+
+
+function restoreConversationPersistenceWarning() {
+    if (hasConversationPersistenceWarning) {
+        showConversationPersistenceWarning();
+        return;
+    }
+
+    conversationStatus.classList.remove("warning");
+    conversationStatus.textContent = "";
 }
 
 
@@ -334,6 +418,7 @@ async function sendHttpChatMessage(message) {
                 const jsonText = event.replace("data: ", "");
 
                 const data = JSON.parse(jsonText);
+                monitorConversationPersistence(data.persistence);
 
                 if (data.conversation_id) {
                     activeConversationId = data.conversation_id;
@@ -2478,6 +2563,7 @@ async function persistRealtimeAssistantInterruption(state, sessionId) {
 
     try {
         const result = await persistPromise;
+        monitorConversationPersistence(result.persistence);
         state.interruptionPersisted = true;
 
         if (state.messageView) {
@@ -2497,13 +2583,15 @@ async function persistRealtimeAssistantInterruption(state, sessionId) {
 
 
 async function saveRealtimeConversationMessage(payload) {
-    return requestJson("/realtime/conversation/messages", {
+    const result = await requestJson("/realtime/conversation/messages", {
         method: "POST",
         headers: {
             "Content-Type": "application/json"
         },
         body: JSON.stringify(payload)
     });
+    monitorConversationPersistence(result.persistence);
+    return result;
 }
 
 

@@ -1,4 +1,5 @@
 import json
+import sqlite3
 import sys
 import tempfile
 import unittest
@@ -15,6 +16,10 @@ if "app.openai_client" not in sys.modules:
     sys.modules["app.openai_client"] = openai_client_stub
 
 from app.services import chat_service
+from app.services.conversation_retry_service import (
+    ConversationPersistenceRetryQueue,
+    persist_conversation_message,
+)
 from app.services.conversation_service import ConversationService
 from app.services.conversation_store import ConversationStore
 
@@ -135,6 +140,87 @@ class ChatServiceConversationHistoryTests(unittest.TestCase):
         self.assertEqual(
             request["input"][3:],
             [{"role": "user", "content": "こんにちは"}],
+        )
+
+    def test_sqlite_save_failure_does_not_stop_stream_and_retries_in_order(self):
+        conversation = self.service.create_active_conversation()
+        retry_queue = ConversationPersistenceRetryQueue(
+            max_retries=3,
+            retry_delay_seconds=0,
+            auto_start=False,
+        )
+        original_add_user_message = self.service.add_user_message
+        user_save_calls = 0
+
+        def flaky_add_user_message(*args, **kwargs):
+            nonlocal user_save_calls
+            user_save_calls += 1
+
+            if user_save_calls == 1:
+                raise sqlite3.OperationalError("database is locked")
+
+            return original_add_user_message(*args, **kwargs)
+
+        def persist_with_test_queue(**kwargs):
+            return persist_conversation_message(
+                retry_queue=retry_queue,
+                **kwargs,
+            )
+
+        client = Mock()
+        client.responses.create.return_value = [
+            response_event("response.created", "response-retry"),
+            text_delta("会話は継続します"),
+            response_event("response.completed", "response-retry"),
+        ]
+
+        with (
+            patch.object(
+                self.service,
+                "add_user_message",
+                side_effect=flaky_add_user_message,
+            ),
+            patch.object(
+                chat_service,
+                "persist_conversation_message",
+                side_effect=persist_with_test_queue,
+            ),
+            patch.object(chat_service, "client", client),
+            patch.object(chat_service, "route_message", return_value="chat"),
+            patch.object(chat_service, "load_system_prompt", return_value="system"),
+            patch.object(
+                chat_service,
+                "format_memory_for_prompt",
+                return_value="memory",
+            ),
+        ):
+            chunks = list(
+                chat_service.generate_chat_stream(
+                    "保存に失敗しても答えて",
+                    conversation_id=conversation["id"],
+                )
+            )
+
+        payloads = parse_sse_payloads(chunks)
+        self.assertEqual(payloads[0]["persistence"]["status"], "pending")
+        self.assertEqual(payloads[-1]["persistence"]["status"], "pending")
+        self.assertEqual(payloads[1]["text"], "会話は継続します")
+        self.assertEqual(self.service.store.get_messages(conversation["id"]), [])
+        self.assertEqual(
+            client.responses.create.call_args.kwargs["input"][-1],
+            {"role": "user", "content": "保存に失敗しても答えて"},
+        )
+
+        retry_queue.run_pending_once(ignore_delay=True)
+        retry_queue.run_pending_once(ignore_delay=True)
+        messages = self.service.store.get_messages(conversation["id"])
+
+        self.assertEqual(
+            [(message["role"], message["content"]) for message in messages],
+            [
+                ("user", "保存に失敗しても答えて"),
+                ("assistant", "会話は継続します"),
+            ],
         )
 
     def test_history_is_reused_after_store_reopen(self):
