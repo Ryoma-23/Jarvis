@@ -19,6 +19,7 @@
         coreState: byId("core-state"),
         coreCaption: byId("core-caption"),
         systemLog: byId("system-log"),
+        systemLogClearButton: byId("system-log-clear-button"),
         statusBar: byId("status-bar"),
         headerConnectionStatus: byId("header-connection-status")
     });

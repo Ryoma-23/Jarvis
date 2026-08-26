@@ -39,9 +39,23 @@
         return entry;
     }
 
+    function clear() {
+        const logContainer = jarvisUI.dom.elements.systemLog;
+
+        if (logContainer) {
+            logContainer.replaceChildren();
+        }
+    }
+
     jarvisUI.systemLog = Object.freeze({
-        append: append
+        append: append,
+        clear: clear
     });
+
+    const clearButton = jarvisUI.dom.elements.systemLogClearButton;
+    if (clearButton) {
+        clearButton.addEventListener("click", clear);
+    }
 
     append("INTERFACE_READY");
 

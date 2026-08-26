@@ -244,6 +244,33 @@ h2 {
     border-bottom: 1px solid var(--color-border);
 }
 
+.panel-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.icon-button {
+    display: grid;
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    place-items: center;
+    color: var(--color-text-muted);
+    border-color: transparent;
+    background: transparent;
+    font-family: var(--font-mono);
+    font-size: 13px;
+    line-height: 1;
+}
+
+.icon-button:hover:not(:disabled) {
+    color: var(--color-text-secondary);
+    border-color: var(--color-border);
+    background: rgba(17, 45, 62, 0.52);
+    box-shadow: none;
+}
+
 .system-panel {
     display: grid;
     grid-template-rows: auto minmax(0, 1fr);

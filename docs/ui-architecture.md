@@ -49,6 +49,10 @@ the Realtime lifecycle:
   controls, and text composer.
 - The footer displays compact Realtime, microphone, and memory status.
 
+The System Log header includes a small symbol-only clear control. It removes
+only currently rendered browser log entries and does not delete Python logs,
+persistent data, conversation history, or future events.
+
 The default 974-pixel Window width supports the complete three-region layout.
 At 900 pixels and below, the secondary System Log is hidden. At 680 pixels and
 below, Core and Conversation become a vertical layout. Required controls stay

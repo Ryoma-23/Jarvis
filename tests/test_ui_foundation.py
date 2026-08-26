@@ -187,6 +187,21 @@ class UiFoundationContractTests(unittest.TestCase):
         self.assertIn("content.textContent = String(message)", system_log)
         self.assertNotIn("innerHTML", system_log)
 
+    def test_system_log_can_clear_only_rendered_entries(self):
+        index = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
+        dom = (STATIC_DIR / "js" / "dom.js").read_text(encoding="utf-8")
+        system_log = (
+            STATIC_DIR / "js" / "ui" / "system-log.js"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn('id="system-log-clear-button"', index)
+        self.assertIn('aria-label="ログ表示をクリア"', index)
+        self.assertIn('title="ログ表示をクリア"', index)
+        self.assertIn('byId("system-log-clear-button")', dom)
+        self.assertIn("logContainer.replaceChildren()", system_log)
+        self.assertIn('clearButton.addEventListener("click", clear)', system_log)
+        self.assertIn("clear: clear", system_log)
+
 
 if __name__ == "__main__":
     unittest.main()
