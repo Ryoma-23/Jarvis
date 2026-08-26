@@ -9,11 +9,20 @@
 
     const validStates = new Set([
         "idle",
+        "connecting",
         "listening",
         "thinking",
         "speaking",
         "error"
     ]);
+    const stateCaptions = Object.freeze({
+        idle: "Awaiting instruction",
+        connecting: "Establishing secure channel",
+        listening: "Receiving voice input",
+        thinking: "Processing request",
+        speaking: "Voice response active",
+        error: "Attention required"
+    });
 
     function setJarvisState(nextState) {
         const normalizedState = String(nextState || "").toLowerCase();
@@ -34,6 +43,11 @@
         const coreState = jarvisUI.dom.elements.coreState;
         if (coreState) {
             coreState.textContent = state.jarvisState.toUpperCase();
+        }
+
+        const coreCaption = jarvisUI.dom.elements.coreCaption;
+        if (coreCaption) {
+            coreCaption.textContent = stateCaptions[state.jarvisState];
         }
     }
 

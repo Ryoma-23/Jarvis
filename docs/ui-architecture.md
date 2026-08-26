@@ -55,6 +55,33 @@ below, Core and Conversation become a vertical layout. Required controls stay
 in the document at every breakpoint, and reduced-motion preferences disable
 the decorative Core animation.
 
+## Phase 3 visual system
+
+Phase 3 establishes consistent visual and accessibility rules without changing
+Realtime ownership:
+
+- Header, Status Bar, and microphone labels render from the same display-only
+  connection state.
+- Core color tokens support idle, listening, thinking, speaking, and error
+  states before those states are connected to Realtime events.
+- Empty conversation history has an unobtrusive explanation.
+- Voice-origin messages receive a small source label without changing stored
+  message data or the existing render flow.
+- Keyboard focus, text selection, reduced motion, increased contrast, long
+  message wrapping, and both standard and WebKit scrollbars are styled.
+- A solid-surface fallback is provided when backdrop blur is unavailable.
+
+The interface remains local to pywebview. No hosting, external font, image,
+icon package, or new runtime dependency is introduced.
+
+## Phase 4 display state machine
+
+`static/js/ui/ui-state-controller.js` converts existing Realtime event signals
+into a single visual state. Its priority rules and event mapping are documented
+in `docs/ui-state-machine.md`. The controller owns display signals only; the
+existing lifecycle flags in `static/script.js` remain authoritative for audio,
+conversation, Tool, Tray, and cleanup behavior.
+
 ## State ownership
 
 `JarvisUI.state` is display-only. It must not control the Realtime lifecycle,

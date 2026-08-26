@@ -2263,6 +2263,7 @@ async function handleRealtimeEvent(data, sessionId) {
         const itemId = normalizeRealtimeId(data.item_id);
         const speechTurn = getRealtimeSpeechTurn(itemId);
         discardRealtimeSpeechTurn(speechTurn, itemId);
+        window.JarvisUI.controller.speechFailed();
         updateVoiceStatus("connected", "接続中");
         console.warn("ユーザー音声の文字起こしに失敗しました。", data);
         processRealtimeTextInputQueue();
@@ -2281,6 +2282,7 @@ async function handleRealtimeEvent(data, sessionId) {
     }
 
     if (data.type === "response.created") {
+        window.JarvisUI.controller.responseCreated();
         pauseRealtimeIdleTimer();
         realtimePendingResponseRequestCount = Math.max(
             0,
@@ -2304,6 +2306,7 @@ async function handleRealtimeEvent(data, sessionId) {
     }
 
     if (data.type === "output_audio_buffer.started") {
+        window.JarvisUI.controller.audioStarted();
         pauseRealtimeIdleTimer();
         isRealtimeOutputAudioPlaying = true;
         activeRealtimeOutputResponseId = (
@@ -2320,6 +2323,7 @@ async function handleRealtimeEvent(data, sessionId) {
         data.type === "output_audio_buffer.stopped" ||
         data.type === "output_audio_buffer.cleared"
     ) {
+        window.JarvisUI.controller.audioStopped();
         finishRealtimeOutputAudio(data.response_id || null);
         processRealtimeTextInputQueue();
         markRealtimeConversationActivity(sessionId);
@@ -2327,6 +2331,7 @@ async function handleRealtimeEvent(data, sessionId) {
     }
 
     if (data.type === "input_audio_buffer.speech_started") {
+        window.JarvisUI.controller.speechStarted();
         pauseRealtimeIdleTimer();
         isRealtimeUserSpeechActive = true;
         startRealtimeSpeechTurn(data);
@@ -2342,6 +2347,7 @@ async function handleRealtimeEvent(data, sessionId) {
     }
 
     if (data.type === "input_audio_buffer.speech_stopped") {
+        window.JarvisUI.controller.speechStopped();
         isRealtimeUserSpeechActive = false;
         const speechTurn = stopRealtimeSpeechTurn(data);
         clearRealtimeBargeInTimer();
@@ -2372,6 +2378,7 @@ async function handleRealtimeEvent(data, sessionId) {
             hasFunctionCall && responseStatus === "completed"
         );
 
+        window.JarvisUI.controller.responseDone(isCompletedFunctionCall);
         isRealtimeResponseCancelPending = false;
 
         if (
@@ -2800,6 +2807,7 @@ async function handleRealtimeToolCall(data, sessionId) {
         ? realtimeTextTurnsByResponseId.get(responseId) || null
         : null;
     const currentDataChannel = dataChannel;
+    let followupResponseRequested = false;
 
     if (
         !isCurrentRealtimeSession(sessionId) ||
@@ -2810,6 +2818,7 @@ async function handleRealtimeToolCall(data, sessionId) {
     }
 
     activeRealtimeToolCallCount += 1;
+    window.JarvisUI.controller.toolStarted(toolName);
     markRealtimeConversationActivity(sessionId);
 
     try {
@@ -2852,6 +2861,7 @@ async function handleRealtimeToolCall(data, sessionId) {
         if (!requestRealtimeResponse(sessionId, textTurn)) {
             throw new Error("tool結果後のRealtime応答を開始できませんでした。");
         }
+        followupResponseRequested = true;
 
     } catch (error) {
         console.error("Realtime tool callingに失敗しました。", error);
@@ -2864,6 +2874,9 @@ async function handleRealtimeToolCall(data, sessionId) {
         activeRealtimeToolCallCount = Math.max(
             0,
             activeRealtimeToolCallCount - 1
+        );
+        window.JarvisUI.controller.toolFinished(
+            followupResponseRequested
         );
         markRealtimeConversationActivity(sessionId);
     }
@@ -3094,6 +3107,7 @@ function cleanupRealtimeVoice() {
     const currentLocalStream = localStream;
     const currentRemoteAudioElement = remoteAudioElement;
 
+    window.JarvisUI.controller.reset();
     cancelRealtimeHistoryRestore("Realtime接続を終了しました。");
     failPendingRealtimeTextTurns("Realtime接続が終了しました。");
     resetRealtimeIdleState();

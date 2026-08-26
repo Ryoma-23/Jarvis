@@ -17,8 +17,10 @@
         voiceStatus: byId("voice-status"),
         coreArea: byId("core-area"),
         coreState: byId("core-state"),
+        coreCaption: byId("core-caption"),
         systemLog: byId("system-log"),
-        statusBar: byId("status-bar")
+        statusBar: byId("status-bar"),
+        headerConnectionStatus: byId("header-connection-status")
     });
 
     const missingRequiredElements = [

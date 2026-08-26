@@ -13,6 +13,8 @@
     --color-text-muted: #607681;
     --color-warning: #f1bd6d;
     --color-error: #ff6f7d;
+    --color-state: var(--color-cyan);
+    --color-state-rgb: 121, 232, 255;
     --radius-panel: 16px;
     --font-sans: "Segoe UI Variable", "Yu Gothic UI", "Meiryo", sans-serif;
     --font-mono: "Cascadia Mono", "SFMono-Regular", Consolas, monospace;
@@ -36,10 +38,17 @@ body {
     overflow: hidden;
     color: var(--color-text);
     font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
     background:
         radial-gradient(circle at 50% 42%, rgba(17, 70, 98, 0.35), transparent 38%),
         radial-gradient(circle at 78% 18%, rgba(83, 65, 151, 0.1), transparent 25%),
         linear-gradient(145deg, var(--color-bg-center), var(--color-bg) 58%);
+}
+
+::selection {
+    color: #ffffff;
+    background: rgba(72, 189, 216, 0.42);
 }
 
 button,
@@ -184,6 +193,21 @@ h2 {
     box-shadow: 0 0 8px rgba(96, 118, 129, 0.5);
 }
 
+.header-state[data-connection-status="connected"] .status-dot {
+    background: var(--color-cyan);
+    box-shadow: 0 0 9px var(--color-cyan);
+}
+
+.header-state[data-connection-status="connecting"] .status-dot {
+    background: var(--color-warning);
+    box-shadow: 0 0 9px rgba(241, 189, 109, 0.65);
+}
+
+.header-state[data-connection-status="error"] .status-dot {
+    background: var(--color-error);
+    box-shadow: 0 0 9px rgba(255, 111, 125, 0.65);
+}
+
 .workspace {
     display: grid;
     grid-template-columns: minmax(176px, 0.55fr) minmax(360px, 1.8fr) minmax(290px, 0.8fr);
@@ -203,6 +227,12 @@ h2 {
         var(--color-surface);
     box-shadow: inset 0 1px rgba(255, 255, 255, 0.025);
     backdrop-filter: blur(12px);
+}
+
+@supports not (backdrop-filter: blur(12px)) {
+    .panel {
+        background: rgba(7, 18, 29, 0.96);
+    }
 }
 
 .panel-header {
@@ -225,6 +255,17 @@ h2 {
     overflow: hidden auto;
     scrollbar-width: thin;
     scrollbar-color: rgba(121, 232, 255, 0.18) transparent;
+}
+
+.system-log::-webkit-scrollbar,
+#chat-area::-webkit-scrollbar {
+    width: 6px;
+}
+
+.system-log::-webkit-scrollbar-thumb,
+#chat-area::-webkit-scrollbar-thumb {
+    border-radius: 99px;
+    background: rgba(121, 232, 255, 0.16);
 }
 
 .system-log-entry {
@@ -282,7 +323,7 @@ h2 {
     position: relative;
     width: clamp(230px, 36vw, 450px);
     aspect-ratio: 1;
-    filter: drop-shadow(0 0 35px rgba(68, 194, 225, 0.13));
+    filter: drop-shadow(0 0 35px rgba(var(--color-state-rgb), 0.13));
 }
 
 .core-orbit,
@@ -293,7 +334,7 @@ h2 {
 }
 
 .core-orbit {
-    border: 1px solid rgba(121, 232, 255, 0.16);
+    border: 1px solid rgba(var(--color-state-rgb), 0.16);
 }
 
 .core-orbit::before,
@@ -303,8 +344,8 @@ h2 {
     height: 4px;
     content: "";
     border-radius: 50%;
-    background: var(--color-cyan);
-    box-shadow: 0 0 9px var(--color-cyan);
+    background: var(--color-state);
+    box-shadow: 0 0 9px var(--color-state);
 }
 
 .core-orbit::before {
@@ -332,13 +373,13 @@ h2 {
 
 .core-orbit-inner {
     inset: 29%;
-    border-color: rgba(121, 232, 255, 0.3);
+    border-color: rgba(var(--color-state-rgb), 0.3);
     animation: core-rotate 22s linear infinite;
 }
 
 .core-halo {
     inset: 34%;
-    border: 1px solid rgba(121, 232, 255, 0.34);
+    border: 1px solid rgba(var(--color-state-rgb), 0.34);
     background: radial-gradient(
         circle at 42% 38%,
         rgba(222, 252, 255, 0.38),
@@ -347,8 +388,8 @@ h2 {
         transparent 70%
     );
     box-shadow:
-        inset 0 0 30px rgba(121, 232, 255, 0.18),
-        0 0 42px rgba(72, 189, 216, 0.14);
+        inset 0 0 30px rgba(var(--color-state-rgb), 0.18),
+        0 0 42px rgba(var(--color-state-rgb), 0.14);
     animation: core-breathe 5.5s ease-in-out infinite;
 }
 
@@ -357,7 +398,7 @@ h2 {
     background: radial-gradient(circle at 40% 35%, #ffffff, var(--color-cyan) 25%, #318da8 70%);
     box-shadow:
         0 0 14px rgba(219, 251, 255, 0.8),
-        0 0 36px rgba(121, 232, 255, 0.42);
+        0 0 36px rgba(var(--color-state-rgb), 0.42);
 }
 
 .core-readout {
@@ -369,12 +410,37 @@ h2 {
 
 .core-state {
     margin-top: 7px;
-    color: var(--color-cyan);
+    color: var(--color-state);
     font-family: var(--font-mono);
     font-size: 14px;
     letter-spacing: 0.34em;
     text-indent: 0.34em;
-    text-shadow: 0 0 18px rgba(121, 232, 255, 0.35);
+    text-shadow: 0 0 18px rgba(var(--color-state-rgb), 0.35);
+}
+
+body[data-jarvis-state="listening"] {
+    --color-state: #79e8ff;
+    --color-state-rgb: 121, 232, 255;
+}
+
+body[data-jarvis-state="connecting"] {
+    --color-state: #f1bd6d;
+    --color-state-rgb: 241, 189, 109;
+}
+
+body[data-jarvis-state="thinking"] {
+    --color-state: #a69aff;
+    --color-state-rgb: 166, 154, 255;
+}
+
+body[data-jarvis-state="speaking"] {
+    --color-state: #a4f6df;
+    --color-state-rgb: 164, 246, 223;
+}
+
+body[data-jarvis-state="error"] {
+    --color-state: #ff6f7d;
+    --color-state-rgb: 255, 111, 125;
 }
 
 .core-caption {
@@ -473,6 +539,24 @@ h2 {
     scrollbar-color: rgba(121, 232, 255, 0.18) transparent;
 }
 
+#chat-area:empty {
+    display: grid;
+    place-items: center;
+}
+
+#chat-area:empty::before {
+    max-width: 180px;
+    content: "VOICE + TEXT\A会話履歴はここに表示されます";
+    color: var(--color-text-muted);
+    font-family: var(--font-mono);
+    font-size: 9px;
+    line-height: 1.8;
+    letter-spacing: 0.08em;
+    text-align: center;
+    white-space: pre;
+    opacity: 0.72;
+}
+
 .user-message,
 .ai-message {
     position: relative;
@@ -508,6 +592,19 @@ h2 {
     color: var(--color-text-secondary);
     white-space: pre-wrap;
     overflow-wrap: anywhere;
+}
+
+.user-message[data-message-source="voice"]::after,
+.ai-message[data-message-source="voice"]::after {
+    position: absolute;
+    top: 0;
+    right: 0;
+    content: "VOICE";
+    color: var(--color-text-muted);
+    font-family: var(--font-mono);
+    font-size: 7px;
+    letter-spacing: 0.12em;
+    opacity: 0.58;
 }
 
 .message-failed,
@@ -687,5 +784,20 @@ h2 {
         animation-duration: 0.01ms !important;
         animation-iteration-count: 1 !important;
         transition-duration: 0.01ms !important;
+    }
+}
+
+@media (prefers-contrast: more) {
+    :root {
+        --color-border: rgba(172, 228, 245, 0.34);
+        --color-border-strong: rgba(190, 239, 252, 0.68);
+        --color-text-secondary: #c4d7df;
+        --color-text-muted: #8da4ae;
+    }
+
+    .panel,
+    #message-input,
+    button {
+        border-width: 2px;
     }
 }

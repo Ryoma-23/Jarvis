@@ -20,9 +20,13 @@
                 </div>
             </div>
 
-            <div class="header-state" aria-live="polite">
+            <div
+                id="header-connection-status"
+                class="header-state"
+                aria-live="polite"
+            >
                 <span class="status-dot" aria-hidden="true"></span>
-                <span>LOCAL SYSTEM</span>
+                <span data-status="header-connection">LOCAL / OFFLINE</span>
             </div>
         </header>
 
@@ -60,7 +64,9 @@
                     <div class="core-readout">
                         <p id="core-title" class="eyebrow">JARVIS CORE</p>
                         <p id="core-state" class="core-state" aria-live="polite">IDLE</p>
-                        <p class="core-caption">Awaiting instruction</p>
+                        <p id="core-caption" class="core-caption">
+                            Awaiting instruction
+                        </p>
                     </div>
                 </div>
 
@@ -128,7 +134,7 @@
             </div>
             <div class="status-item status-item-muted">
                 <span class="status-label">MIC</span>
-                <span>STANDBY</span>
+                <span data-status="microphone">STANDBY</span>
             </div>
             <div class="status-item status-item-muted">
                 <span class="status-label">MEMORY</span>
@@ -143,6 +149,7 @@
     <script src="/static/js/ui/jarvis-state.js?v=1.12-realtime-idle-timeout"></script>
     <script src="/static/js/ui/system-log.js?v=1.12-realtime-idle-timeout"></script>
     <script src="/static/js/ui/status-bar.js?v=1.12-realtime-idle-timeout"></script>
+    <script src="/static/js/ui/ui-state-controller.js?v=1.12-realtime-idle-timeout"></script>
     <script src="/static/script.js?v=1.12-realtime-idle-timeout"></script>
 </body>
 </html>

@@ -46,6 +46,10 @@
     append("INTERFACE_READY");
 
     jarvisUI.state.subscribe(function(state, previousState) {
+        if (state.jarvisState !== previousState.jarvisState) {
+            append(`STATE_${state.jarvisState.toUpperCase()}`);
+        }
+
         if (
             state.connectionStatus === previousState.connectionStatus &&
             state.statusMessage === previousState.statusMessage
