@@ -220,14 +220,15 @@ records to
 `item_id` and `response_id` makes repeated Realtime completion events
 idempotent.
 
-VAD automatic response creation and interruption are disabled. For a normal
-voice turn, the Window sends `response.create` at `speech_stopped` to preserve
-the existing response latency, then independently renders and stores the
-finalized transcript. During JARVIS playback, it waits for the finalized
-transcript, which must contain meaningful speech and belong to a turn lasting
-at least 600 ms. Only then does the Window send `response.cancel`, clear WebRTC
-output audio, and create the next response. Empty transcripts and common
-cough/noise markers are ignored and are not stored or displayed.
+VAD automatic response creation and interruption are disabled. Server VAD uses
+an explicit 1200 ms silence duration before emitting `speech_stopped`, allowing
+a normal user turn to continue across shorter thinking pauses. The Window then
+sends `response.create` and independently renders and stores the finalized
+transcript. During JARVIS playback, it waits for the finalized transcript,
+which must contain meaningful speech and belong to a turn lasting at least 600
+ms. Only then does the Window send `response.cancel`, clear WebRTC output audio,
+and create the next response. Empty transcripts and common cough/noise markers
+are ignored and are not stored or displayed.
 
 When a confirmed barge-in clears the output, the Window posts the buffered
 Assistant transcript once to

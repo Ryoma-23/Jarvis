@@ -599,6 +599,18 @@ class WindowStaticAssetTests(unittest.TestCase):
             script,
         )
         self.assertIn(
+            "REALTIME_SERVER_VAD_SILENCE_DURATION_MS = 1200",
+            script,
+        )
+        self.assertIn(
+            "silence_duration_ms:",
+            script,
+        )
+        self.assertIn(
+            "REALTIME_SERVER_VAD_SILENCE_DURATION_MS,",
+            script,
+        )
+        self.assertIn(
             'type: "server_vad"',
             script,
         )

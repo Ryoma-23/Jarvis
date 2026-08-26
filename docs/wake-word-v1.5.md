@@ -166,15 +166,19 @@ The Realtime `session.update` keeps the existing Japanese
 - Input noise reduction: `far_field`
 - Turn detection: `server_vad`
 - VAD threshold: `0.8`
+- Speech-stop silence duration: `1200 ms`
 - Automatic response creation: disabled; the Window sends `response.create`
   at a normal speech stop or after accepting a finalized barge-in transcript
 - Server-side automatic response interruption: disabled
 
-`prefix_padding_ms` and `silence_duration_ms` are not set, so the Realtime
-defaults remain in use. `interrupt_response: false` prevents a single
-`speech_started` event from immediately cancelling JARVIS output. While the
-WebRTC output audio buffer is playing, the client records whether speech lasts
-at least 600 ms but does not interrupt from VAD duration alone. After
+`prefix_padding_ms` is not set, so the Realtime default remains in use.
+`silence_duration_ms` is explicitly set to 1200 ms so a short thinking pause
+does not immediately end a normal user turn. This adds the same delay before a
+completed utterance is considered stopped. `interrupt_response: false`
+prevents a single `speech_started` event from immediately cancelling JARVIS
+output. While the WebRTC output audio buffer is playing, the client records
+whether speech lasts at least 600 ms but does not interrupt from VAD duration
+alone. After
 `conversation.item.input_audio_transcription.completed`, it accepts the turn
 only when the transcript contains meaningful speech. An accepted barge-in
 sends `response.cancel` for a response that is still being generated, followed
@@ -192,6 +196,7 @@ The adjustable frontend constants are located together near the top of
 - `REALTIME_MEDIA_AUDIO_CONSTRAINTS`
 - `REALTIME_INPUT_NOISE_REDUCTION_TYPE`
 - `REALTIME_SERVER_VAD_THRESHOLD`
+- `REALTIME_SERVER_VAD_SILENCE_DURATION_MS`
 - `REALTIME_BARGE_IN_GUARD_MS`
 - `REALTIME_BARGE_IN_MIN_TRANSCRIPT_CHARACTERS`
 - `REALTIME_NON_SPEECH_TRANSCRIPTS`
