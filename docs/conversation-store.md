@@ -62,11 +62,15 @@ The retry queue is intentionally memory-only. A server-process termination
 discards operations that have not yet succeeded; the final-failure log and UI
 warning can only be produced while that process remains running.
 
-## Deferred integration
+## Completed application integration
 
-Phase 2 now provides the Store's common management layer in
-`docs/conversation-manager.md`. The following application-path integrations
-remain deferred:
+`ConversationService` now provides the Store's common management layer as
+described in `docs/conversation-manager.md`. The application paths that were
+previously deferred are also connected:
 
-- restoring shared history into a newly connected Realtime session
-- coordinating queued text input with Realtime speech and response state
+- A newly connected Realtime session restores the eligible messages from the
+  active shared conversation before microphone input is enabled.
+- Text submitted while Realtime is connected is queued around speech and
+  response state, then sent to the same Realtime conversation as `input_text`.
+- Text completed through the Responses API while Realtime becomes active is
+  synchronized into that Realtime session without duplicating its SQLite rows.
