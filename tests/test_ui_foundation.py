@@ -1,0 +1,110 @@
+import unittest
+
+from pathlib import Path
+
+
+BASE_DIR = Path(__file__).resolve().parents[1]
+STATIC_DIR = BASE_DIR / "static"
+
+
+class UiFoundationContractTests(unittest.TestCase):
+    def test_foundation_scripts_load_before_existing_application(self):
+        index = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
+
+        expected_scripts = (
+            "/static/js/app-state.js",
+            "/static/js/dom.js",
+            "/static/js/ui/jarvis-state.js",
+            "/static/js/ui/system-log.js",
+            "/static/js/ui/status-bar.js",
+            "/static/script.js",
+        )
+        positions = [index.index(script) for script in expected_scripts]
+
+        self.assertEqual(positions, sorted(positions))
+
+    def test_required_dom_contract_is_centralized(self):
+        dom = (STATIC_DIR / "js" / "dom.js").read_text(encoding="utf-8")
+        index = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
+
+        required_ids = (
+            "send-button",
+            "new-conversation-button",
+            "conversation-status",
+            "message-input",
+            "chat-area",
+            "voice-connect-button",
+            "voice-disconnect-button",
+            "voice-reconnect-button",
+            "voice-status",
+        )
+
+        for element_id in required_ids:
+            self.assertIn(f'id="{element_id}"', index)
+            self.assertIn(f'byId("{element_id}")', dom)
+
+        self.assertIn("missingRequiredElements", dom)
+
+    def test_optional_phase_two_elements_are_safe(self):
+        dom = (STATIC_DIR / "js" / "dom.js").read_text(encoding="utf-8")
+        system_log = (
+            STATIC_DIR / "js" / "ui" / "system-log.js"
+        ).read_text(encoding="utf-8")
+        status_bar = (
+            STATIC_DIR / "js" / "ui" / "status-bar.js"
+        ).read_text(encoding="utf-8")
+
+        for element_id in ("core-area", "core-state", "system-log", "status-bar"):
+            self.assertIn(f'byId("{element_id}")', dom)
+
+        self.assertIn("if (!logContainer)", system_log)
+        self.assertIn("if (!statusBar)", status_bar)
+
+    def test_phase_two_layout_exposes_core_log_chat_and_status_regions(self):
+        index = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
+        style = (STATIC_DIR / "style.css").read_text(encoding="utf-8")
+
+        for expected in (
+            '<header class="app-header">',
+            'id="system-log"',
+            'id="core-area"',
+            'id="core-state"',
+            'id="chat-area"',
+            'id="status-bar"',
+        ):
+            self.assertIn(expected, index)
+
+        self.assertIn('name="viewport"', index)
+        self.assertIn("grid-template-columns:", style)
+        self.assertIn("@media (max-width: 900px)", style)
+        self.assertIn("@media (max-width: 680px)", style)
+        self.assertIn("@media (prefers-reduced-motion: reduce)", style)
+
+    def test_phase_two_controls_remain_accessible(self):
+        index = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
+
+        self.assertIn('for="message-input"', index)
+        self.assertIn('aria-label="メッセージを送信"', index)
+        self.assertIn('aria-label="音声コントロール"', index)
+        self.assertIn('role="log"', index)
+
+    def test_existing_script_publishes_voice_status_to_ui_state(self):
+        script = (STATIC_DIR / "script.js").read_text(encoding="utf-8")
+
+        self.assertIn("window.JarvisUI.dom.elements", script)
+        self.assertIn("window.JarvisUI.state.update({", script)
+        self.assertIn("connectionStatus: status", script)
+        self.assertIn("statusMessage: message", script)
+
+    def test_system_log_uses_text_content_and_bounds_entries(self):
+        system_log = (
+            STATIC_DIR / "js" / "ui" / "system-log.js"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("const maximumEntries = 100", system_log)
+        self.assertIn("content.textContent = String(message)", system_log)
+        self.assertNotIn("innerHTML", system_log)
+
+
+if __name__ == "__main__":
+    unittest.main()

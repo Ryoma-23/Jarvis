@@ -97,17 +97,17 @@ const REALTIME_BARGE_IN_FILLER_TRANSCRIPTS = new Set([
     "はっ"
 ]);
 
-const sendButton = document.getElementById("send-button");
-const newConversationButton = document.getElementById(
-    "new-conversation-button"
-);
-const conversationStatus = document.getElementById("conversation-status");
-const messageInput = document.getElementById("message-input");
-const chatArea = document.getElementById("chat-area");
-const voiceConnectButton = document.getElementById("voice-connect-button");
-const voiceDisconnectButton = document.getElementById("voice-disconnect-button");
-const voiceReconnectButton = document.getElementById("voice-reconnect-button");
-const voiceStatus = document.getElementById("voice-status");
+const {
+    sendButton,
+    newConversationButton,
+    conversationStatus,
+    messageInput,
+    chatArea,
+    voiceConnectButton,
+    voiceDisconnectButton,
+    voiceReconnectButton,
+    voiceStatus
+} = window.JarvisUI.dom.elements;
 
 voiceConnectButton.addEventListener("click", function() {
     void startRealtimeVoice("manual");
@@ -2967,6 +2967,11 @@ function updateVoiceStatus(status, message) {
     );
 
     voiceStatus.classList.add(status);
+
+    window.JarvisUI.state.update({
+        connectionStatus: status,
+        statusMessage: message
+    });
 }
 
 

@@ -2,57 +2,147 @@
 <html lang="ja">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="color-scheme" content="dark">
     <title>J.A.R.V.I.S</title>
 
     <link rel="stylesheet" href="/static/style.css">
 </head>
 
 <body>
-
-    <div class="container">
-
-        <h1>J.A.R.V.I.S</h1>
-
-        <div class="conversation-toolbar">
-            <button id="new-conversation-button">
-                新しい会話
-            </button>
-            <div
-                id="conversation-status"
-                class="conversation-status"
-                aria-live="polite"
-            ></div>
-        </div>
-
-        <div id="chat-area" aria-live="polite"></div>
-
-        <div class="input-area">
-
-            <input
-                type="text"
-                id="message-input"
-                placeholder="メッセージを入力..."
-            >
-
-            <div class="voice-controls">
-                <button id="voice-connect-button">音声接続ON</button>
-                <button id="voice-disconnect-button" disabled>音声切断</button>
-                <button id="voice-reconnect-button" disabled>再接続</button>
-
-                <div id="voice-status" class="voice-status">
-                    音声状態: 未接続
+    <div class="app-shell">
+        <header class="app-header">
+            <div class="brand-lockup" aria-label="JARVIS assistant">
+                <span class="brand-mark" aria-hidden="true"></span>
+                <div>
+                    <p class="eyebrow">PERSONAL INTELLIGENCE</p>
+                    <h1>JARVIS</h1>
                 </div>
             </div>
 
-            <button id="send-button">
-                送信
-            </button>
+            <div class="header-state" aria-live="polite">
+                <span class="status-dot" aria-hidden="true"></span>
+                <span>LOCAL SYSTEM</span>
+            </div>
+        </header>
 
-        </div>
+        <main class="workspace">
+            <aside class="panel system-panel" aria-labelledby="system-log-title">
+                <div class="panel-header">
+                    <div>
+                        <p class="eyebrow">ACTIVITY</p>
+                        <h2 id="system-log-title">System Log</h2>
+                    </div>
+                    <span class="panel-index" aria-hidden="true">01</span>
+                </div>
 
+                <div
+                    id="system-log"
+                    class="system-log"
+                    role="log"
+                    aria-live="polite"
+                    aria-relevant="additions"
+                ></div>
+            </aside>
+
+            <section id="core-area" class="core-area" aria-labelledby="core-title">
+                <div class="core-stage">
+                    <div class="core-grid" aria-hidden="true"></div>
+
+                    <div class="core-visual" aria-hidden="true">
+                        <span class="core-orbit core-orbit-outer"></span>
+                        <span class="core-orbit core-orbit-middle"></span>
+                        <span class="core-orbit core-orbit-inner"></span>
+                        <span class="core-halo"></span>
+                        <span class="core-node"></span>
+                    </div>
+
+                    <div class="core-readout">
+                        <p id="core-title" class="eyebrow">JARVIS CORE</p>
+                        <p id="core-state" class="core-state" aria-live="polite">IDLE</p>
+                        <p class="core-caption">Awaiting instruction</p>
+                    </div>
+                </div>
+
+                <div class="voice-console" aria-label="音声コントロール">
+                    <div class="voice-controls">
+                        <button id="voice-connect-button" type="button">
+                            <span aria-hidden="true">●</span>
+                            音声接続
+                        </button>
+                        <button id="voice-disconnect-button" type="button" disabled>
+                            切断
+                        </button>
+                        <button id="voice-reconnect-button" type="button" disabled>
+                            再接続
+                        </button>
+                    </div>
+
+                    <div id="voice-status" class="voice-status" aria-live="polite">
+                        音声状態: 未接続
+                    </div>
+                </div>
+            </section>
+
+            <aside class="panel conversation-panel" aria-labelledby="conversation-title">
+                <div class="panel-header conversation-toolbar">
+                    <div>
+                        <p class="eyebrow">TRANSCRIPT</p>
+                        <h2 id="conversation-title">Conversation</h2>
+                    </div>
+                    <button id="new-conversation-button" type="button">
+                        新しい会話
+                    </button>
+                </div>
+
+                <div
+                    id="conversation-status"
+                    class="conversation-status"
+                    aria-live="polite"
+                ></div>
+
+                <div id="chat-area" aria-live="polite"></div>
+
+                <div class="input-area">
+                    <label class="visually-hidden" for="message-input">
+                        Jarvisへのメッセージ
+                    </label>
+                    <input
+                        type="text"
+                        id="message-input"
+                        placeholder="メッセージを入力..."
+                        autocomplete="off"
+                    >
+                    <button id="send-button" type="button" aria-label="メッセージを送信">
+                        送信
+                    </button>
+                </div>
+            </aside>
+        </main>
+
+        <footer id="status-bar" class="status-bar" aria-live="polite">
+            <div class="status-item">
+                <span class="status-indicator" aria-hidden="true"></span>
+                <span class="status-label">REALTIME</span>
+                <span data-status="connection">未接続</span>
+            </div>
+            <div class="status-item status-item-muted">
+                <span class="status-label">MIC</span>
+                <span>STANDBY</span>
+            </div>
+            <div class="status-item status-item-muted">
+                <span class="status-label">MEMORY</span>
+                <span>READY</span>
+            </div>
+            <div class="status-signature">JRV / LOCAL</div>
+        </footer>
     </div>
 
+    <script src="/static/js/app-state.js?v=1.12-realtime-idle-timeout"></script>
+    <script src="/static/js/dom.js?v=1.12-realtime-idle-timeout"></script>
+    <script src="/static/js/ui/jarvis-state.js?v=1.12-realtime-idle-timeout"></script>
+    <script src="/static/js/ui/system-log.js?v=1.12-realtime-idle-timeout"></script>
+    <script src="/static/js/ui/status-bar.js?v=1.12-realtime-idle-timeout"></script>
     <script src="/static/script.js?v=1.12-realtime-idle-timeout"></script>
-
 </body>
 </html>
