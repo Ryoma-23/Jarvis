@@ -9,7 +9,7 @@ HOST = "127.0.0.1"
 PORT = 8000
 SERVER_URL = f"http://{HOST}:{PORT}"
 HEALTH_CHECK_URL = SERVER_URL
-WEB_UI_VERSION = "1.13-phase5-webgl-compat"
+WEB_UI_VERSION = "1.19-phase6-center-balance"
 WINDOW_APP_URL = f"{SERVER_URL}/?v={WEB_UI_VERSION}"
 
 CONTROL_HOST = "127.0.0.1"

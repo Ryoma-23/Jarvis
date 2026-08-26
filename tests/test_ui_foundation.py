@@ -195,7 +195,7 @@ class UiFoundationContractTests(unittest.TestCase):
         self.assertIn("CORE_WEBGL_DEPENDENCY_UNAVAILABLE", core)
         self.assertIn("new THREE.WebGLRenderer", core)
         self.assertIn("new THREE.Points(", core)
-        self.assertIn("new THREE.SphereGeometry", core)
+        self.assertNotIn("new THREE.SphereGeometry", core)
         self.assertIn('stage.dataset.renderer = "webgl"', core)
         self.assertIn('stage.dataset.renderer = "fallback"', core)
         self.assertIn('.core-stage[data-renderer="webgl"] .core-canvas', style)
@@ -211,11 +211,56 @@ class UiFoundationContractTests(unittest.TestCase):
         self.assertIn("const particleCount = 1000", core)
         self.assertIn("const targetFrameDurationMs = 1000 / 30", core)
         self.assertIn('powerPreference: "low-power"', core)
-        self.assertIn("Math.min(window.devicePixelRatio || 1, 1.5)", core)
+        self.assertIn("Math.min(window.devicePixelRatio || 1, 1.75)", core)
         self.assertIn('document.addEventListener("visibilitychange"', core)
         self.assertIn("document.hidden", core)
         self.assertIn("reducedMotion.matches", core)
         self.assertIn("renderer.dispose()", core)
+
+    def test_phase_six_core_uses_fluid_particle_layers_without_lines(self):
+        core = (
+            STATIC_DIR / "js" / "core" / "jarvis-core.js"
+        ).read_text(encoding="utf-8")
+
+        self.assertNotIn("THREE.LineSegments", core)
+        self.assertNotIn("THREE.LineBasicMaterial", core)
+        self.assertIn("const coreLayerConfigs", core)
+        self.assertIn("count: 260", core)
+        self.assertIn("count: 170", core)
+        self.assertIn("count: 90", core)
+        self.assertIn("function createCoreLayer(config)", core)
+        self.assertIn("function updateCoreMovement(deltaSeconds)", core)
+        self.assertIn("updateParticleMovement()", core)
+        self.assertIn("activeProfile = stateProfiles", core)
+        self.assertIn("visualValues[key] = approach", core)
+        self.assertIn("coreLayers.forEach(disposeObject)", core)
+
+    def test_phase_six_core_polish_uses_smaller_antialiased_layers(self):
+        core = (
+            STATIC_DIR / "js" / "core" / "jarvis-core.js"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("radius: 0.5832", core)
+        self.assertIn("radius: 0.3483", core)
+        self.assertIn("radius: 0.162", core)
+        self.assertIn('textureCanvas.width = 96', core)
+        self.assertIn("new THREE.CanvasTexture(textureCanvas)", core)
+        self.assertIn("map: particleTexture", core)
+        self.assertIn("alphaTest: 0.015", core)
+        self.assertIn("size: 0.060", core)
+        self.assertIn("opacity: 0.88", core)
+        self.assertIn("whiteMix: 0.46", core)
+        self.assertIn("particleTexture.dispose()", core)
+
+    def test_phase_six_visible_particle_outline_uses_cumulative_scale(self):
+        core = (
+            STATIC_DIR / "js" / "core" / "jarvis-core.js"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("const particleSphereRadius = 1.1178", core)
+        self.assertIn("const particleSphereJitter = 0.0972", core)
+        self.assertIn("const radius = particleSphereRadius", core)
+        self.assertNotIn("const radius = 1.38", core)
 
     def test_existing_script_publishes_voice_status_to_ui_state(self):
         script = (STATIC_DIR / "script.js").read_text(encoding="utf-8")

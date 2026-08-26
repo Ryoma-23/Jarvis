@@ -104,6 +104,49 @@ depend on a CDN at runtime. Its MIT license is stored beside the runtime file.
 Jarvis loads the classic browser build before `jarvis-core.js`, avoiding an ES
 Module compatibility dependency in the embedded pywebview runtime.
 
+## Phase 6 Core animation
+
+Phase 6 adds motion without changing Realtime or audio ownership. The outer
+Particle Sphere receives a small deterministic radial wave. Connection lines
+are intentionally omitted so long chords cannot obscure the particle form.
+
+The former solid Inner Core meshes are replaced by three nested particle
+layers containing 260, 170, and 90 points. Each layer has a separate radius,
+opacity, particle size, rotation direction, and phase. Radial waves, subtle
+axis drift, and independent rotations create fluid movement without shaders or
+post-processing.
+
+The three inner radii are reduced to 90% of their initial Phase 6 values. All
+point layers share one locally generated 64-pixel radial texture, producing
+round antialiased particles without a network asset or per-layer texture cost.
+The innermost layer uses larger, brighter source particles for a stronger
+central glow while retaining additive blending and the active state color.
+
+A second refinement scales all three inner radii to 90% again, raises the
+shared radial texture from 64 to 96 pixels, and increases the renderer DPR cap
+from 1.5 to 1.75. Particle size and intensity increase slightly to compensate
+for the sharper edges. White mixing is reduced across all layers so stronger
+additive light preserves the active Jarvis state color instead of washing out.
+
+The visible drifting outline belongs to the outer 1,000-point Particle Sphere,
+not the three nested inner layers. Its radius and jitter envelope are scaled to
+81% of the original Phase 5 values (`1.1178` and `0.0972` respectively),
+representing the two requested consecutive 90% scale adjustments. The inner
+layers were already at the same cumulative scale and are not reduced again.
+
+The nested particle layers remain active and collectively form the compact
+center cluster; their overlap means they are not intended to read as three
+hard circular outlines. The innermost 90-point layer uses `0.88` source opacity
+to keep its glow slightly below saturation while preserving its motion and
+state color.
+
+Each visual Jarvis state selects a target profile for rotation speed, particle
+movement, pulse depth, inner particle motion, and intensity. Values ease
+toward the profile to prevent abrupt visual changes. The existing 30 FPS and
+device-pixel-ratio caps, hidden-document pause, reduced-motion handling, CSS
+fallback, and disposal flow remain in effect. Post-processing Bloom and Web
+Audio analysis remain outside Phase 6.
+
 ## State ownership
 
 `JarvisUI.state` is display-only. It must not control the Realtime lifecycle,
