@@ -262,6 +262,40 @@ class UiFoundationContractTests(unittest.TestCase):
         self.assertIn("const radius = particleSphereRadius", core)
         self.assertNotIn("const radius = 1.38", core)
 
+    def test_phase_seven_audio_analysis_is_split_and_cleanup_safe(self):
+        index = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
+        script = (STATIC_DIR / "script.js").read_text(encoding="utf-8")
+        audio = (
+            STATIC_DIR / "js" / "audio" / "audio-reactive.js"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("/static/js/audio/audio-reactive.js", index)
+        self.assertLess(
+            index.index("/static/js/audio/audio-reactive.js"),
+            index.index("/static/script.js"),
+        )
+        self.assertIn("attachInput(currentLocalStream)", script)
+        self.assertIn("attachOutput(event.streams[0])", script)
+        self.assertIn("window.JarvisUI.audioReactive.reset()", script)
+        self.assertIn("analyser.fftSize = 256", audio)
+        self.assertIn("new Uint8Array(analyser.fftSize)", audio)
+        self.assertIn("getByteTimeDomainData", audio)
+        self.assertIn("source.connect(analyser)", audio)
+        self.assertNotIn("audioContext.destination", audio)
+        self.assertIn("contextToClose.close()", audio)
+
+    def test_phase_seven_core_uses_state_specific_bounded_audio_level(self):
+        core = (
+            STATIC_DIR / "js" / "core" / "jarvis-core.js"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn('activeJarvisState === "listening"', core)
+        self.assertIn('activeJarvisState === "speaking"', core)
+        self.assertIn("targetLevel = levels.input", core)
+        self.assertIn("targetLevel = levels.output", core)
+        self.assertIn("audioLevel * 0.105", core)
+        self.assertIn("audioLevel * 0.045", core)
+
     def test_existing_script_publishes_voice_status_to_ui_state(self):
         script = (STATIC_DIR / "script.js").read_text(encoding="utf-8")
 

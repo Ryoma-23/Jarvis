@@ -929,6 +929,7 @@ async function startRealtimeVoice(
 
         currentPeerConnection.ontrack = function(event) {
             remoteAudioElement.srcObject = event.streams[0];
+            window.JarvisUI.audioReactive.attachOutput(event.streams[0]);
         };
 
         currentPeerConnection.onconnectionstatechange = function() {
@@ -974,6 +975,7 @@ async function startRealtimeVoice(
             audio: REALTIME_MEDIA_AUDIO_CONSTRAINTS
         });
         localStream = currentLocalStream;
+        window.JarvisUI.audioReactive.attachInput(currentLocalStream);
 
         currentLocalStream.getTracks().forEach(function(track) {
             track.enabled = false;
@@ -3108,6 +3110,7 @@ function cleanupRealtimeVoice() {
     const currentRemoteAudioElement = remoteAudioElement;
 
     window.JarvisUI.controller.reset();
+    window.JarvisUI.audioReactive.reset();
     cancelRealtimeHistoryRestore("Realtime接続を終了しました。");
     failPendingRealtimeTextTurns("Realtime接続が終了しました。");
     resetRealtimeIdleState();

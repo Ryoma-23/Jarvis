@@ -50,6 +50,8 @@ let disposed = false;
 let elapsedSeconds = 0;
 let activeProfile = stateProfiles.idle;
 let activeColor = stateColors.idle;
+let activeJarvisState = "idle";
+let audioLevel = 0;
 let visualValues = { speed: 0.055, motion: 0.006, pulse: 0.008, coreMotion: 0.025, coreIntensity: 0.78 };
 
 
@@ -195,6 +197,26 @@ function updateVisualValues(deltaSeconds) {
 }
 
 
+function updateAudioLevel(deltaSeconds) {
+    const audioReactive = jarvisUI.audioReactive;
+    const levels = audioReactive ? audioReactive.getLevels() : null;
+    let targetLevel = 0;
+
+    if (levels && activeJarvisState === "listening") {
+        targetLevel = levels.input;
+    } else if (levels && activeJarvisState === "speaking") {
+        targetLevel = levels.output;
+    }
+
+    const responseSpeed = targetLevel > audioLevel ? 12 : 5;
+    audioLevel = approach(
+        audioLevel,
+        targetLevel,
+        Math.min(1, deltaSeconds * responseSpeed)
+    );
+}
+
+
 function updateParticleMovement() {
     if (!particleSphere || !particleBasePositions) {
         return;
@@ -205,7 +227,7 @@ function updateParticleMovement() {
     for (let index = 0; index < particleCount; index += 1) {
         const offset = index * 3;
         const wave = Math.sin(elapsedSeconds * 0.9 + index * 0.37);
-        const scale = 1 + wave * visualValues.motion;
+        const scale = 1 + wave * (visualValues.motion + audioLevel * 0.018);
         positions[offset] = particleBasePositions[offset] * scale;
         positions[offset + 1] = particleBasePositions[offset + 1] * scale;
         positions[offset + 2] = particleBasePositions[offset + 2] * scale;
@@ -225,8 +247,9 @@ function updateCoreMovement(deltaSeconds) {
             const offset = index * 3;
             const phase = elapsedSeconds * (1.15 + layerIndex * 0.18)
                 + index * 0.43 + config.phase;
-            const radialWave = 1 + Math.sin(phase) * visualValues.coreMotion;
-            const drift = Math.cos(phase * 0.63) * visualValues.coreMotion * 0.08;
+            const reactiveMotion = visualValues.coreMotion + audioLevel * 0.045;
+            const radialWave = 1 + Math.sin(phase) * reactiveMotion;
+            const drift = Math.cos(phase * 0.63) * reactiveMotion * 0.08;
             positions[offset] = basePositions[offset] * radialWave - basePositions[offset + 2] * drift;
             positions[offset + 1] = basePositions[offset + 1] * (1 + Math.cos(phase * 0.81) * visualValues.coreMotion);
             positions[offset + 2] = basePositions[offset + 2] * radialWave + basePositions[offset] * drift;
@@ -236,7 +259,10 @@ function updateCoreMovement(deltaSeconds) {
         layer.rotation.y += deltaSeconds * config.speed * visualValues.speed * 2.4;
         layer.rotation.x = Math.sin(elapsedSeconds * 0.22 + config.phase) * 0.12;
         layer.rotation.z = Math.cos(elapsedSeconds * 0.17 + config.phase) * 0.06;
-        layer.material.opacity = config.opacity * visualValues.coreIntensity;
+        layer.material.opacity = Math.min(
+            1,
+            config.opacity * (visualValues.coreIntensity + audioLevel * 0.16)
+        );
     });
 }
 
@@ -275,13 +301,16 @@ function animate(time) {
     lastFrameAt = time;
     elapsedSeconds += deltaSeconds;
     updateVisualValues(deltaSeconds);
+    updateAudioLevel(deltaSeconds);
     updateParticleMovement();
     updateCoreMovement(deltaSeconds);
 
     if (particleSphere) {
         particleSphere.rotation.y += deltaSeconds * visualValues.speed;
     }
-    const pulseScale = 1 + Math.sin(elapsedSeconds * 1.8) * visualValues.pulse;
+    const pulseScale = 1
+        + Math.sin(elapsedSeconds * 1.8) * visualValues.pulse
+        + audioLevel * 0.105;
     particleSphere.scale.setScalar(pulseScale);
     coreLayers.forEach(function(layer, index) {
         layer.scale.setScalar(1 + (pulseScale - 1) * (1.2 + index * 0.4));
@@ -317,6 +346,7 @@ function startAnimation() {
 
 function applyState(state) {
     const color = stateColors[state.jarvisState] || stateColors.idle;
+    activeJarvisState = state.jarvisState;
     activeColor = color;
     activeProfile = stateProfiles[state.jarvisState] || stateProfiles.idle;
 

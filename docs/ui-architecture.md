@@ -140,6 +140,22 @@ hard circular outlines. The innermost 90-point layer uses `0.88` source opacity
 to keep its glow slightly below saturation while preserving its motion and
 state color.
 
+## Phase 7 Audio reactive Core
+
+`static/js/audio/audio-reactive.js` owns display-only Web Audio analysis. It
+creates separate AnalyserNodes for the existing Realtime microphone stream and
+WebRTC remote output stream. Sources connect only to their analyser and never
+to an AudioContext destination, so WebRTC remains responsible for capture and
+playback. Realtime cleanup disconnects both analyser branches and closes their
+shared AudioContext before the original tracks and audio element are released.
+
+Each analyser uses a 256-sample time-domain buffer, one reusable Uint8Array,
+RMS normalization with a small noise floor, and asymmetric smoothing. The Core
+reads microphone amplitude only while the visual state is `listening`, and
+remote amplitude only while it is `speaking`. The selected level adds bounded
+particle displacement, scale, and colored intensity. Unsupported or suspended
+Web Audio produces level zero and leaves the Phase 6 state animation intact.
+
 Each visual Jarvis state selects a target profile for rotation speed, particle
 movement, pulse depth, inner particle motion, and intensity. Values ease
 toward the profile to prevent abrupt visual changes. The existing 30 FPS and
