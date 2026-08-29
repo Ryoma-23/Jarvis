@@ -140,7 +140,23 @@ hard circular outlines. The innermost 90-point layer uses `0.88` source opacity
 to keep its glow slightly below saturation while preserving its motion and
 state color.
 
-## Phase 7 Audio reactive Core
+## Phase 7 performance control
+
+Phase 7 completes the renderer controls for a resident desktop assistant.
+Idle, connecting, and error states render at a maximum of 20 FPS; listening,
+thinking, and speaking render at a maximum of 30 FPS. Hidden documents remain
+fully paused and reduced-motion mode remains static.
+
+The renderer samples 90 rendered-frame intervals and treats intervals above
+150% of the current frame budget as slow. If more than 20% are slow, the DPR
+cap steps down through `1.75`, `1.5`, and `1.25`. Four stable sample windows
+with fewer than 3% slow frames permit one recovery step. Quality changes have
+a 15-second cooldown to avoid oscillation. Particle counts and textures remain
+fixed, so adaptive quality does not rebuild scene geometry or allocate arrays.
+The frame limiter carries timing remainder forward, preventing 60 Hz rounding
+from turning a nominal 30 FPS cadence into false slow-frame samples.
+
+## Phase 8 Audio reactive Core
 
 `static/js/audio/audio-reactive.js` owns display-only Web Audio analysis. It
 creates separate AnalyserNodes for the existing Realtime microphone stream and

@@ -19,7 +19,11 @@ const stateColors = Object.freeze({
 const particleCount = 1000;
 const particleSphereRadius = 1.1178;
 const particleSphereJitter = 0.0972;
-const targetFrameDurationMs = 1000 / 30;
+const activeFrameDurationMs = 1000 / 30;
+const idleFrameDurationMs = 1000 / 20;
+const qualityDprCaps = Object.freeze([1.25, 1.5, 1.75]);
+const qualitySampleSize = 90;
+const qualityChangeCooldownMs = 15_000;
 const stateProfiles = Object.freeze({
     idle: Object.freeze({ speed: 0.055, motion: 0.006, pulse: 0.008, coreMotion: 0.025, coreIntensity: 0.78 }),
     connecting: Object.freeze({ speed: 0.10, motion: 0.010, pulse: 0.014, coreMotion: 0.040, coreIntensity: 0.84 }),
@@ -52,6 +56,11 @@ let activeProfile = stateProfiles.idle;
 let activeColor = stateColors.idle;
 let activeJarvisState = "idle";
 let audioLevel = 0;
+let qualityLevel = qualityDprCaps.length - 1;
+let qualitySampleCount = 0;
+let slowFrameCount = 0;
+let stableQualityWindows = 0;
+let lastQualityChangeAt = 0;
 let visualValues = { speed: 0.055, motion: 0.006, pulse: 0.008, coreMotion: 0.025, coreIntensity: 0.78 };
 
 
@@ -290,15 +299,86 @@ function render() {
 }
 
 
-function animate(time) {
-    animationFrameId = window.requestAnimationFrame(animate);
+function getTargetFrameDurationMs() {
+    if (
+        activeJarvisState === "listening" ||
+        activeJarvisState === "thinking" ||
+        activeJarvisState === "speaking"
+    ) {
+        return activeFrameDurationMs;
+    }
+    return idleFrameDurationMs;
+}
 
-    if (time - lastFrameAt < targetFrameDurationMs) {
+
+function applyQualityLevel(nextLevel, time) {
+    const boundedLevel = Math.max(
+        0,
+        Math.min(qualityDprCaps.length - 1, nextLevel)
+    );
+    if (boundedLevel === qualityLevel || !renderer) {
         return;
     }
 
-    const deltaSeconds = Math.min((time - lastFrameAt) / 1000, 0.1);
-    lastFrameAt = time;
+    qualityLevel = boundedLevel;
+    lastQualityChangeAt = time;
+    renderer.setPixelRatio(Math.min(
+        window.devicePixelRatio || 1,
+        qualityDprCaps[qualityLevel]
+    ));
+    resize();
+}
+
+
+function recordFrameTiming(frameInterval, targetDuration, time) {
+    qualitySampleCount += 1;
+    if (frameInterval > targetDuration * 1.5) {
+        slowFrameCount += 1;
+    }
+
+    if (qualitySampleCount < qualitySampleSize) {
+        return;
+    }
+
+    const slowRatio = slowFrameCount / qualitySampleCount;
+    const cooldownComplete = (
+        time - lastQualityChangeAt >= qualityChangeCooldownMs
+    );
+
+    if (slowRatio > 0.20 && cooldownComplete && qualityLevel > 0) {
+        applyQualityLevel(qualityLevel - 1, time);
+        stableQualityWindows = 0;
+    } else if (slowRatio < 0.03) {
+        stableQualityWindows += 1;
+        if (
+            stableQualityWindows >= 4 &&
+            cooldownComplete &&
+            qualityLevel < qualityDprCaps.length - 1
+        ) {
+            applyQualityLevel(qualityLevel + 1, time);
+            stableQualityWindows = 0;
+        }
+    } else {
+        stableQualityWindows = 0;
+    }
+
+    qualitySampleCount = 0;
+    slowFrameCount = 0;
+}
+
+
+function animate(time) {
+    animationFrameId = window.requestAnimationFrame(animate);
+    const targetFrameDurationMs = getTargetFrameDurationMs();
+    const frameInterval = time - lastFrameAt;
+
+    if (frameInterval < targetFrameDurationMs) {
+        return;
+    }
+
+    const deltaSeconds = Math.min(frameInterval / 1000, 0.1);
+    lastFrameAt = time - (frameInterval % targetFrameDurationMs);
+    recordFrameTiming(frameInterval, targetFrameDurationMs, time);
     elapsedSeconds += deltaSeconds;
     updateVisualValues(deltaSeconds);
     updateAudioLevel(deltaSeconds);
@@ -431,7 +511,10 @@ function initialize() {
             antialias: true,
             powerPreference: "low-power"
         });
-        renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
+        renderer.setPixelRatio(Math.min(
+            window.devicePixelRatio || 1,
+            qualityDprCaps[qualityLevel]
+        ));
         renderer.setClearColor(0x000000, 0);
         createScene();
 

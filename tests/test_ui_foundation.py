@@ -209,9 +209,10 @@ class UiFoundationContractTests(unittest.TestCase):
         ).read_text(encoding="utf-8")
 
         self.assertIn("const particleCount = 1000", core)
-        self.assertIn("const targetFrameDurationMs = 1000 / 30", core)
+        self.assertIn("const activeFrameDurationMs = 1000 / 30", core)
+        self.assertIn("const idleFrameDurationMs = 1000 / 20", core)
         self.assertIn('powerPreference: "low-power"', core)
-        self.assertIn("Math.min(window.devicePixelRatio || 1, 1.75)", core)
+        self.assertIn("qualityDprCaps[qualityLevel]", core)
         self.assertIn('document.addEventListener("visibilitychange"', core)
         self.assertIn("document.hidden", core)
         self.assertIn("reducedMotion.matches", core)
@@ -262,7 +263,7 @@ class UiFoundationContractTests(unittest.TestCase):
         self.assertIn("const radius = particleSphereRadius", core)
         self.assertNotIn("const radius = 1.38", core)
 
-    def test_phase_seven_audio_analysis_is_split_and_cleanup_safe(self):
+    def test_phase_eight_audio_analysis_is_split_and_cleanup_safe(self):
         index = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
         script = (STATIC_DIR / "script.js").read_text(encoding="utf-8")
         audio = (
@@ -284,7 +285,7 @@ class UiFoundationContractTests(unittest.TestCase):
         self.assertNotIn("audioContext.destination", audio)
         self.assertIn("contextToClose.close()", audio)
 
-    def test_phase_seven_core_uses_state_specific_bounded_audio_level(self):
+    def test_phase_eight_core_uses_state_specific_bounded_audio_level(self):
         core = (
             STATIC_DIR / "js" / "core" / "jarvis-core.js"
         ).read_text(encoding="utf-8")
@@ -295,6 +296,27 @@ class UiFoundationContractTests(unittest.TestCase):
         self.assertIn("targetLevel = levels.output", core)
         self.assertIn("audioLevel * 0.105", core)
         self.assertIn("audioLevel * 0.045", core)
+
+    def test_phase_seven_adapts_fps_and_dpr_without_rebuilding_scene(self):
+        core = (
+            STATIC_DIR / "js" / "core" / "jarvis-core.js"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("const activeFrameDurationMs = 1000 / 30", core)
+        self.assertIn("const idleFrameDurationMs = 1000 / 20", core)
+        self.assertIn("const qualityDprCaps = Object.freeze([1.25, 1.5, 1.75])", core)
+        self.assertIn("const qualitySampleSize = 90", core)
+        self.assertIn("const qualityChangeCooldownMs = 15_000", core)
+        self.assertIn("function getTargetFrameDurationMs()", core)
+        self.assertIn(
+            "lastFrameAt = time - (frameInterval % targetFrameDurationMs)",
+            core,
+        )
+        self.assertIn("frameInterval > targetDuration * 1.5", core)
+        self.assertIn("slowRatio > 0.20", core)
+        self.assertIn("stableQualityWindows >= 4", core)
+        self.assertIn("applyQualityLevel(qualityLevel - 1, time)", core)
+        self.assertIn("applyQualityLevel(qualityLevel + 1, time)", core)
 
     def test_existing_script_publishes_voice_status_to_ui_state(self):
         script = (STATIC_DIR / "script.js").read_text(encoding="utf-8")
