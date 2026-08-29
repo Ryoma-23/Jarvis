@@ -47,7 +47,8 @@ function createSpatialBackground(options) {
             uTime: { value: 0 }, uStateEnergy: { value: 0 },
             uPixelRatio: { value: settings.pixelRatio || 1 },
             uParallax: { value: new THREE.Vector2() },
-            uColor: { value: new THREE.Color(settings.color || 0x19445f) }
+            uColor: { value: new THREE.Color(settings.color || 0x19445f) },
+            uIntroProgress: { value: 1 }
         },
         vertexShader: shaders.backgroundVertex,
         fragmentShader: shaders.backgroundFragment,

@@ -10,15 +10,30 @@
 
 ## Layout and visual baseline
 
-1. Confirm System Log is on the left, Jarvis Core is central, and Conversation
-   is on the right at the default Window size.
+1. Confirm the Jarvis Core and spatial scene fill the Window, with System Log
+   quietly overlaid at the left edge and Conversation at the right edge.
 2. Resize below 900 px and confirm System Log hides without covering Core or
    Conversation.
-3. Resize below 680 px and confirm Core and Conversation stack vertically and
-   all voice/text controls remain reachable.
+3. Resize below 680 px and confirm Conversation becomes a bottom overlay while
+   the upper Core and all voice/text controls remain reachable.
 4. Confirm the Core remains centered and its particles retain circular edges.
 5. Disable WebGL or hardware acceleration in a test environment and confirm the
    CSS Core fallback remains visible.
+
+## Cinematic startup and responsive acceptance
+
+1. Fully close and create a new Jarvis Window. Confirm the background appears,
+   the nucleus lights, particles converge into the Core, then JARVIS CORE / IDLE
+   and the quiet interface resolve in approximately 1.2–2.0 seconds.
+2. Hide and restore the same Window. Confirm the startup sequence does not play
+   again. Create a genuinely new Window and confirm it runs once there.
+3. Enable Reduced Motion before creating the Window and confirm startup resolves
+   immediately with no convergence or interface fade.
+4. Verify widths 974px, 900px, 680px, and 480px. At each width inspect Core
+   centering, Tool status, error notification, Conversation input, voice controls,
+   Footer, and available scroll regions.
+5. Repeat at 200% display/browser scaling and high DPI. Confirm controls remain
+   reachable and the Bloom/Canvas resolution settles without stretching.
 
 ## Text and voice Conversation
 
@@ -131,6 +146,9 @@
 5. Perform repeated connect, disconnect, reconnect, and Window-close cycles;
    confirm microphone, speaker, AudioContext, PeerConnection, and Wake Word
    ownership return to their expected states.
+6. During the same cycle, confirm startup does not replay, connection waves and
+   Tool animations do not multiply, ResizeObserver is released on close, and
+   Canvas/Composer GPU memory does not grow monotonically.
 
 ## Hardware-dependent acceptance
 

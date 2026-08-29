@@ -108,3 +108,16 @@ State-specific motion is as follows:
 
 Reduced-motion mode resolves profiles immediately but disables transient waves,
 scatter, breathing, and continuous displacement.
+
+## Cinematic transient ownership
+
+Startup is a presentation lifecycle, not a Jarvis state. It never changes the
+controller priority or connection lifecycle and does not emit synthetic Idle,
+Connecting, or Tool events. The Shader runtime supplies `uIntroProgress` only
+during the initial Window document and removes `data-core-intro` when complete.
+Visibility restoration cannot replay it. Reduced Motion bypasses it.
+
+Connection stability, Tool direction, Tool convergence, and Error distortion
+remain derived from real state transitions. Each is represented by a decaying
+value, so reconnecting or repeated Tool activity updates one active animation
+path instead of registering another loop or timer.

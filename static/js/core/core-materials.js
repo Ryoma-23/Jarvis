@@ -18,6 +18,7 @@ function createParticleMaterial(options) {
             uAudioLevel: { value: 0 },
             uMotionIntensity: { value: 1 },
             uCoreScale: { value: 1 },
+            uIntroProgress: { value: 1 },
             uTransitionPulse: { value: 0 },
             uToolAccent: { value: 0 },
             uRotationSpeed: { value: 0.1 },

@@ -13,6 +13,7 @@ const idleFrameDurationMs = 1000 / 20;
 const qualityDprCaps = Object.freeze([1.25, 1.5, 1.75]);
 const qualitySampleSize = 90;
 const qualityChangeCooldownMs = 15000;
+const introDurationMs = 1650;
 let renderer;
 let scene;
 let camera;
@@ -38,6 +39,24 @@ let qualitySamples = 0;
 let qualityFrameTotal = 0;
 let lastQualityChangeAt = 0;
 let disposed = false;
+let introStartedAt = global.performance.now();
+let introComplete = reducedMotion.matches;
+
+function finishIntro() {
+    if (introComplete) return;
+    introComplete = true;
+    document.body.removeAttribute("data-core-intro");
+}
+
+function introProgress(now) {
+    if (introComplete || reducedMotion.matches) {
+        finishIntro();
+        return 1;
+    }
+    const progress = Math.min(1, Math.max(0, (now - introStartedAt) / introDurationMs));
+    if (progress >= 1) finishIntro();
+    return progress;
+}
 
 function report(level, code, message) {
     if (jarvisUI.log && typeof jarvisUI.log[level] === "function") jarvisUI.log[level](code, message);
@@ -119,6 +138,7 @@ function render(now) {
     sampleQuality(frameDuration, now);
 
     const uniforms = field.uniforms;
+    const startupProgress = introProgress(now);
     const deltaSeconds = Math.min(frameDuration, 100) / 1000;
     const transition = transitions.update(deltaSeconds, reducedMotion.matches);
     const profile = transition.profile;
@@ -126,6 +146,7 @@ function render(now) {
     uniforms.uMotionIntensity.value = reducedMotion.matches ? 0 : 1;
     const breathing = activeState === "idle" && !reducedMotion.matches ? Math.sin(elapsedSeconds * 0.72) * 0.008 : 0;
     uniforms.uCoreScale.value = 1 + breathing;
+    uniforms.uIntroProgress.value = startupProgress;
     uniforms.uRotationSpeed.value = profile.rotationSpeed;
     uniforms.uNoiseAmount.value = profile.noiseAmount;
     uniforms.uParticleRadius.value = profile.particleRadius;
@@ -156,6 +177,7 @@ function render(now) {
     uniforms.uColorSecondary.value.setRGB(profile.secondary[0], profile.secondary[1], profile.secondary[2]);
     if (!reducedMotion.matches) uniforms.uTime.value = elapsedSeconds;
     spatialBackground.uniforms.uTime.value = reducedMotion.matches ? 0 : elapsedSeconds;
+    spatialBackground.uniforms.uIntroProgress.value = startupProgress;
     spatialBackground.uniforms.uStateEnergy.value = profile.noiseAmount * 0.12;
     spatialBackground.uniforms.uParallax.value.set(
         reducedMotion.matches ? 0 : Math.sin(elapsedSeconds * 0.045 + profile.axisTilt) * 0.035,
@@ -163,6 +185,7 @@ function render(now) {
     );
     spatialBackground.uniforms.uColor.value.copy(uniforms.uColorSecondary.value).multiplyScalar(0.34);
     glow.uniforms.uTime.value = uniforms.uTime.value;
+    glow.uniforms.uIntroProgress.value = startupProgress;
     glow.uniforms.uAudioLevel.value = uniforms.uAudioLevel.value;
     glow.uniforms.uTransitionPulse.value = uniforms.uTransitionPulse.value;
     glow.uniforms.uToolAccent.value = uniforms.uToolAccent.value;
@@ -188,9 +211,14 @@ function render(now) {
 function dispose() {
     if (disposed) return;
     disposed = true;
+    document.body.removeAttribute("data-core-intro");
     if (animationFrameId) global.cancelAnimationFrame(animationFrameId);
     if (resizeObserver) resizeObserver.disconnect();
     if (unsubscribeState) unsubscribeState();
+    document.removeEventListener("visibilitychange", handleVisibilityChange);
+    reducedMotion.removeEventListener("change", handleReducedMotionChange);
+    canvas.removeEventListener("webglcontextlost", handleContextLost);
+    global.removeEventListener("beforeunload", dispose);
     if (postProcessing) postProcessing.dispose();
     if (spatialBackground) spatialBackground.dispose();
     if (glow) glow.dispose();
@@ -199,7 +227,22 @@ function dispose() {
     stage.dataset.renderer = "fallback";
 }
 
+function handleVisibilityChange() {
+    lastFrameAt = 0;
+}
+
+function handleReducedMotionChange() {
+    if (reducedMotion.matches) finishIntro();
+}
+
+function handleContextLost(event) {
+    event.preventDefault();
+    report("warn", "CORE_CONTEXT_LOST", "Neural Core graphics context was lost; CSS fallback is active.");
+    dispose();
+}
+
 try {
+    if (!introComplete) document.body.dataset.coreIntro = "true";
     renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, powerPreference: "high-performance" });
     scene = new THREE.Scene();
     camera = new THREE.PerspectiveCamera(42, 1, 0.1, 20);
@@ -224,18 +267,16 @@ try {
         unsubscribeState = jarvisUI.state.subscribe(setState);
         setState(jarvisUI.state.getSnapshot());
     }
-    document.addEventListener("visibilitychange", () => { lastFrameAt = 0; });
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    reducedMotion.addEventListener("change", handleReducedMotionChange);
     global.addEventListener("beforeunload", dispose, { once: true });
-    canvas.addEventListener("webglcontextlost", (event) => {
-        event.preventDefault();
-        report("warn", "CORE_CONTEXT_LOST", "Neural Core graphics context was lost; CSS fallback is active.");
-        dispose();
-    });
+    canvas.addEventListener("webglcontextlost", handleContextLost);
     stage.dataset.renderer = "webgl";
     jarvisUI.shaderCoreActive = true;
     animationFrameId = global.requestAnimationFrame(render);
     report("info", "CORE_SHADER_READY", postProcessing ? "GPU Neural Core and Bloom initialized." : "GPU Neural Core initialized without Bloom.");
 } catch (error) {
+    document.body.removeAttribute("data-core-intro");
     if (postProcessing) postProcessing.dispose();
     if (spatialBackground) spatialBackground.dispose();
     if (glow) glow.dispose();

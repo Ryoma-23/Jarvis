@@ -10,6 +10,7 @@
     const messageElementsById = new Map();
     const statusElementsByMessage = new WeakMap();
     const pendingMessages = new Set();
+    let renderingHistory = false;
     const maximumRenderedMessages = 200;
     const statusLabels = Object.freeze({
         pending: "STREAMING",
@@ -19,7 +20,9 @@
 
     function renderConversationHistory(messages) {
         clearRenderedMessages();
+        renderingHistory = true;
         messages.forEach(renderConversationMessage);
+        renderingHistory = false;
         chatArea.scrollTop = chatArea.scrollHeight;
     }
 
@@ -54,6 +57,7 @@
         const statusElement = document.createElement("span");
 
         element.className = isUser ? "user-message" : "ai-message";
+        if (!renderingHistory) element.classList.add("message-arrival");
         element.dataset.messageRole = isUser ? "user" : "assistant";
         element.dataset.messageSource = source;
         headerElement.className = "message-head";

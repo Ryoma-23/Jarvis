@@ -394,3 +394,26 @@ overlay while voice controls move beneath the floating Header, leaving the
 upper scene available to the Core. A short-viewport rule prioritizes Header,
 voice controls, and Conversation operations when browser zoom materially
 reduces the available height.
+
+## Visual Phase G cinematic integration
+
+`shader-core-runtime.js` owns a single 1.65-second, wall-clock-based startup
+progress value. It is created with the WebGL scene and therefore runs once per
+Window document, not on visibility restoration. The background field fades in
+first, particle size and opacity then rise, widely dispersed particles converge
+to their normal radius, Aura follows, and the Core readout and interface appear
+near completion. Reduced Motion initializes the progress at one and skips the
+CSS reveal. If the Window is hidden during startup, the next visible frame uses
+the elapsed wall time and resolves directly to the appropriate completed state.
+
+Transient feedback reuses existing visual vocabulary: successful connection
+uses the Phase C stability wave, Tool work uses directional inner flow and its
+thin UI trace, completion damps that accent, Error uses one scatter impulse,
+new Conversation messages fade upward for 360ms, and new log entries retain
+their low-energy highlight. Restored Conversation history is not animated.
+
+The Shader runtime removes its state subscription, ResizeObserver, animation
+frame, visibility/reduced-motion/context-loss handlers, post-processing targets,
+background and Core geometries/materials, Glow resources, and renderer during
+disposal. Rendering remains capped at 20 FPS in Idle and 30 FPS while active,
+pauses when hidden, and adapts DPR between 1.25, 1.5, and 1.75.

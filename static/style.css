@@ -8,6 +8,7 @@
     --color-cyan: #79e8ff;
     --color-cyan-soft: #48bdd8;
     --color-violet: #988cff;
+    --color-mint: #8ef4d2;
     --color-text: #eefaff;
     --color-text-secondary: #9cb2bf;
     --color-text-muted: #607681;
@@ -73,7 +74,19 @@ button:hover:not(:disabled) {
     color: var(--color-text);
     border-color: var(--color-border-strong);
     background: rgba(17, 45, 62, 0.88);
-    box-shadow: 0 0 22px rgba(62, 194, 224, 0.08);
+    box-shadow: 0 0 22px rgba(var(--color-state-rgb), 0.14);
+}
+
+body[data-core-intro="true"] .app-header,
+body[data-core-intro="true"] .system-panel,
+body[data-core-intro="true"] .conversation-panel,
+body[data-core-intro="true"] .voice-console,
+body[data-core-intro="true"] .status-bar {
+    animation: cinematic-interface-reveal 1.65s cubic-bezier(0.2, 0.72, 0.24, 1) both;
+}
+
+body[data-core-intro="true"] .core-readout {
+    animation: cinematic-readout-reveal 1.65s cubic-bezier(0.2, 0.72, 0.24, 1) both;
 }
 
 button:focus-visible,
@@ -823,6 +836,10 @@ body[data-jarvis-state="error"] {
     border-left: 1px solid rgba(121, 232, 255, 0.10);
 }
 
+.message-arrival {
+    animation: message-arrival 360ms cubic-bezier(0.18, 0.74, 0.3, 1) both;
+}
+
 .user-message::before,
 .ai-message::before {
     position: absolute;
@@ -926,6 +943,35 @@ body[data-jarvis-state="error"] {
 @keyframes log-entry-arrival {
     0% { background-color: rgba(121, 232, 255, 0.11); }
     100% { background-color: transparent; }
+}
+
+@keyframes message-arrival {
+    from {
+        opacity: 0;
+        transform: translateY(5px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+@keyframes cinematic-interface-reveal {
+    0%, 68% {
+        opacity: 0;
+    }
+    100% {
+        opacity: 1;
+    }
+}
+
+@keyframes cinematic-readout-reveal {
+    0%, 74% {
+        opacity: 0;
+    }
+    100% {
+        opacity: 1;
+    }
 }
 
 @keyframes tool-progress-scan {
@@ -1074,6 +1120,16 @@ body[data-jarvis-state="error"] {
     }
 }
 
+@media (max-width: 974px) and (min-width: 901px) {
+    .system-panel {
+        width: 184px;
+    }
+
+    .conversation-panel {
+        width: 316px;
+    }
+}
+
 @media (max-width: 680px) {
     body {
         overflow: hidden;
@@ -1187,6 +1243,25 @@ body[data-jarvis-state="error"] {
     }
 }
 
+@media (max-width: 480px) {
+    .app-header,
+    .status-bar {
+        right: 8px;
+        left: 8px;
+    }
+
+    .conversation-panel {
+        right: 6px;
+        bottom: 6px;
+        left: 6px;
+    }
+
+    .voice-controls button {
+        width: 34px;
+        height: 34px;
+    }
+}
+
 @media (max-height: 520px) and (max-width: 680px) {
     .conversation-panel {
         top: 108px;
@@ -1207,6 +1282,15 @@ body[data-jarvis-state="error"] {
         animation-duration: 0.01ms !important;
         animation-iteration-count: 1 !important;
         transition-duration: 0.01ms !important;
+    }
+
+    body[data-core-intro="true"] .app-header,
+    body[data-core-intro="true"] .system-panel,
+    body[data-core-intro="true"] .conversation-panel,
+    body[data-core-intro="true"] .voice-console,
+    body[data-core-intro="true"] .status-bar,
+    body[data-core-intro="true"] .core-readout {
+        animation: none !important;
     }
 
     .core-stage::before {

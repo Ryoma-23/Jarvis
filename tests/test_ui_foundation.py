@@ -538,6 +538,44 @@ class UiFoundationContractTests(unittest.TestCase):
         self.assertIn("background: linear-gradient(270deg", style)
         self.assertIn("@media (max-height: 520px) and (max-width: 680px)", style)
 
+    def test_visual_phase_g_integrates_one_shot_cinematic_polish_and_cleanup(self):
+        index = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
+        style = (STATIC_DIR / "style.css").read_text(encoding="utf-8")
+        runtime = (STATIC_DIR / "js" / "core" / "shader-core-runtime.js").read_text(encoding="utf-8")
+        material = (STATIC_DIR / "js" / "core" / "core-materials.js").read_text(encoding="utf-8")
+        vertex = (STATIC_DIR / "js" / "core" / "shaders" / "particle-vertex.js").read_text(encoding="utf-8")
+        fragment = (STATIC_DIR / "js" / "core" / "shaders" / "particle-fragment.js").read_text(encoding="utf-8")
+        conversation = (STATIC_DIR / "js" / "ui" / "conversation-view.js").read_text(encoding="utf-8")
+
+        self.assertIn("1.32-visual-g-cinematic", index)
+        self.assertIn("const introDurationMs = 1650", runtime)
+        self.assertIn('document.body.dataset.coreIntro = "true"', runtime)
+        self.assertIn('document.body.removeAttribute("data-core-intro")', runtime)
+        self.assertIn("uIntroProgress", material)
+        self.assertIn("uIntroProgress", vertex)
+        self.assertIn("vIntroOpacity", fragment)
+        self.assertIn('reducedMotion.addEventListener("change", handleReducedMotionChange)', runtime)
+        self.assertIn('reducedMotion.removeEventListener("change", handleReducedMotionChange)', runtime)
+        self.assertIn('document.removeEventListener("visibilitychange", handleVisibilityChange)', runtime)
+        self.assertIn('canvas.removeEventListener("webglcontextlost", handleContextLost)', runtime)
+
+        self.assertIn('element.classList.add("message-arrival")', conversation)
+        self.assertIn("if (!renderingHistory)", conversation)
+        self.assertIn("@keyframes cinematic-interface-reveal", style)
+        self.assertIn("@keyframes message-arrival", style)
+        self.assertIn("@media (max-width: 974px)", style)
+        self.assertIn("@media (max-width: 480px)", style)
+
+        for document_name in (
+            "ui-architecture.md",
+            "ui-state-machine.md",
+            "ui-manual-verification.md",
+            "third-party-notices.md",
+            "visual-design-system.md",
+            "shader-architecture.md",
+        ):
+            self.assertTrue((BASE_DIR / "docs" / document_name).exists())
+
 
 if __name__ == "__main__":
     unittest.main()

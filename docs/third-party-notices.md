@@ -21,3 +21,7 @@ no runtime CDN dependency.
 
 The complete upstream license text is stored in
 `static/vendor/three/LICENSE`.
+
+Visual Phase G adds no third-party runtime dependency. Its startup sequence,
+micro-interactions, color grading, and lifecycle cleanup use local application
+CSS and the existing Three.js shader/post-processing stack listed above.

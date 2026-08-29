@@ -10,6 +10,7 @@ uniform float uStateBlend;
 uniform float uAudioLevel;
 uniform float uMotionIntensity;
 uniform float uCoreScale;
+uniform float uIntroProgress;
 uniform float uPixelRatio;
 uniform float uTransitionPulse;
 uniform float uToolAccent;
@@ -41,6 +42,7 @@ varying float vDepthFade;
 varying float vColorMix;
 varying float vBloomWeight;
 varying float vResonance;
+varying float vIntroOpacity;
 
 mat2 rotate2d(float angle) {
     float sine = sin(angle);
@@ -62,18 +64,20 @@ void main() {
     float baseRadius = max(length(base), 0.001);
     vec3 radial = base / baseRadius;
     float time = uTime * (0.45 + aSpeed * 0.85);
+    float formation = smoothstep(0.22, 0.82, uIntroProgress);
 
     float synchronizedPhase = mix(aPhase, floor(aPhase * 2.0) * 0.5, uOrbitSync);
     float orbit = time * uRotationSpeed * mix(0.65, 1.35, aLayer) + synchronizedPhase;
     base.xz = rotate2d(orbit) * base.xz;
     base.xy = rotate2d(orbit * (0.20 + uAxisTilt) * (aSeed - 0.5)) * base.xy;
-    base *= uParticleRadius;
+    base *= uParticleRadius * mix(1.48, 1.0, formation);
 
     vec3 flow = organicField(base, time, aSeed);
     float innerWeight = 1.0 - aLayer;
     float convection = mix(0.025, 0.105, innerWeight) * uMotionIntensity * uNoiseAmount;
     float stateDisplacement = mix(0.55, 1.35, uStateBlend);
     vec3 displaced = base + flow * convection * stateDisplacement;
+    displaced += radial * (1.0 - formation) * (0.18 + aSeed * 0.38);
 
     float convergence = sin(time * 1.7 + aPhase) * innerWeight * 0.065 - uAttraction * mix(0.018, 0.055, innerWeight);
     float outwardDrift = sin(time * 0.63 + aSeed * 19.0) * aLayer * 0.025;
@@ -99,7 +103,7 @@ void main() {
 
     vec4 viewPosition = modelViewMatrix * vec4(displaced, 1.0);
     float distanceScale = 260.0 / max(1.0, -viewPosition.z);
-    gl_PointSize = clamp(aParticleSize * uParticleSizeScale * uPixelRatio * distanceScale, 1.0, 18.0);
+    gl_PointSize = clamp(aParticleSize * uParticleSizeScale * uPixelRatio * distanceScale * smoothstep(0.08, 0.48, uIntroProgress), 1.0, 18.0);
     gl_Position = projectionMatrix * viewPosition;
 
     vBrightness = aBrightness * (1.0 + uAudioLevel * 0.55);
@@ -109,6 +113,7 @@ void main() {
     float nucleus = (1.0 - aLayer) * (1.0 - smoothstep(0.05, 0.62, baseRadius));
     vBloomWeight = clamp(highEnergy * 0.62 + nucleus * 0.92 + uAudioLevel * 0.52 + uTransitionPulse * 0.35 + uToolAccent * 0.28, 0.0, 1.65);
     vResonance = clamp(intakeFocus * uResonanceLevel * listeningMask + emissionFront * speakingMask, 0.0, 1.0);
+    vIntroOpacity = smoothstep(0.10, 0.58, uIntroProgress);
 }
 `;
 })(window);

@@ -4,6 +4,7 @@ const jarvisUI = global.JarvisUI = global.JarvisUI || {};
 const shaders = jarvisUI.coreShaders = jarvisUI.coreShaders || {};
 shaders.backgroundFragment = `
 uniform vec3 uColor;
+uniform float uIntroProgress;
 varying float vAlpha;
 varying float vSeed;
 void main() {
@@ -11,7 +12,8 @@ void main() {
     if (radius > 1.0) discard;
     float softness = 1.0 - smoothstep(0.12, 1.0, radius);
     float brightness = mix(0.46, 0.82, vSeed);
-    gl_FragColor = vec4(uColor * brightness, softness * vAlpha * 0.24);
+    float introOpacity = smoothstep(0.0, 0.28, uIntroProgress);
+    gl_FragColor = vec4(uColor * brightness, softness * vAlpha * 0.24 * introOpacity);
 }
 `;
 })(window);
