@@ -41,10 +41,13 @@ function createParticleMaterial(options) {
         },
         vertexShader: shaders.particleVertex,
         fragmentShader: shaders.particleFragment,
+        precision: "highp",
         transparent: true,
         depthWrite: false,
         depthTest: true,
-        blending: THREE.AdditiveBlending
+        blending: THREE.AdditiveBlending,
+        dithering: true,
+        extensions: { derivatives: true }
     });
 }
 

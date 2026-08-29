@@ -2,7 +2,7 @@
 "use strict";
 
 const jarvisUI = global.JarvisUI = global.JarvisUI || {};
-const PARTICLE_GROUPS = Object.freeze({ surface: 1050, volume: 720, flow: 300, cluster: 260 });
+const PARTICLE_GROUPS = Object.freeze({ surface: 2200, volume: 1600, flow: 650, cluster: 630 });
 
 function createRandom(seed) {
     let state = seed >>> 0;

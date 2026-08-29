@@ -103,7 +103,7 @@ void main() {
 
     vec4 viewPosition = modelViewMatrix * vec4(displaced, 1.0);
     float distanceScale = 260.0 / max(1.0, -viewPosition.z);
-    gl_PointSize = clamp(aParticleSize * uParticleSizeScale * uPixelRatio * distanceScale * smoothstep(0.08, 0.48, uIntroProgress), 1.0, 18.0);
+    gl_PointSize = clamp(aParticleSize * uParticleSizeScale * uPixelRatio * distanceScale * smoothstep(0.08, 0.48, uIntroProgress), 1.25, 22.0);
     gl_Position = projectionMatrix * viewPosition;
 
     vBrightness = aBrightness * (1.0 + uAudioLevel * 0.55);

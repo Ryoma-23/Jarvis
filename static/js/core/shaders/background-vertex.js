@@ -12,6 +12,7 @@ attribute float aSize;
 attribute float aDrift;
 varying float vAlpha;
 varying float vSeed;
+varying float vDepth;
 
 void main() {
     vec3 point = position;
@@ -27,6 +28,7 @@ void main() {
     gl_Position = projectionMatrix * viewPosition;
     vAlpha = mix(0.18, 0.48, 1.0 - depthFactor) * (1.0 + uStateEnergy * 0.18);
     vSeed = aSeed;
+    vDepth = depthFactor;
 }
 `;
 })(window);

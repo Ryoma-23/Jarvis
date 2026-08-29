@@ -102,6 +102,12 @@
    not receive grid, noise, or Bloom overlays.
 5. Enable reduced motion and confirm background particles, parallax, and
    atmospheric drift stop while the static depth composition remains visible.
+6. Confirm the background reads as a dim blue-black cosmic volume: sparse stars
+   should occupy different depths and extremely faint blue/violet/teal haze may
+   be visible, but no cloud, star, or grid line should compete with Core text.
+7. Confirm the same star and haze field continues across the complete Window,
+   including behind Header, Footer, System Log, Conversation, and the outer
+   corners; it must not appear confined to a rectangle around the Core.
 
 ## Panels and controls
 
@@ -140,7 +146,7 @@
 2. Hide/minimize the Window and confirm Core rendering pauses, then resumes when
    shown.
 3. Generate sustained active animation and confirm quality can step between DPR
-   1.75, 1.5, and 1.25 without rebuilding the scene or flashing the fallback.
+   2.5, 2.0, and 1.5 without rebuilding the scene or flashing the fallback.
 4. Produce more than 100 System Log events and confirm the visible log remains
    bounded.
 5. Perform repeated connect, disconnect, reconnect, and Window-close cycles;

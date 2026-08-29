@@ -41,10 +41,16 @@ body {
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
     text-rendering: optimizeLegibility;
-    background:
-        radial-gradient(circle at 50% 42%, rgba(17, 70, 98, 0.35), transparent 38%),
-        radial-gradient(circle at 78% 18%, rgba(83, 65, 151, 0.1), transparent 25%),
-        linear-gradient(145deg, var(--color-bg-center), var(--color-bg) 58%);
+    background-color: #020711;
+    background-image:
+        linear-gradient(126deg, transparent 16%, rgba(38, 100, 166, 0.065) 37%, rgba(104, 65, 165, 0.085) 51%, rgba(23, 119, 145, 0.052) 65%, transparent 84%),
+        radial-gradient(ellipse at 18% 28%, rgba(38, 111, 192, 0.10), transparent 42%),
+        radial-gradient(ellipse at 82% 23%, rgba(114, 65, 180, 0.09), transparent 40%),
+        radial-gradient(ellipse at 66% 78%, rgba(20, 133, 158, 0.07), transparent 45%),
+        radial-gradient(circle at 50% 45%, rgba(16, 74, 105, 0.10), transparent 58%),
+        linear-gradient(145deg, #071522, #020711 62%);
+    background-position: center;
+    background-size: 100% 100%;
 }
 
 ::selection {
@@ -102,12 +108,40 @@ button:disabled {
 
 .app-shell {
     position: relative;
+    isolation: isolate;
     display: block;
     width: 100vw;
     height: 100vh;
     height: 100dvh;
     padding: 0;
     overflow: hidden;
+}
+
+.app-shell::before,
+.app-shell::after {
+    position: absolute;
+    inset: 0;
+    content: "";
+    pointer-events: none;
+}
+
+.app-shell::before {
+    display: none;
+}
+
+.app-shell::after {
+    z-index: 0;
+    inset: -16%;
+    opacity: 0.20;
+    background:
+        linear-gradient(126deg, transparent 18%, rgba(44, 111, 176, 0.22) 38%, rgba(111, 69, 174, 0.28) 51%, rgba(27, 128, 151, 0.18) 64%, transparent 82%),
+        radial-gradient(ellipse at 24% 34%, rgba(45, 119, 203, 0.38), transparent 40%),
+        radial-gradient(ellipse at 76% 28%, rgba(123, 72, 190, 0.34), transparent 38%),
+        radial-gradient(ellipse at 62% 76%, rgba(26, 147, 169, 0.28), transparent 43%),
+        radial-gradient(ellipse at center, rgba(25, 99, 139, 0.22), transparent 62%);
+    filter: blur(18px);
+    transform: scale(1.04) translate3d(0, 0, 0);
+    animation: cosmic-atmosphere-drift 48s ease-in-out infinite alternate;
 }
 
 .app-header {
@@ -242,6 +276,7 @@ h2 {
 
 .workspace {
     position: absolute;
+    z-index: 1;
     inset: 0 0 28px;
     min-height: 0;
     padding: 0;
@@ -415,11 +450,9 @@ h2 {
     content: "";
     pointer-events: none;
     opacity: 0.035;
-    background-image:
-        repeating-radial-gradient(circle at 37% 43%, rgba(116, 211, 239, 0.32) 0 1px, transparent 1px 5px),
-        repeating-linear-gradient(117deg, rgba(135, 163, 178, 0.18) 0 1px, transparent 1px 7px);
-    background-position: 0 0, 17px 11px;
-    background-size: 173px 149px, 131px 157px;
+    background-image: repeating-linear-gradient(117deg, rgba(135, 163, 178, 0.18) 0 1px, transparent 1px 7px);
+    background-position: 17px 11px;
+    background-size: 131px 157px;
     mix-blend-mode: screen;
     mask-image: radial-gradient(ellipse at center, black 12%, rgba(0, 0, 0, 0.72) 58%, transparent 94%);
     animation: spatial-noise-drift 32s steps(16, end) infinite;
@@ -1100,9 +1133,20 @@ body[data-jarvis-state="error"] {
 }
 
 @keyframes spatial-noise-drift {
-    0% { background-position: 0 0, 17px 11px; }
-    50% { background-position: 19px -13px, -11px 29px; }
-    100% { background-position: 37px -27px, -39px 47px; }
+    0% { background-position: 17px 11px; }
+    50% { background-position: -11px 29px; }
+    100% { background-position: -39px 47px; }
+}
+
+@keyframes cosmic-atmosphere-drift {
+    from {
+        opacity: 0.16;
+        transform: scale(1.02) translate3d(-1.2%, 0.8%, 0);
+    }
+    to {
+        opacity: 0.24;
+        transform: scale(1.08) translate3d(1.4%, -1%, 0);
+    }
 }
 
 @media (max-width: 900px) {
@@ -1210,6 +1254,11 @@ body[data-jarvis-state="error"] {
 
     .core-stage::before {
         opacity: 0.018;
+    }
+
+    .app-shell::after {
+        opacity: 0.12;
+        animation-name: none;
     }
 
     .ui-notification {

@@ -315,18 +315,13 @@ set resonance strength to zero. Existing Phase C motion remains the baseline.
 
 ## Visual Phase E spatial background
 
-`spatial-background.js` owns a second immutable GPU Points field behind the
-Core. Its 520 deterministic particles occupy a broad volume from `z=-1.4` to
-approximately `z=-7.4`, use NormalBlending, low alpha, dark state color, and
-sub-pixel-to-three-pixel point sizes. State energy changes brightness by only a
-small fraction, keeping the Neural Core visually dominant. At widths of 680px
-or less the same geometry uses a 220-particle draw range without rebuilding.
-
-The background vertex shader provides extremely slow drift and a maximum
-few-hundredths-unit parallax offset derived from Core time, rotation speed, and
-axis tilt. It never reads pointer position. Reduced-motion mode fixes time and
-parallax at zero. Resize updates camera projection, DPR, Composer targets, and
-the compact draw range; disposal releases background Geometry and Material.
+`spatial-background.js` owns a full-frustum GPU atmosphere plane behind the
+Core. Background Points and procedural stars are intentionally absent so no
+secondary dot field can be confused with or overlap the Neural Core particles.
+The plane retains only very low-energy cloud color, dust, and vignette depth.
+It never reads pointer position. Reduced-motion mode fixes time at zero; resize
+continues to update the camera and Composer, and disposal releases the plane
+Geometry and Material.
 
 The former flat `.core-grid` is now a floor-plane perspective treatment. A
 conic angular mask produces lines converging on the center horizon while a
@@ -335,10 +330,34 @@ Radial masking removes grid detail around the Core and toward the container
 edges. The grid and atmospheric layer exist only inside `.core-stage`, so panel
 text is not composited over them.
 
-Atmosphere uses two extremely low-opacity procedural CSS gradient patterns at
-different scales. Their stepped background-position animation changes slowly
-to break color banding without resembling visible grain. Narrow layouts reduce
-both grid and atmosphere opacity, and reduced-motion disables noise movement.
+Atmosphere uses an extremely low-opacity linear CSS gradient pattern. Its
+stepped background-position animation changes slowly to break color banding
+without producing dot-shaped marks. Narrow layouts reduce both grid and
+atmosphere opacity, and reduced-motion disables noise movement.
+
+The final spatial grade belongs to `.app-shell`, not the Core container, so it
+continues beneath Header, Footer, panels, and every otherwise black area of the
+Window. Heavily blurred, extremely low-energy blue, violet, and teal elliptical
+fields drift over 48 seconds. There is no star texture or GPU background point
+field. A blue-black vignette and the perspective grid preserve foreground
+depth; no image asset or pointer-following motion is used.
+
+The full-window CSS fallback uses z-index `0` inside the isolated App Shell and
+`.workspace` begins at z-index `1`. The CSS star layer is disabled; atmospheric
+opacity varies only from `0.16` to `0.24`, and compact layouts reduce it to
+`0.12` without animation.
+
+pywebview verification showed that EffectComposer output resolves the WebGL
+Canvas as an opaque black surface even though the renderer and CSS Canvas are
+configured for alpha. The body/App Shell grade is therefore the CSS fallback,
+not the primary WebGL background. `spatial-background.js` now owns an opaque
+full-frustum plane at `z=-8.5`. A procedural fragment shader draws blue, violet,
+and teal cloud volumes, a diagonal dust band, and a vignette inside the same
+Composer scene as the Core. This
+guarantees that the spatial field survives Bloom output and covers the complete
+visible Canvas. Final grading keeps cloud and dust energy at roughly one third
+of the calibration view and applies a stronger edge vignette so depth remains
+perceptible without adding any point-like element around the Core.
 
 ## Visual Phase F panel and control polish
 
@@ -416,4 +435,8 @@ The Shader runtime removes its state subscription, ResizeObserver, animation
 frame, visibility/reduced-motion/context-loss handlers, post-processing targets,
 background and Core geometries/materials, Glow resources, and renderer during
 disposal. Rendering remains capped at 20 FPS in Idle and 30 FPS while active,
-pauses when hidden, and adapts DPR between 1.25, 1.5, and 1.75.
+pauses when hidden, and adapts DPR between 1.5, 2.0, and 2.5. The high-quality
+particle path renders 5,080 static GPU vertices with derivative-antialiased
+round edges, layered colored luminance, high-precision fragments, and dithering;
+CPU particle positions remain immutable. Aura compositing remains on the
+original Composer color path to avoid revealing additive Glow layer boundaries.

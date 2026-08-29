@@ -13,6 +13,19 @@ attraction, drift, audio resonance, state waves, Tool direction, Error impulse,
 and startup formation. Fragment Shader produces circular, depth-faded,
 state-colored points with selective HDR energy for Bloom.
 
+The production field contains 5,080 immutable particles across surface,
+volume, flow, and clustered distributions. Point sprites use high-precision
+fragment calculations and derivative-based edge coverage, so their circular
+silhouette remains smooth across particle size and DPR changes. Separate
+micro-core, luminous body, and soft color Halo terms preserve fine structure
+without replacing state color with broad white highlights. A wide alpha feather
+between normalized radii 0.34 and 0.92 dissolves the particle Halo well before
+the precise sprite boundary. The Core-wide volumetric Aura retains its original
+power-curve falloff and closely nested low-opacity layers. It deliberately uses
+the established Composer output path rather than forcing renderer-level sRGB
+encoding, which made subtle additive layer differences read as separate bands
+at high DPR. Adaptive DPR steps remain 1.5, 2.0, and 2.5 for particle detail.
+
 ## Startup uniform
 
 `uIntroProgress` is normalized from zero to one over 1650ms. Background alpha

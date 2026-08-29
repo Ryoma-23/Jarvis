@@ -229,10 +229,10 @@ class UiFoundationContractTests(unittest.TestCase):
         self.assertNotIn("THREE.PointsMaterial", material)
         for attribute in ("aBasePosition", "aSeed", "aParticleSize", "aBrightness", "aSpeed", "aPhase", "aLayer"):
             self.assertIn(attribute, field)
-        self.assertIn("surface: 1050", field)
-        self.assertIn("volume: 720", field)
-        self.assertIn("flow: 300", field)
-        self.assertIn("cluster: 260", field)
+        self.assertIn("surface: 2200", field)
+        self.assertIn("volume: 1600", field)
+        self.assertIn("flow: 650", field)
+        self.assertIn("cluster: 630", field)
         self.assertNotIn("needsUpdate", field)
         self.assertNotIn("needsUpdate", runtime)
 
@@ -341,11 +341,9 @@ class UiFoundationContractTests(unittest.TestCase):
 
         expected_order = ["background-vertex.js", "background-fragment.js", "spatial-background.js", "shader-core-runtime.js"]
         self.assertEqual(sorted(expected_order, key=index.index), expected_order)
-        self.assertIn("const desktopParticleCount = 520", background)
-        self.assertIn("const compactParticleCount = 220", background)
-        self.assertIn("THREE.NormalBlending", background)
-        self.assertIn("geometry.setDrawRange", background)
-        self.assertIn("positions[offset + 2] = -1.4", background)
+        self.assertNotIn("new THREE.Points", background)
+        self.assertNotIn("geometry.setDrawRange", background)
+        self.assertNotIn("starSeed", background)
         self.assertIn("uParallax", vertex + background)
         self.assertIn("uStateEnergy", vertex + background)
         self.assertIn("softness * vAlpha * 0.24", fragment)
@@ -396,7 +394,7 @@ class UiFoundationContractTests(unittest.TestCase):
 
         self.assertIn("const activeFrameDurationMs = 1000 / 30", core)
         self.assertIn("const idleFrameDurationMs = 1000 / 20", core)
-        self.assertIn("const qualityDprCaps = Object.freeze([1.25, 1.5, 1.75])", core)
+        self.assertIn("const qualityDprCaps = Object.freeze([1.5, 2.0, 2.5])", core)
         self.assertIn("const qualitySampleSize = 90", core)
         self.assertIn("const qualityChangeCooldownMs = 15000", core)
         self.assertIn("function sampleQuality(frameDuration, now)", core)
@@ -529,8 +527,8 @@ class UiFoundationContractTests(unittest.TestCase):
     def test_core_is_full_viewport_scene_beneath_quiet_ui_overlays(self):
         style = (STATIC_DIR / "style.css").read_text(encoding="utf-8")
 
-        self.assertIn(".app-shell {\n    position: relative;\n    display: block;", style)
-        self.assertIn(".workspace {\n    position: absolute;\n    inset: 0 0 28px;", style)
+        self.assertIn(".app-shell {\n    position: relative;\n    isolation: isolate;\n    display: block;", style)
+        self.assertIn(".workspace {\n    position: absolute;\n    z-index: 1;\n    inset: 0 0 28px;", style)
         self.assertIn(".core-area {\n    position: absolute;\n    z-index: 0;\n    inset: 0;", style)
         self.assertIn(".app-header {\n    position: absolute;\n    z-index: 10;", style)
         self.assertIn(".system-panel {\n    position: absolute;\n    z-index: 5;", style)
@@ -547,7 +545,7 @@ class UiFoundationContractTests(unittest.TestCase):
         fragment = (STATIC_DIR / "js" / "core" / "shaders" / "particle-fragment.js").read_text(encoding="utf-8")
         conversation = (STATIC_DIR / "js" / "ui" / "conversation-view.js").read_text(encoding="utf-8")
 
-        self.assertIn("1.32-visual-g-cinematic", index)
+        self.assertIn("1.44-no-background-points", index)
         self.assertIn("const introDurationMs = 1650", runtime)
         self.assertIn('document.body.dataset.coreIntro = "true"', runtime)
         self.assertIn('document.body.removeAttribute("data-core-intro")', runtime)
@@ -575,6 +573,64 @@ class UiFoundationContractTests(unittest.TestCase):
             "shader-architecture.md",
         ):
             self.assertTrue((BASE_DIR / "docs" / document_name).exists())
+
+    def test_neural_core_uses_high_density_derivative_antialiasing(self):
+        index = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
+        field = (STATIC_DIR / "js" / "core" / "particle-field.js").read_text(encoding="utf-8")
+        material = (STATIC_DIR / "js" / "core" / "core-materials.js").read_text(encoding="utf-8")
+        fragment = (STATIC_DIR / "js" / "core" / "shaders" / "particle-fragment.js").read_text(encoding="utf-8")
+        runtime = (STATIC_DIR / "js" / "core" / "shader-core-runtime.js").read_text(encoding="utf-8")
+
+        self.assertIn("1.33-core-ultra-detail", index)
+        self.assertIn("surface: 2200, volume: 1600, flow: 650, cluster: 630", field)
+        self.assertIn('precision: "highp"', material)
+        self.assertIn("extensions: { derivatives: true }", material)
+        self.assertIn("fwidth(radius)", fragment)
+        self.assertIn("float microCore", fragment)
+        self.assertIn("float softHalo", fragment)
+        self.assertIn("float haloFeather", fragment)
+        self.assertIn("smoothstep(0.34, 0.92, radius)", fragment)
+        glow = (STATIC_DIR / "js" / "core" / "volumetric-glow.js").read_text(encoding="utf-8")
+        self.assertIn("pow(max(0.0, 1.0 - radius), 2.35)", glow)
+        self.assertIn("{ scale: 0.72, z: 0.12, opacity: 0.34 }", glow)
+        self.assertIn("{ scale: 1.72, z: -0.30, opacity: 0.075 }", glow)
+        self.assertIn("[1.5, 2.0, 2.5]", runtime)
+        self.assertNotIn("renderer.outputEncoding = THREE.sRGBEncoding", runtime)
+
+    def test_spatial_background_adds_subtle_cosmic_depth_without_assets(self):
+        index = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
+        style = (STATIC_DIR / "style.css").read_text(encoding="utf-8")
+        background_vertex = (STATIC_DIR / "js" / "core" / "shaders" / "background-vertex.js").read_text(encoding="utf-8")
+        background_fragment = (STATIC_DIR / "js" / "core" / "shaders" / "background-fragment.js").read_text(encoding="utf-8")
+        spatial = (STATIC_DIR / "js" / "core" / "spatial-background.js").read_text(encoding="utf-8")
+        runtime = (STATIC_DIR / "js" / "core" / "shader-core-runtime.js").read_text(encoding="utf-8")
+
+        self.assertIn("1.44-no-background-points", index)
+        self.assertIn(".app-shell::before", style)
+        self.assertIn(".app-shell::after", style)
+        self.assertIn("isolation: isolate", style)
+        self.assertIn("@keyframes cosmic-atmosphere-drift", style)
+        self.assertIn("filter: blur(18px)", style)
+        self.assertIn("48s ease-in-out infinite alternate", style)
+        self.assertIn(".app-shell::before {\n    display: none;", style)
+        self.assertIn("linear-gradient(126deg", style)
+        self.assertIn(".workspace {\n    position: absolute;\n    z-index: 1;", style)
+        self.assertIn("background-color: #020711", style)
+        self.assertNotIn("rgba(190, 239, 255, 0.32)", style)
+        self.assertNotIn("background-size: 181px 163px", style)
+        self.assertIn("varying float vDepth", background_vertex)
+        self.assertIn("uniform vec3 uColorAccent", background_fragment)
+        self.assertIn("float accentMix", background_fragment)
+        self.assertIn("uColorAccent", spatial)
+        self.assertIn("spatialBackground.uniforms.uColorAccent", runtime)
+        self.assertIn("const cosmicFragmentShader", spatial)
+        self.assertIn("new THREE.PlaneGeometry(32, 18)", spatial)
+        self.assertIn("cosmicBackdrop.position.z = -8.5", spatial)
+        self.assertIn("group.add(cosmicBackdrop)", spatial)
+        self.assertIn("cosmicGeometry.dispose()", spatial)
+        self.assertNotIn("starSeed", spatial)
+        self.assertNotIn("new THREE.Points", spatial)
+        self.assertIn("vec3(0.008, 0.038, 0.076)", spatial)
 
 
 if __name__ == "__main__":

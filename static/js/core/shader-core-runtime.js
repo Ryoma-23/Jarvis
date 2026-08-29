@@ -10,7 +10,7 @@ if (!THREE || !canvas || !stage || !jarvisUI.particleField || !jarvisUI.coreStat
 
 const activeFrameDurationMs = 1000 / 30;
 const idleFrameDurationMs = 1000 / 20;
-const qualityDprCaps = Object.freeze([1.25, 1.5, 1.75]);
+const qualityDprCaps = Object.freeze([1.5, 2.0, 2.5]);
 const qualitySampleSize = 90;
 const qualityChangeCooldownMs = 15000;
 const introDurationMs = 1650;
@@ -184,6 +184,10 @@ function render(now) {
         reducedMotion.matches ? 0 : Math.cos(elapsedSeconds * 0.038 + profile.rotationSpeed) * 0.022
     );
     spatialBackground.uniforms.uColor.value.copy(uniforms.uColorSecondary.value).multiplyScalar(0.34);
+    spatialBackground.uniforms.uColorAccent.value.copy(uniforms.uColorPrimary.value).lerp(
+        uniforms.uColorSecondary.value,
+        0.58
+    ).multiplyScalar(0.26);
     glow.uniforms.uTime.value = uniforms.uTime.value;
     glow.uniforms.uIntroProgress.value = startupProgress;
     glow.uniforms.uAudioLevel.value = uniforms.uAudioLevel.value;
