@@ -137,6 +137,9 @@
             state.connectionStatus === "error"
         ) {
             resetActivity();
+            if (state.activeTool !== null) {
+                jarvisUI.state.update({ activeTool: null });
+            }
         }
 
         render();

@@ -13,6 +13,17 @@ uniform float uCoreScale;
 uniform float uPixelRatio;
 uniform float uTransitionPulse;
 uniform float uToolAccent;
+uniform float uRotationSpeed;
+uniform float uNoiseAmount;
+uniform float uParticleRadius;
+uniform float uAttraction;
+uniform float uAudioResponse;
+uniform float uParticleSizeScale;
+uniform float uOrbitSync;
+uniform float uAxisTilt;
+uniform float uInwardFlow;
+uniform float uOutwardWave;
+uniform float uErrorBurst;
 
 attribute vec3 aBasePosition;
 attribute float aSeed;
@@ -48,26 +59,33 @@ void main() {
     vec3 radial = base / baseRadius;
     float time = uTime * (0.45 + aSpeed * 0.85);
 
-    float orbit = time * mix(0.08, 0.22, aLayer) + aPhase;
+    float synchronizedPhase = mix(aPhase, floor(aPhase * 2.0) * 0.5, uOrbitSync);
+    float orbit = time * uRotationSpeed * mix(0.65, 1.35, aLayer) + synchronizedPhase;
     base.xz = rotate2d(orbit) * base.xz;
-    base.xy = rotate2d(orbit * 0.27 * (aSeed - 0.5)) * base.xy;
+    base.xy = rotate2d(orbit * (0.20 + uAxisTilt) * (aSeed - 0.5)) * base.xy;
+    base *= uParticleRadius;
 
     vec3 flow = organicField(base, time, aSeed);
     float innerWeight = 1.0 - aLayer;
-    float convection = mix(0.025, 0.105, innerWeight) * uMotionIntensity;
+    float convection = mix(0.025, 0.105, innerWeight) * uMotionIntensity * uNoiseAmount;
     float stateDisplacement = mix(0.55, 1.35, uStateBlend);
     vec3 displaced = base + flow * convection * stateDisplacement;
 
-    float convergence = sin(time * 1.7 + aPhase) * innerWeight * 0.065;
+    float convergence = sin(time * 1.7 + aPhase) * innerWeight * 0.065 - uAttraction * mix(0.018, 0.055, innerWeight);
     float outwardDrift = sin(time * 0.63 + aSeed * 19.0) * aLayer * 0.025;
-    float audioExpansion = uAudioLevel * mix(0.07, 0.18, aLayer);
-    displaced += radial * (convergence + outwardDrift + audioExpansion) * uMotionIntensity;
+    float inwardFlow = -uInwardFlow * aLayer * (0.018 + 0.018 * sin(time + aPhase));
+    float audioExpansion = uAudioLevel * uAudioResponse * mix(0.07, 0.18, aLayer);
+    float speakingWave = sin(baseRadius * 15.0 - time * 4.5 + aPhase) * uOutwardWave * (0.014 + uAudioLevel * 0.045);
+    float returnFlight = pow(max(0.0, sin(time * 1.8 + aPhase)), 7.0) * uOutwardWave * step(0.82, aSeed) * 0.22;
+    float errorScatter = uErrorBurst * (aSeed - 0.5) * 0.24;
+    displaced += radial * (convergence + outwardDrift + inwardFlow + audioExpansion + speakingWave + returnFlight + errorScatter) * uMotionIntensity;
+    displaced += normalize(flow + vec3(0.001)) * uToolAccent * innerWeight * 0.055;
     displaced += radial * uTransitionPulse * (0.035 + aSeed * 0.025);
     displaced *= uCoreScale;
 
     vec4 viewPosition = modelViewMatrix * vec4(displaced, 1.0);
     float distanceScale = 260.0 / max(1.0, -viewPosition.z);
-    gl_PointSize = clamp(aParticleSize * uPixelRatio * distanceScale, 1.0, 18.0);
+    gl_PointSize = clamp(aParticleSize * uParticleSizeScale * uPixelRatio * distanceScale, 1.0, 18.0);
     gl_Position = projectionMatrix * viewPosition;
 
     vBrightness = aBrightness * (1.0 + uAudioLevel * 0.55);

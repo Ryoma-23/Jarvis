@@ -6,22 +6,13 @@ const jarvisUI = global.JarvisUI;
 const canvas = jarvisUI && jarvisUI.dom ? jarvisUI.dom.elements.coreCanvas : null;
 const stage = canvas ? canvas.closest(".core-stage") : null;
 const reducedMotion = global.matchMedia("(prefers-reduced-motion: reduce)");
-if (!THREE || !canvas || !stage || !jarvisUI.particleField) return;
+if (!THREE || !canvas || !stage || !jarvisUI.particleField || !jarvisUI.coreStateTransitions) return;
 
 const activeFrameDurationMs = 1000 / 30;
 const idleFrameDurationMs = 1000 / 20;
 const qualityDprCaps = Object.freeze([1.25, 1.5, 1.75]);
 const qualitySampleSize = 90;
 const qualityChangeCooldownMs = 15000;
-const stateProfiles = Object.freeze({
-    idle: { blend: 0.12, motion: 0.72, scale: 0.94, primary: 0x55e6ff, secondary: 0x287bff },
-    connecting: { blend: 0.42, motion: 0.90, scale: 0.96, primary: 0xffc46b, secondary: 0xff7d55 },
-    listening: { blend: 0.62, motion: 1.08, scale: 0.98, primary: 0x54edff, secondary: 0x318cff },
-    thinking: { blend: 1.00, motion: 1.35, scale: 1.00, primary: 0xa98cff, secondary: 0x43d9ff },
-    speaking: { blend: 0.82, motion: 1.18, scale: 1.01, primary: 0x68ffd1, secondary: 0x36bfff },
-    error: { blend: 0.22, motion: 0.48, scale: 0.92, primary: 0xff6478, secondary: 0xff9b62 }
-});
-
 let renderer;
 let scene;
 let camera;
@@ -38,14 +29,12 @@ let toolAccentTarget = 0;
 let transitionPulse = 0;
 let audioPeak = 0;
 let postProcessingFailed = false;
-let targetProfile = stateProfiles.idle;
+const transitions = jarvisUI.coreStateTransitions.createStateTransitions("idle");
 let qualityLevel = qualityDprCaps.length - 1;
 let qualitySamples = 0;
 let qualityFrameTotal = 0;
 let lastQualityChangeAt = 0;
 let disposed = false;
-const primaryTarget = new THREE.Color(targetProfile.primary);
-const secondaryTarget = new THREE.Color(targetProfile.secondary);
 
 function report(level, code, message) {
     if (jarvisUI.log && typeof jarvisUI.log[level] === "function") jarvisUI.log[level](code, message);
@@ -76,12 +65,10 @@ function resize() {
 function setState(snapshot) {
     const nextState = snapshot && snapshot.jarvisState;
     const previousState = activeState;
-    activeState = stateProfiles[nextState] ? nextState : "idle";
-    targetProfile = stateProfiles[activeState];
+    activeState = jarvisUI.coreStateTransitions.profiles[nextState] ? nextState : "idle";
+    transitions.setState(activeState);
     if (previousState !== activeState) transitionPulse = 1;
     toolAccentTarget = snapshot && snapshot.activeTool ? 1 : 0;
-    primaryTarget.setHex(targetProfile.primary);
-    secondaryTarget.setHex(targetProfile.secondary);
 }
 
 function readAudioLevel() {
@@ -124,25 +111,41 @@ function render(now) {
     sampleQuality(frameDuration, now);
 
     const uniforms = field.uniforms;
-    const easing = reducedMotion.matches ? 1 : 0.055;
-    uniforms.uStateBlend.value = ease(uniforms.uStateBlend.value, targetProfile.blend, easing);
-    uniforms.uMotionIntensity.value = ease(uniforms.uMotionIntensity.value, reducedMotion.matches ? 0 : targetProfile.motion, easing);
-    uniforms.uCoreScale.value = ease(uniforms.uCoreScale.value, targetProfile.scale, easing);
+    const deltaSeconds = Math.min(frameDuration, 100) / 1000;
+    const transition = transitions.update(deltaSeconds, reducedMotion.matches);
+    const profile = transition.profile;
+    uniforms.uStateBlend.value = profile.noiseAmount;
+    uniforms.uMotionIntensity.value = reducedMotion.matches ? 0 : 1;
+    const breathing = activeState === "idle" && !reducedMotion.matches ? Math.sin(elapsedSeconds * 0.72) * 0.008 : 0;
+    uniforms.uCoreScale.value = 1 + breathing;
+    uniforms.uRotationSpeed.value = profile.rotationSpeed;
+    uniforms.uNoiseAmount.value = profile.noiseAmount;
+    uniforms.uParticleRadius.value = profile.particleRadius;
+    uniforms.uAttraction.value = profile.attraction;
+    uniforms.uAudioResponse.value = profile.audioResponse;
+    uniforms.uParticleSizeScale.value = profile.particleSize;
+    uniforms.uOrbitSync.value = profile.orbitSync;
+    uniforms.uAxisTilt.value = profile.axisTilt;
+    uniforms.uInwardFlow.value = profile.inwardFlow;
+    uniforms.uOutwardWave.value = profile.outwardWave;
+    uniforms.uErrorBurst.value = transition.errorBurst;
     const currentAudio = readAudioLevel();
-    audioPeak = Math.max(currentAudio, audioPeak * 0.88);
+    audioPeak = Math.max(currentAudio * profile.audioResponse, audioPeak * 0.88);
     transitionPulse *= reducedMotion.matches ? 0 : 0.91;
     uniforms.uAudioLevel.value = ease(uniforms.uAudioLevel.value, audioPeak, 0.22);
-    uniforms.uTransitionPulse.value = transitionPulse;
+    uniforms.uTransitionPulse.value = Math.max(transitionPulse * 0.35, transition.stabilityWave);
     uniforms.uToolAccent.value = ease(uniforms.uToolAccent.value, toolAccentTarget, 0.09);
-    uniforms.uColorPrimary.value.lerp(primaryTarget, 0.07);
-    uniforms.uColorSecondary.value.lerp(secondaryTarget, 0.07);
+    uniforms.uColorPrimary.value.setRGB(profile.primary[0], profile.primary[1], profile.primary[2]);
+    uniforms.uColorSecondary.value.setRGB(profile.secondary[0], profile.secondary[1], profile.secondary[2]);
     if (!reducedMotion.matches) uniforms.uTime.value = elapsedSeconds;
     glow.uniforms.uTime.value = uniforms.uTime.value;
     glow.uniforms.uAudioLevel.value = uniforms.uAudioLevel.value;
     glow.uniforms.uTransitionPulse.value = uniforms.uTransitionPulse.value;
     glow.uniforms.uToolAccent.value = uniforms.uToolAccent.value;
+    glow.uniforms.uAuraDensity.value = profile.auraDensity;
     glow.uniforms.uColorPrimary.value.copy(uniforms.uColorPrimary.value);
     glow.uniforms.uColorSecondary.value.copy(uniforms.uColorSecondary.value);
+    if (postProcessing) postProcessing.setBloomStrength(profile.bloomStrength + audioPeak * 0.14 + uniforms.uToolAccent.value * 0.06);
     if (postProcessing) {
         try {
             postProcessing.render();

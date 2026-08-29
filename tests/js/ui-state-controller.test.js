@@ -93,12 +93,16 @@ test("Realtime signals resolve to the expected visual state", function() {
     controller.responseDone(false);
     assert.equal(state.getSnapshot().jarvisState, "idle");
 
+    controller.toolStarted("connection_probe");
     state.update({ connectionStatus: "error" });
     assert.equal(state.getSnapshot().jarvisState, "error");
+    assert.equal(state.getSnapshot().activeTool, null);
 
     controller.speechStarted();
     assert.equal(state.getSnapshot().jarvisState, "error");
 
     state.update({ connectionStatus: "disconnected" });
     assert.equal(state.getSnapshot().jarvisState, "idle");
+    state.update({ connectionStatus: "connecting" });
+    assert.equal(state.getSnapshot().jarvisState, "connecting");
 });

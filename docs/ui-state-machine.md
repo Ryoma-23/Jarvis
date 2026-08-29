@@ -69,3 +69,37 @@ is hidden automatically after recovery. Tool display is cleared by the
 existing controller reset path during disconnect, reconnect failure, or normal
 cleanup. Conversation pending state is separate from Jarvis state and is
 represented by `aria-busy` on the shared transcript container.
+
+## Visual Phase C transition profiles
+
+The UI controller continues to select one discrete state using the priority
+above. It also clears activity signals and `activeTool` whenever the connection
+enters connecting, disconnected, or error, preventing stale Thinking or Tool
+visuals after reconnect and recovery.
+
+Core animation does not apply state values directly. `state-transitions.js`
+owns immutable target profiles and a mutable current profile. Every rendered
+frame exponentially damps the current values toward the target over a bounded
+0.4–1.2 second interval. Rotation speed, noise, particle radius, attraction,
+Bloom strength, two colors, audio response, particle size, Aura density,
+orbital synchronization, axis tilt, inward flow, and outward-wave strength all
+share this transition path.
+
+State-specific motion is as follows:
+
+- Idle uses slow rotation, weak inner convection, subtle breathing, low outer
+  drift, no audio response, and low Bloom.
+- Connecting increases inward attraction and orbital synchronization. Leaving
+  Connecting successfully emits one decaying stability wave.
+- Listening expands slightly, pulls outer particles inward, increases cyan
+  saturation, and enables restrained microphone deformation.
+- Thinking strengthens convergence, noise speed, and axis tilt. Active Tool
+  state adds a directional inner flow without changing the discrete state.
+- Speaking emits outward waves, scales with output audio, raises central Glow,
+  and sends a seeded subset of particles outward before their sinusoidal return.
+- Error emits one rapidly decaying scatter impulse and red accent while slowing
+  rotation. It does not continuously flash, and normal color interpolation is
+  restored on recovery.
+
+Reduced-motion mode resolves profiles immediately but disables transient waves,
+scatter, breathing, and continuous displacement.

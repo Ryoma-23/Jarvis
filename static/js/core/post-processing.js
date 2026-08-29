@@ -22,6 +22,7 @@ function createPostProcessing(renderer, scene, camera) {
 
     return {
         render() { composer.render(); },
+        setBloomStrength(strength) { bloomPass.strength = strength; },
         setSize(width, height, pixelRatio) {
             composer.setPixelRatio(pixelRatio);
             composer.setSize(width, height);

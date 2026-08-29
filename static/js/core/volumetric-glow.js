@@ -15,6 +15,7 @@ uniform float uAudioLevel;
 uniform float uTransitionPulse;
 uniform float uToolAccent;
 uniform float uLayerOpacity;
+uniform float uAuraDensity;
 uniform vec3 uColorPrimary;
 uniform vec3 uColorSecondary;
 varying vec2 vUv;
@@ -34,7 +35,7 @@ void main() {
     float aura = pow(max(0.0, 1.0 - radius), 2.35) * mix(0.72, 1.12, turbulence);
     float ring = exp(-pow((radius - (0.48 + uTransitionPulse * 0.20)) * 10.0, 2.0));
     float energy = 0.72 + uAudioLevel * 0.75 + uToolAccent * 0.28;
-    float alpha = (aura * energy + ring * uTransitionPulse * 0.18) * uLayerOpacity;
+    float alpha = (aura * energy + ring * uTransitionPulse * 0.18) * uLayerOpacity * uAuraDensity;
     vec3 color = mix(uColorSecondary, uColorPrimary, clamp(1.0 - radius * 0.72, 0.0, 1.0));
     color *= 0.78 + aura * 0.82 + uAudioLevel * 0.25;
     gl_FragColor = vec4(color, alpha);
@@ -50,6 +51,7 @@ function createVolumetricGlow(options) {
     const shared = {
         uTime: { value: 0 }, uAudioLevel: { value: 0 },
         uTransitionPulse: { value: 0 }, uToolAccent: { value: 0 },
+        uAuraDensity: { value: 0.58 },
         uColorPrimary: { value: new THREE.Color(settings.primaryColor || 0x55e6ff) },
         uColorSecondary: { value: new THREE.Color(settings.secondaryColor || 0x287bff) }
     };

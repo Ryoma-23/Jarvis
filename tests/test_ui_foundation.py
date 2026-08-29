@@ -290,6 +290,25 @@ class UiFoundationContractTests(unittest.TestCase):
         self.assertIn("CORE_BLOOM_FALLBACK", runtime)
         self.assertIn("renderer.render(scene, camera)", runtime)
 
+    def test_visual_phase_c_profiles_drive_motion_without_direct_jumps(self):
+        index = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
+        transitions = (STATIC_DIR / "js" / "core" / "state-transitions.js").read_text(encoding="utf-8")
+        runtime = (STATIC_DIR / "js" / "core" / "shader-core-runtime.js").read_text(encoding="utf-8")
+        vertex = (STATIC_DIR / "js" / "core" / "shaders" / "particle-vertex.js").read_text(encoding="utf-8")
+
+        self.assertLess(index.index("state-transitions.js"), index.index("shader-core-runtime.js"))
+        for state in ("idle", "connecting", "listening", "thinking", "speaking", "error"):
+            self.assertIn(f"{state}: Object.freeze", transitions)
+        for value in ("rotationSpeed", "noiseAmount", "particleRadius", "attraction", "bloomStrength", "audioResponse", "particleSize", "auraDensity"):
+            self.assertIn(value, transitions)
+        self.assertIn("1 - Math.exp", transitions)
+        self.assertIn("Math.max(0.4, Math.min(1.2", transitions)
+        self.assertIn("transitions.update", runtime)
+        self.assertIn("postProcessing.setBloomStrength", runtime)
+        self.assertIn("uErrorBurst", vertex)
+        self.assertIn("returnFlight", vertex)
+        self.assertIn("uToolAccent", vertex)
+
     def test_phase_eight_audio_analysis_is_split_and_cleanup_safe(self):
         index = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
         script = (STATIC_DIR / "script.js").read_text(encoding="utf-8")
