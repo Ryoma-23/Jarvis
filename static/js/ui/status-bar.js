@@ -50,6 +50,13 @@
             );
         }
 
+        const latencyElement = statusBar.querySelector("[data-status=latency]");
+        if (latencyElement) {
+            latencyElement.textContent = Number.isFinite(state.latencyMs)
+                ? `${Math.max(0, Math.round(state.latencyMs))}ms`
+                : "--";
+        }
+
         const headerStatus = jarvisUI.dom.elements.headerConnectionStatus;
         if (headerStatus) {
             headerStatus.dataset.connectionStatus = state.connectionStatus;

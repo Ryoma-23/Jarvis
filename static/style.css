@@ -357,6 +357,63 @@ h2 {
     transition: opacity 500ms ease;
 }
 
+.core-tool-status {
+    position: absolute;
+    z-index: 4;
+    top: 18px;
+    left: 50%;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    max-width: calc(100% - 36px);
+    padding: 5px 9px;
+    color: var(--color-text-muted);
+    border: 1px solid rgba(166, 154, 255, 0.22);
+    border-radius: 999px;
+    background: rgba(5, 12, 22, 0.72);
+    font-family: var(--font-mono);
+    font-size: 7px;
+    letter-spacing: 0.1em;
+    transform: translateX(-50%);
+    backdrop-filter: blur(8px);
+}
+
+.core-tool-status[hidden] {
+    display: none;
+}
+
+.core-tool-status strong {
+    overflow: hidden;
+    color: var(--color-violet);
+    font-size: 8px;
+    font-weight: 500;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.ui-notification {
+    position: fixed;
+    z-index: 20;
+    top: 68px;
+    left: 50%;
+    width: min(420px, calc(100vw - 28px));
+    padding: 8px 12px;
+    color: var(--color-error);
+    border: 1px solid rgba(255, 111, 125, 0.34);
+    border-radius: 8px;
+    background: rgba(30, 7, 14, 0.9);
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.3);
+    font-family: var(--font-mono);
+    font-size: 9px;
+    letter-spacing: 0.06em;
+    text-align: center;
+    transform: translateX(-50%);
+}
+
+.ui-notification[hidden] {
+    display: none;
+}
+
 .core-stage[data-renderer="webgl"] .core-canvas {
     opacity: 1;
 }
@@ -841,6 +898,14 @@ body[data-jarvis-state="error"] {
     .status-signature {
         display: none;
     }
+
+    .core-tool-status {
+        top: 12px;
+    }
+
+    .ui-notification {
+        top: 62px;
+    }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -866,5 +931,11 @@ body[data-jarvis-state="error"] {
     #message-input,
     button {
         border-width: 2px;
+    }
+
+    .core-tool-status,
+    .ui-notification {
+        border-width: 2px;
+        background: #07111b;
     }
 }

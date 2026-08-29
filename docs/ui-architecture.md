@@ -214,3 +214,26 @@ The initial state contains:
 Consumers subscribe through `JarvisUI.state.subscribe()` and receive immutable
 snapshots. Listener failure is isolated so one visual component cannot prevent
 the remaining UI from updating.
+
+## Phase 11 final integration
+
+Phase 11 connects the completed UI surfaces through the display-only
+`JarvisUI.state` boundary. `static/js/ui/integration-status.js` renders the
+active Tool above the Core and presents connection failures in an atomic alert.
+The System Log records Tool start and end transitions, while the Header, Status
+Bar, Core state, notification, and microphone label continue to derive from
+the same connection state. A latency slot renders `latencyMs` when a future
+transport supplies it and otherwise remains `--`.
+
+The common Conversation renderer exposes real TEXT/VOICE and lifecycle labels,
+sets `aria-busy` while any visible message is pending, and retains only the
+latest 200 message nodes and ID mappings. This is a presentation limit only;
+the Conversation Store remains authoritative and no persisted message is
+deleted. The System Log remains bounded at 100 entries.
+
+The final runtime keeps the Phase 7 adaptive FPS/DPR controller, hidden-page
+pause, reduced-motion behavior, bounded particle geometry, shared textures,
+Audio Analyser buffer reuse, and explicit WebGL/Web Audio cleanup. Tool and
+error overlays include narrow-screen, increased-contrast, and semantic live
+region behavior. Manual hardware and visual checks are documented in
+`docs/ui-manual-verification.md`.

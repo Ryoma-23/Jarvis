@@ -30,6 +30,15 @@
             </div>
         </header>
 
+        <div
+            id="ui-notification"
+            class="ui-notification"
+            role="status"
+            aria-live="polite"
+            aria-atomic="true"
+            hidden
+        ></div>
+
         <main class="workspace">
             <aside class="panel system-panel" aria-labelledby="system-log-title">
                 <div class="panel-header">
@@ -68,6 +77,17 @@
                         class="core-canvas"
                         aria-hidden="true"
                     ></canvas>
+
+                    <div
+                        id="core-tool-status"
+                        class="core-tool-status"
+                        aria-live="polite"
+                        aria-atomic="true"
+                        hidden
+                    >
+                        <span>ACTIVE TOOL</span>
+                        <strong data-tool-name></strong>
+                    </div>
 
                     <div class="core-visual" aria-hidden="true">
                         <span class="core-orbit core-orbit-outer"></span>
@@ -156,20 +176,25 @@
                 <span class="status-label">MEMORY</span>
                 <span>READY</span>
             </div>
+            <div class="status-item status-item-muted">
+                <span class="status-label">LATENCY</span>
+                <span data-status="latency">--</span>
+            </div>
             <div class="status-signature">JRV / LOCAL</div>
         </footer>
     </div>
 
-    <script src="/static/js/app-state.js?v=1.22-phase9-chat-integration"></script>
-    <script src="/static/js/dom.js?v=1.22-phase9-chat-integration"></script>
-    <script src="/static/js/ui/jarvis-state.js?v=1.22-phase9-chat-integration"></script>
-    <script src="/static/js/ui/system-log.js?v=1.22-phase9-chat-integration"></script>
-    <script src="/static/js/ui/status-bar.js?v=1.22-phase9-chat-integration"></script>
-    <script src="/static/js/ui/ui-state-controller.js?v=1.22-phase9-chat-integration"></script>
-    <script src="/static/js/ui/conversation-view.js?v=1.22-phase9-chat-integration"></script>
-    <script src="/static/js/audio/audio-reactive.js?v=1.22-phase9-chat-integration"></script>
-    <script src="/static/script.js?v=1.22-phase9-chat-integration"></script>
+    <script src="/static/js/app-state.js?v=1.23-phase11-final-integration"></script>
+    <script src="/static/js/dom.js?v=1.23-phase11-final-integration"></script>
+    <script src="/static/js/ui/jarvis-state.js?v=1.23-phase11-final-integration"></script>
+    <script src="/static/js/ui/system-log.js?v=1.23-phase11-final-integration"></script>
+    <script src="/static/js/ui/status-bar.js?v=1.23-phase11-final-integration"></script>
+    <script src="/static/js/ui/ui-state-controller.js?v=1.23-phase11-final-integration"></script>
+    <script src="/static/js/ui/integration-status.js?v=1.23-phase11-final-integration"></script>
+    <script src="/static/js/ui/conversation-view.js?v=1.23-phase11-final-integration"></script>
+    <script src="/static/js/audio/audio-reactive.js?v=1.23-phase11-final-integration"></script>
+    <script src="/static/script.js?v=1.23-phase11-final-integration"></script>
     <script src="/static/vendor/three/three.min.js?v=0.128.0"></script>
-    <script src="/static/js/core/jarvis-core.js?v=1.22-phase9-chat-integration"></script>
+    <script src="/static/js/core/jarvis-core.js?v=1.23-phase11-final-integration"></script>
 </body>
 </html>

@@ -50,3 +50,22 @@ Tool depth is counted so overlapping tool work cannot return the display to
 idle prematurely. A completed tool keeps the visual state at thinking while
 the existing follow-up response is requested. A failed Tool call returns to
 idle instead of leaving the UI in a stale thinking state.
+
+## Phase 11 integrated outputs
+
+All consumers observe `JarvisUI.state`; none of them control the Realtime
+lifecycle.
+
+| State field | UI outputs |
+| --- | --- |
+| `jarvisState` | Core color, motion profile, caption, System Log transition |
+| `connectionStatus` | Header, Status Bar, microphone label, error alert, Core state |
+| `statusMessage` | Voice status, Status Bar accessible label, error alert, System Log |
+| `activeTool` | Core Tool badge and System Log start/end records |
+| `latencyMs` | Status Bar latency value when available |
+
+The connection error alert uses `role=alert` only while an error is active and
+is hidden automatically after recovery. Tool display is cleared by the
+existing controller reset path during disconnect, reconnect failure, or normal
+cleanup. Conversation pending state is separate from Jarvis state and is
+represented by `aria-busy` on the shared transcript container.

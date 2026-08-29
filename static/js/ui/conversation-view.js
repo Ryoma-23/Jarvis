@@ -9,6 +9,8 @@
     const chatArea = jarvisUI.dom.elements.chatArea;
     const messageElementsById = new Map();
     const statusElementsByMessage = new WeakMap();
+    const pendingMessages = new Set();
+    const maximumRenderedMessages = 200;
     const statusLabels = Object.freeze({
         pending: "STREAMING",
         interrupted: "INTERRUPTED",
@@ -23,7 +25,21 @@
 
     function clearRenderedMessages() {
         messageElementsById.clear();
+        pendingMessages.clear();
+        chatArea.setAttribute("aria-busy", "false");
         chatArea.replaceChildren();
+    }
+
+    function trimRenderedMessages() {
+        while (chatArea.children.length > maximumRenderedMessages) {
+            const oldestMessage = chatArea.firstElementChild;
+            const messageId = oldestMessage.dataset.messageId;
+            if (messageId) {
+                messageElementsById.delete(messageId);
+            }
+            pendingMessages.delete(oldestMessage);
+            oldestMessage.remove();
+        }
     }
 
     function renderConversationMessage(message) {
@@ -56,6 +72,7 @@
         }
 
         chatArea.appendChild(element);
+        trimRenderedMessages();
         chatArea.scrollTop = chatArea.scrollHeight;
         return {element: element, contentElement: contentElement};
     }
@@ -88,6 +105,15 @@
         element.classList.toggle("message-pending", normalizedStatus === "pending");
         element.classList.toggle("message-failed", normalizedStatus === "failed");
         element.classList.toggle("message-interrupted", normalizedStatus === "interrupted");
+        if (normalizedStatus === "pending") {
+            pendingMessages.add(element);
+        } else {
+            pendingMessages.delete(element);
+        }
+        chatArea.setAttribute(
+            "aria-busy",
+            pendingMessages.size > 0 ? "true" : "false"
+        );
         if (statusElement) {
             statusElement.textContent = normalizedStatus === "pending"
                 && element.dataset.messageRole === "user"

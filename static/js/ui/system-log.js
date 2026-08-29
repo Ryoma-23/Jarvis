@@ -64,6 +64,15 @@
             append(`STATE_${state.jarvisState.toUpperCase()}`);
         }
 
+        if (state.activeTool !== previousState.activeTool) {
+            if (previousState.activeTool) {
+                append(`TOOL_END ${String(previousState.activeTool).toUpperCase()}`);
+            }
+            if (state.activeTool) {
+                append(`TOOL_START ${String(state.activeTool).toUpperCase()}`);
+            }
+        }
+
         if (
             state.connectionStatus === previousState.connectionStatus &&
             state.statusMessage === previousState.statusMessage

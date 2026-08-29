@@ -19,6 +19,8 @@
         coreCanvas: byId("jarvis-core-canvas"),
         coreState: byId("core-state"),
         coreCaption: byId("core-caption"),
+        coreToolStatus: byId("core-tool-status"),
+        uiNotification: byId("ui-notification"),
         systemLog: byId("system-log"),
         systemLogClearButton: byId("system-log-clear-button"),
         statusBar: byId("status-bar"),

@@ -350,6 +350,58 @@ class UiFoundationContractTests(unittest.TestCase):
         self.assertIn('clearButton.addEventListener("click", clear)', system_log)
         self.assertIn("clear: clear", system_log)
 
+    def test_phase_eleven_integrates_tool_error_and_latency_surfaces(self):
+        index = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
+        dom = (STATIC_DIR / "js" / "dom.js").read_text(encoding="utf-8")
+        integration = (
+            STATIC_DIR / "js" / "ui" / "integration-status.js"
+        ).read_text(encoding="utf-8")
+        status = (
+            STATIC_DIR / "js" / "ui" / "status-bar.js"
+        ).read_text(encoding="utf-8")
+        system_log = (
+            STATIC_DIR / "js" / "ui" / "system-log.js"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn('id="core-tool-status"', index)
+        self.assertIn('id="ui-notification"', index)
+        self.assertIn('data-status="latency"', index)
+        self.assertIn("/static/js/ui/integration-status.js", index)
+        self.assertIn('byId("core-tool-status")', dom)
+        self.assertIn('byId("ui-notification")', dom)
+        self.assertIn("state.activeTool", integration)
+        self.assertIn('state.connectionStatus === "error"', integration)
+        self.assertIn('notification.setAttribute("role", isError ? "alert"', integration)
+        self.assertIn("Number.isFinite(state.latencyMs)", status)
+        self.assertIn("TOOL_START", system_log)
+        self.assertIn("TOOL_END", system_log)
+
+    def test_phase_eleven_bounds_chat_dom_and_exposes_busy_state(self):
+        conversation = (
+            STATIC_DIR / "js" / "ui" / "conversation-view.js"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("const maximumRenderedMessages = 200", conversation)
+        self.assertIn("while (chatArea.children.length > maximumRenderedMessages)", conversation)
+        self.assertIn("messageElementsById.delete(messageId)", conversation)
+        self.assertIn('chatArea.setAttribute("aria-busy"', conversation)
+        self.assertIn("pendingMessages.size > 0", conversation)
+
+    def test_phase_eleven_manual_verification_document_covers_final_system(self):
+        manual = (
+            BASE_DIR / "docs" / "ui-manual-verification.md"
+        ).read_text(encoding="utf-8")
+
+        for section in (
+            "Text and voice Conversation",
+            "State, Tool, error, and log integration",
+            "Core and Audio Reactive",
+            "Accessibility",
+            "Long-running operation",
+            "Hardware-dependent acceptance",
+        ):
+            self.assertIn(section, manual)
+
 
 if __name__ == "__main__":
     unittest.main()
