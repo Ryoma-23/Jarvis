@@ -309,6 +309,28 @@ class UiFoundationContractTests(unittest.TestCase):
         self.assertIn("returnFlight", vertex)
         self.assertIn("uToolAccent", vertex)
 
+    def test_surface_resonance_replaces_audio_ring_with_particle_only_motion(self):
+        index = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
+        material = (STATIC_DIR / "js" / "core" / "core-materials.js").read_text(encoding="utf-8")
+        vertex = (STATIC_DIR / "js" / "core" / "shaders" / "particle-vertex.js").read_text(encoding="utf-8")
+        fragment = (STATIC_DIR / "js" / "core" / "shaders" / "particle-fragment.js").read_text(encoding="utf-8")
+        runtime = (STATIC_DIR / "js" / "core" / "shader-core-runtime.js").read_text(encoding="utf-8")
+
+        self.assertNotIn("audio-ring", index)
+        self.assertFalse((STATIC_DIR / "js" / "core" / "audio-ring.js").exists())
+        for uniform in ("uResonanceMode", "uResonanceLevel", "uResonancePhase"):
+            self.assertIn(uniform, material)
+            self.assertIn(uniform, vertex)
+        self.assertIn("intakeFocus", vertex)
+        self.assertIn("intakePull", vertex)
+        self.assertIn("emissionFront", vertex)
+        self.assertIn("emissionPush", vertex)
+        self.assertIn("vResonance", fragment)
+        self.assertIn("currentAudio > 0.035", runtime)
+        self.assertIn('activeState === "listening" ? audioLevels.input || 0', runtime)
+        self.assertIn('activeState === "speaking" ? audioLevels.output || 0', runtime)
+        self.assertIn("uniforms.uResonanceLevel.value = 0", runtime)
+
     def test_phase_eight_audio_analysis_is_split_and_cleanup_safe(self):
         index = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
         script = (STATIC_DIR / "script.js").read_text(encoding="utf-8")
@@ -338,8 +360,8 @@ class UiFoundationContractTests(unittest.TestCase):
 
         self.assertIn('activeState === "listening"', core)
         self.assertIn('activeState === "speaking"', core)
-        self.assertIn("return levels.input || 0", core)
-        self.assertIn("return levels.output || 0", core)
+        self.assertIn('activeState === "listening" ? audioLevels.input || 0', core)
+        self.assertIn('activeState === "speaking" ? audioLevels.output || 0', core)
         self.assertIn("uniforms.uAudioLevel.value", core)
 
     def test_phase_seven_adapts_fps_and_dpr_without_rebuilding_scene(self):

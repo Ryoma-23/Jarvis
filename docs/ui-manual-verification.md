@@ -63,6 +63,18 @@
 5. Disconnect and reconnect repeatedly. Confirm visualization resumes and no
    duplicate audio reaction or stale Tool badge remains.
 
+## Surface Resonance
+
+1. Speak while Jarvis is LISTENING and confirm a localized portion of the
+   existing outer particles draws inward and becomes more saturated. No ring,
+   arc, or new outline should appear.
+2. Trigger a spoken response and confirm energy travels from the inner particle
+   volume toward the outer surface. Microphone noise must not drive this motion.
+3. Let both input and output fall silent and confirm residual fine vibration
+   settles. Disconnect Realtime and confirm resonance stops immediately.
+4. Confirm IDLE and THINKING retain the Phase C appearance without any audio
+   overlay. With reduced motion enabled, confirm resonance deformation is off.
+
 ## Accessibility
 
 1. Navigate every button and text input using only Tab and Shift+Tab; confirm a

@@ -25,9 +25,11 @@ let animationFrameId;
 let lastFrameAt = 0;
 let elapsedSeconds = 0;
 let activeState = "idle";
+let realtimeConnected = false;
 let toolAccentTarget = 0;
 let transitionPulse = 0;
 let audioPeak = 0;
+let resonanceLevel = 0;
 let postProcessingFailed = false;
 const transitions = jarvisUI.coreStateTransitions.createStateTransitions("idle");
 let qualityLevel = qualityDprCaps.length - 1;
@@ -63,21 +65,24 @@ function resize() {
 }
 
 function setState(snapshot) {
-    const nextState = snapshot && snapshot.jarvisState;
+    const latestSnapshot = jarvisUI.state.getSnapshot ? jarvisUI.state.getSnapshot() : snapshot;
+    const nextState = latestSnapshot && latestSnapshot.jarvisState;
     const previousState = activeState;
     activeState = jarvisUI.coreStateTransitions.profiles[nextState] ? nextState : "idle";
     transitions.setState(activeState);
+    realtimeConnected = Boolean(latestSnapshot && latestSnapshot.connectionStatus === "connected");
+    if (!realtimeConnected) {
+        resonanceLevel = 0;
+        if (field) field.uniforms.uResonanceLevel.value = 0;
+    }
     if (previousState !== activeState) transitionPulse = 1;
-    toolAccentTarget = snapshot && snapshot.activeTool ? 1 : 0;
+    toolAccentTarget = latestSnapshot && latestSnapshot.activeTool ? 1 : 0;
 }
 
-function readAudioLevel() {
+function readAudioLevels() {
     const audio = jarvisUI.audioReactive;
-    if (!audio || typeof audio.getLevels !== "function") return 0;
-    const levels = audio.getLevels();
-    if (activeState === "listening") return levels.input || 0;
-    if (activeState === "speaking") return levels.output || 0;
-    return 0;
+    if (!audio || typeof audio.getLevels !== "function") return { input: 0, output: 0 };
+    return audio.getLevels();
 }
 
 function ease(current, target, amount) {
@@ -129,7 +134,16 @@ function render(now) {
     uniforms.uInwardFlow.value = profile.inwardFlow;
     uniforms.uOutwardWave.value = profile.outwardWave;
     uniforms.uErrorBurst.value = transition.errorBurst;
-    const currentAudio = readAudioLevel();
+    const audioLevels = readAudioLevels();
+    const currentAudio = realtimeConnected && activeState === "listening" ? audioLevels.input || 0 : realtimeConnected && activeState === "speaking" ? audioLevels.output || 0 : 0;
+    const resonanceMode = activeState === "listening" ? 1 : activeState === "speaking" ? 2 : 0;
+    const gatedResonance = currentAudio > 0.035 ? currentAudio : 0;
+    if (!realtimeConnected || resonanceMode === 0 || reducedMotion.matches) resonanceLevel = 0;
+    else resonanceLevel += (gatedResonance - resonanceLevel) * (gatedResonance > resonanceLevel ? 0.30 : 0.11);
+    if (resonanceLevel < 0.004) resonanceLevel = 0;
+    uniforms.uResonanceMode.value = reducedMotion.matches ? 0 : resonanceMode;
+    uniforms.uResonanceLevel.value = resonanceLevel;
+    uniforms.uResonancePhase.value = elapsedSeconds;
     audioPeak = Math.max(currentAudio * profile.audioResponse, audioPeak * 0.88);
     transitionPulse *= reducedMotion.matches ? 0 : 0.91;
     uniforms.uAudioLevel.value = ease(uniforms.uAudioLevel.value, audioPeak, 0.22);
@@ -195,6 +209,7 @@ try {
     resize();
     if (jarvisUI.state && typeof jarvisUI.state.subscribe === "function") {
         unsubscribeState = jarvisUI.state.subscribe(setState);
+        setState(jarvisUI.state.getSnapshot());
     }
     document.addEventListener("visibilitychange", () => { lastFrameAt = 0; });
     global.addEventListener("beforeunload", dispose, { once: true });

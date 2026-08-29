@@ -12,6 +12,7 @@ varying float vBrightness;
 varying float vDepthFade;
 varying float vColorMix;
 varying float vBloomWeight;
+varying float vResonance;
 
 void main() {
     vec2 centered = gl_PointCoord - vec2(0.5);
@@ -25,8 +26,9 @@ void main() {
     alpha *= vBrightness * mix(0.48, 1.0, vDepthFade);
 
     vec3 color = mix(uColorPrimary, uColorSecondary, vColorMix);
+    color = mix(color, uColorPrimary * 1.12, vResonance * 0.38);
     color *= 0.92 + brightCore * 0.58 + vBloomWeight * brightCore * 0.78;
-    gl_FragColor = vec4(color, alpha);
+    gl_FragColor = vec4(color, alpha * (1.0 + vResonance * 0.36));
 }
 `;
 })(window);

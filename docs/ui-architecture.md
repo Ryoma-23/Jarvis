@@ -293,3 +293,22 @@ particle resources, and the renderer are explicitly disposed. If composer
 creation or rendering fails, the runtime logs `CORE_BLOOM_FALLBACK` and
 continues with direct WebGLRenderer output; the existing legacy WebGL and CSS
 fallbacks remain below that boundary.
+
+## Surface Resonance audio visualization
+
+The separate Visual Phase D Audio Ring was removed because detached arcs and
+ripples weakened the organic Core design. Audio visualization now remains
+entirely inside the existing particle field. No RingGeometry, line, plane,
+outline, or additional scene object is created.
+
+The Core samples `audioReactive.getLevels()` once per rendered frame and applies
+a `0.035` visual noise gate. Listening uses only microphone `input`: a narrow,
+slowly travelling region on the outer particle surface becomes denser, gains
+state-colored energy, and pulls inward. This reads as information entering the
+Core without drawing its path as a visible circle.
+
+Speaking uses only Jarvis `output`: an energy front advances from inner volume
+particles toward the surface, displacing and saturating only the particles it
+crosses. The two modes therefore differ by physical direction rather than a
+color or overlay. Idle, Thinking, disconnection, and reduced-motion conditions
+set resonance strength to zero. Existing Phase C motion remains the baseline.

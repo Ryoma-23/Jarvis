@@ -18,6 +18,9 @@ uniform float uNoiseAmount;
 uniform float uParticleRadius;
 uniform float uAttraction;
 uniform float uAudioResponse;
+uniform float uResonanceMode;
+uniform float uResonanceLevel;
+uniform float uResonancePhase;
 uniform float uParticleSizeScale;
 uniform float uOrbitSync;
 uniform float uAxisTilt;
@@ -37,6 +40,7 @@ varying float vBrightness;
 varying float vDepthFade;
 varying float vColorMix;
 varying float vBloomWeight;
+varying float vResonance;
 
 mat2 rotate2d(float angle) {
     float sine = sin(angle);
@@ -78,7 +82,17 @@ void main() {
     float speakingWave = sin(baseRadius * 15.0 - time * 4.5 + aPhase) * uOutwardWave * (0.014 + uAudioLevel * 0.045);
     float returnFlight = pow(max(0.0, sin(time * 1.8 + aPhase)), 7.0) * uOutwardWave * step(0.82, aSeed) * 0.22;
     float errorScatter = uErrorBurst * (aSeed - 0.5) * 0.24;
-    displaced += radial * (convergence + outwardDrift + inwardFlow + audioExpansion + speakingWave + returnFlight + errorScatter) * uMotionIntensity;
+    float listeningMask = 1.0 - step(1.5, uResonanceMode);
+    listeningMask *= step(0.5, uResonanceMode);
+    float speakingMask = step(1.5, uResonanceMode);
+    float azimuth = atan(base.z, base.x);
+    float intakeFocus = pow(max(0.0, 0.5 + 0.5 * cos(azimuth - uResonancePhase * 0.62 + sin(base.y * 4.0) * 0.42)), 7.0);
+    float intakePull = -uResonanceLevel * intakeFocus * aLayer * 0.115 * listeningMask;
+    float propagation = 0.5 + 0.5 * sin(baseRadius * 18.0 - uResonancePhase * 5.2 + aPhase * 0.18);
+    float emissionFront = pow(propagation, 8.0) * uResonanceLevel * speakingMask;
+    float emissionPush = emissionFront * mix(0.075, 0.125, aLayer);
+    displaced += radial * (convergence + outwardDrift + inwardFlow + audioExpansion + speakingWave + returnFlight + errorScatter + intakePull + emissionPush) * uMotionIntensity;
+    displaced += flow * intakeFocus * uResonanceLevel * listeningMask * innerWeight * 0.024;
     displaced += normalize(flow + vec3(0.001)) * uToolAccent * innerWeight * 0.055;
     displaced += radial * uTransitionPulse * (0.035 + aSeed * 0.025);
     displaced *= uCoreScale;
@@ -94,6 +108,7 @@ void main() {
     float highEnergy = smoothstep(0.84, 1.0, aBrightness);
     float nucleus = (1.0 - aLayer) * (1.0 - smoothstep(0.05, 0.62, baseRadius));
     vBloomWeight = clamp(highEnergy * 0.62 + nucleus * 0.92 + uAudioLevel * 0.52 + uTransitionPulse * 0.35 + uToolAccent * 0.28, 0.0, 1.65);
+    vResonance = clamp(intakeFocus * uResonanceLevel * listeningMask + emissionFront * speakingMask, 0.0, 1.0);
 }
 `;
 })(window);
