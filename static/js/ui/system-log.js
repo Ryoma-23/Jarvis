@@ -9,6 +9,15 @@
 
     const maximumEntries = 100;
 
+    function classify(message, level) {
+        const normalized = String(message || "");
+        if (level === "error") return { kind: "error", label: "ERROR", content: normalized };
+        if (normalized.startsWith("TOOL_")) {
+            return { kind: "tool", label: "TOOL", content: normalized.replace(/^TOOL_/, "") };
+        }
+        return { kind: "info", label: "INFO", content: normalized };
+    }
+
     function append(message, level = "info") {
         const logContainer = jarvisUI.dom.elements.systemLog;
 
@@ -18,17 +27,23 @@
 
         const entry = document.createElement("div");
         const timestamp = document.createElement("time");
+        const type = document.createElement("span");
         const content = document.createElement("span");
+        const classification = classify(message, level);
 
-        entry.className = "system-log-entry";
+        entry.className = "system-log-entry log-entry-new";
         entry.dataset.level = String(level);
+        entry.dataset.kind = classification.kind;
         timestamp.dateTime = new Date().toISOString();
         timestamp.textContent = new Date().toLocaleTimeString("ja-JP", {
             hour12: false
         });
-        content.textContent = String(message);
+        type.className = "log-type";
+        type.textContent = classification.label;
+        content.className = "log-content";
+        content.textContent = classification.content;
 
-        entry.append(timestamp, content);
+        entry.append(timestamp, type, content);
         logContainer.appendChild(entry);
 
         while (logContainer.children.length > maximumEntries) {

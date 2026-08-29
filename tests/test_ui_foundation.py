@@ -418,7 +418,7 @@ class UiFoundationContractTests(unittest.TestCase):
         ).read_text(encoding="utf-8")
 
         self.assertIn("const maximumEntries = 100", system_log)
-        self.assertIn("content.textContent = String(message)", system_log)
+        self.assertIn("content.textContent = classification.content", system_log)
         self.assertNotIn("innerHTML", system_log)
 
     def test_system_log_can_clear_only_rendered_entries(self):
@@ -487,6 +487,56 @@ class UiFoundationContractTests(unittest.TestCase):
             "Hardware-dependent acceptance",
         ):
             self.assertIn(section, manual)
+
+    def test_visual_phase_f_polishes_panels_controls_and_tool_status_accessibly(self):
+        index = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
+        style = (STATIC_DIR / "style.css").read_text(encoding="utf-8")
+        system_log = (STATIC_DIR / "js" / "ui" / "system-log.js").read_text(encoding="utf-8")
+        conversation = (STATIC_DIR / "js" / "ui" / "conversation-view.js").read_text(encoding="utf-8")
+        integration = (STATIC_DIR / "js" / "ui" / "integration-status.js").read_text(encoding="utf-8")
+
+        for control_id in ("voice-connect-button", "voice-disconnect-button", "voice-reconnect-button"):
+            self.assertIn(f'id="{control_id}"', index)
+        self.assertIn('aria-label="音声接続"', index)
+        self.assertIn('aria-label="音声を切断"', index)
+        self.assertIn('aria-label="音声を再接続"', index)
+        self.assertIn('class="visually-hidden">音声接続</span>', index)
+        self.assertIn('class="tool-progress"', index)
+
+        self.assertIn("function classify(message, level)", system_log)
+        self.assertIn('label: "TOOL"', system_log)
+        self.assertIn('label: "ERROR"', system_log)
+        self.assertIn("entry.append(timestamp, type, content)", system_log)
+        self.assertIn('entry.className = "system-log-entry log-entry-new"', system_log)
+        self.assertIn("grid-template-columns: 58px 38px minmax(0, 1fr)", style)
+        self.assertIn("nth-last-child", style)
+        self.assertIn("@keyframes log-entry-arrival", style)
+
+        self.assertIn('headerElement.className = "message-head"', conversation)
+        self.assertIn('label.textContent = isUser ? "YOU" : "JARVIS"', conversation)
+        self.assertIn("message-pending.ai-message .message-content::after", style)
+        self.assertIn("max-width: 58ch", style)
+        self.assertIn("position: sticky", style)
+
+        self.assertIn("const toolLabels = Object.freeze", integration)
+        self.assertIn('container.classList.add("is-completing")', integration)
+        self.assertIn("}, 320)", integration)
+        self.assertIn("tool-progress-scan", style)
+        self.assertIn("tool-energy-flow", style)
+        self.assertIn("button:active:not(:disabled)", style)
+        self.assertIn("button:focus-visible", style)
+
+    def test_core_is_full_viewport_scene_beneath_quiet_ui_overlays(self):
+        style = (STATIC_DIR / "style.css").read_text(encoding="utf-8")
+
+        self.assertIn(".app-shell {\n    position: relative;\n    display: block;", style)
+        self.assertIn(".workspace {\n    position: absolute;\n    inset: 0 0 28px;", style)
+        self.assertIn(".core-area {\n    position: absolute;\n    z-index: 0;\n    inset: 0;", style)
+        self.assertIn(".app-header {\n    position: absolute;\n    z-index: 10;", style)
+        self.assertIn(".system-panel {\n    position: absolute;\n    z-index: 5;", style)
+        self.assertIn(".conversation-panel {\n    position: absolute;\n    z-index: 5;", style)
+        self.assertIn("background: linear-gradient(270deg", style)
+        self.assertIn("@media (max-height: 520px) and (max-width: 680px)", style)
 
 
 if __name__ == "__main__":

@@ -51,6 +51,11 @@ idle prematurely. A completed tool keeps the visual state at thinking while
 the existing follow-up response is requested. A failed Tool call returns to
 idle instead of leaving the UI in a stale thinking state.
 
+For concurrent Tool activity, the counter continues to determine Thinking
+lifetime and the latest `activeTool` value is the visible short label. Clearing
+the final Tool starts a 320ms presentation-only fade; it does not delay or alter
+the state-machine transition.
+
 ## Phase 11 integrated outputs
 
 All consumers observe `JarvisUI.state`; none of them control the Realtime

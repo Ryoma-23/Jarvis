@@ -339,3 +339,58 @@ Atmosphere uses two extremely low-opacity procedural CSS gradient patterns at
 different scales. Their stepped background-position animation changes slowly
 to break color banding without resembling visible grain. Narrow layouts reduce
 both grid and atmosphere opacity, and reduced-motion disables noise movement.
+
+## Visual Phase F panel and control polish
+
+The Header is reduced to a 58px ambient strip with no structural bottom rule.
+Its connection label remains available but visually secondary to the larger
+state-colored light point. System and Conversation panels retain their regions
+and DOM IDs but use only quiet inline edges and translucent tonal separation,
+rather than complete dashboard-card borders.
+
+System Log entries have fixed time, type, and content columns. Messages are
+classified as INFO, TOOL, or ERROR without changing their original safe
+`textContent` rendering. New entries receive one brief background-energy pass;
+CSS `nth-last-child` aging progressively lowers older-entry opacity. The log
+remains capped at 100 rows and the existing Clear control is unchanged in size
+and behavior.
+
+Conversation messages use a continuous timeline edge with compact YOU/JARVIS
+identity, smaller TEXT/VOICE metadata, a bounded 58-character text measure,
+and a restrained streaming cursor. Interrupted and failed output is dimmed and
+uses warning-level status color rather than a dominant error-red card. The
+composer is visually integrated into the panel floor and becomes sticky at the
+narrow viewport produced by high zoom.
+
+Voice controls keep their original IDs and click handlers. Visible labels are
+replaced by compact glyphs while Japanese accessible names, hidden fallback
+text, native disabled state, title tooltip, focus ring, hover, and pressed
+feedback remain. At 520px and below the layout preserves the three voice
+controls, message input, Send, and new-conversation action.
+
+Tool display maps common internal identifiers to short labels and truncates
+unknown names to 18 characters while retaining the full value in `title` and
+`aria-label`. A one-pixel scan and short Core-directed energy trace indicate
+work without introducing another panel. Completion fades for 320ms. Existing
+Tool depth remains authoritative; when Tool operations overlap, the most
+recent `activeTool` name is displayed while Thinking remains active until the
+depth returns to zero.
+
+### Core-first overlay composition
+
+The viewport is composed as one continuous Core scene rather than three equal
+dashboard columns. `.core-area` and `.core-stage` fill the workspace at the
+lowest layer, allowing the Shader Core, spatial particles, atmosphere, and
+perspective grid to establish the full-screen visual field. Header, status,
+System Log, Conversation, Tool state, and voice controls are positioned above
+that field with explicit z-index layers; their DOM IDs and event ownership are
+unchanged.
+
+On wide screens, System Log and Conversation are narrow translucent edge
+overlays. Their gradients become transparent toward the Core, avoiding hard
+panel frames and keeping the center visually dominant. At 900px and below the
+log is hidden as before. At 680px and below, Conversation becomes a bottom
+overlay while voice controls move beneath the floating Header, leaving the
+upper scene available to the Core. A short-viewport rule prioritizes Header,
+voice controls, and Conversation operations when browser zoom materially
+reduces the available height.

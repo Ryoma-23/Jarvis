@@ -46,6 +46,7 @@
         const isUser = message.role === "user";
         const source = message.source === "voice" ? "voice" : "text";
         const element = document.createElement("div");
+        const headerElement = document.createElement("div");
         const label = document.createElement("strong");
         const contentElement = document.createElement("span");
         const metadataElement = document.createElement("span");
@@ -55,7 +56,8 @@
         element.className = isUser ? "user-message" : "ai-message";
         element.dataset.messageRole = isUser ? "user" : "assistant";
         element.dataset.messageSource = source;
-        label.textContent = isUser ? "自分: " : "Jarvis: ";
+        headerElement.className = "message-head";
+        label.textContent = isUser ? "YOU" : "JARVIS";
         contentElement.className = "message-content";
         contentElement.textContent = String(message.content || "");
         metadataElement.className = "message-meta";
@@ -63,7 +65,8 @@
         sourceElement.textContent = source.toUpperCase();
         statusElement.className = "message-state";
         metadataElement.append(sourceElement, statusElement);
-        element.append(label, metadataElement, contentElement);
+        headerElement.append(label, metadataElement);
+        element.append(headerElement, contentElement);
         statusElementsByMessage.set(element, statusElement);
 
         markMessageStatus(element, message.status || "completed");

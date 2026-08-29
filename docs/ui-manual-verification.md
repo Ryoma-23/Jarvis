@@ -88,6 +88,22 @@
 5. Enable reduced motion and confirm background particles, parallax, and
    atmospheric drift stop while the static depth composition remains visible.
 
+## Panels and controls
+
+1. Confirm the Core remains visually dominant and both side regions read as
+   timeline/instrument surfaces rather than isolated dashboard cards.
+2. Generate INFO, TOOL, and ERROR log entries. Confirm fixed columns, distinct
+   type colors, a brief new-row highlight, gradual aging, and unchanged Clear.
+3. Confirm YOU/JARVIS alignment, small TEXT/VOICE labels, restrained streaming
+   cursor, readable long-message line length, and subdued failed/interrupted rows.
+4. Operate Connect, Disconnect, and Reconnect with mouse and keyboard. Confirm
+   hover, focus, pressed, disabled state, tooltip, and screen-reader names.
+5. Trigger sequential and overlapping Tools. Confirm the latest short name is
+   displayed, progress remains subtle, Thinking persists through overlap, and
+   the final Tool fades without leaving stale UI.
+6. At 200% browser/display scaling, confirm voice controls, new conversation,
+   message input, and Send remain visible and keyboard reachable.
+
 ## Accessibility
 
 1. Navigate every button and text input using only Tab and Shift+Tab; confirm a
