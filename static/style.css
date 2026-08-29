@@ -642,12 +642,13 @@ body[data-jarvis-state="error"] {
     overflow-wrap: anywhere;
 }
 
-.user-message[data-message-source="voice"]::after,
-.ai-message[data-message-source="voice"]::after {
+.message-meta {
     position: absolute;
     top: 0;
     right: 0;
-    content: "VOICE";
+    display: flex;
+    gap: 7px;
+    align-items: center;
     color: var(--color-text-muted);
     font-family: var(--font-mono);
     font-size: 7px;
@@ -655,9 +656,27 @@ body[data-jarvis-state="error"] {
     opacity: 0.58;
 }
 
+.message-state {
+    color: var(--color-warning);
+}
+
+.message-failed .message-state {
+    color: var(--color-error);
+}
+
+.message-pending .message-state {
+    animation: message-state-pulse 1.4s ease-in-out infinite;
+}
+
 .message-failed,
 .message-interrupted {
     opacity: 0.66;
+}
+
+@keyframes message-state-pulse {
+    50% {
+        opacity: 0.35;
+    }
 }
 
 .input-area {

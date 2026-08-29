@@ -31,7 +31,6 @@ let realtimeLastMeaningfulActivityAt = 0;
 let activeRealtimeToolCallCount = 0;
 let hasConversationPersistenceWarning = false;
 
-const messageElementsById = new Map();
 const realtimeUserMessagesByItemId = new Map();
 const realtimeSpeechTurnsByItemId = new Map();
 const realtimeRestoredItemIds = new Set();
@@ -108,6 +107,15 @@ const {
     voiceReconnectButton,
     voiceStatus
 } = window.JarvisUI.dom.elements;
+const {
+    renderConversationHistory,
+    clearRenderedMessages,
+    renderConversationMessage,
+    appendMessageText,
+    updateMessageContent,
+    registerMessageElement,
+    markMessageStatus
+} = window.JarvisUI.conversationView;
 
 voiceConnectButton.addEventListener("click", function() {
     void startRealtimeVoice("manual");
@@ -2882,92 +2890,6 @@ async function handleRealtimeToolCall(data, sessionId) {
         );
         markRealtimeConversationActivity(sessionId);
     }
-}
-
-
-function renderConversationHistory(messages) {
-    clearRenderedMessages();
-
-    for (const message of messages) {
-        renderConversationMessage(message);
-    }
-
-    chatArea.scrollTop = chatArea.scrollHeight;
-}
-
-
-function clearRenderedMessages() {
-    messageElementsById.clear();
-    chatArea.replaceChildren();
-}
-
-
-function renderConversationMessage(message) {
-    const isUser = message.role === "user";
-    const element = document.createElement("div");
-    const label = document.createElement("strong");
-    const contentElement = document.createElement("span");
-
-    element.className = isUser ? "user-message" : "ai-message";
-    label.textContent = isUser ? "自分: " : "Jarvis: ";
-    contentElement.className = "message-content";
-    contentElement.textContent = String(message.content || "");
-    element.dataset.messageSource = message.source || "text";
-
-    element.append(label, contentElement);
-    markMessageStatus(element, message.status || "completed");
-
-    if (message.id) {
-        registerMessageElement(message.id, element);
-    }
-
-    chatArea.appendChild(element);
-    chatArea.scrollTop = chatArea.scrollHeight;
-
-    return {
-        element: element,
-        contentElement: contentElement
-    };
-}
-
-
-function appendMessageText(messageView, text) {
-    messageView.contentElement.append(
-        document.createTextNode(String(text))
-    );
-}
-
-
-function updateMessageContent(messageView, text) {
-    messageView.contentElement.textContent = String(text || "");
-}
-
-
-function registerMessageElement(messageId, element) {
-    const normalizedMessageId = String(messageId || "").trim();
-
-    if (!normalizedMessageId) {
-        return;
-    }
-
-    const previousMessageId = element.dataset.messageId;
-
-    if (previousMessageId) {
-        messageElementsById.delete(previousMessageId);
-    }
-
-    element.dataset.messageId = normalizedMessageId;
-    messageElementsById.set(normalizedMessageId, element);
-}
-
-
-function markMessageStatus(element, status) {
-    element.dataset.messageStatus = status;
-    element.classList.toggle("message-failed", status === "failed");
-    element.classList.toggle(
-        "message-interrupted",
-        status === "interrupted"
-    );
 }
 
 

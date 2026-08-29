@@ -114,7 +114,7 @@ class UiFoundationContractTests(unittest.TestCase):
 
         self.assertIn("@media (prefers-contrast: more)", style)
         self.assertIn("#chat-area:empty::before", style)
-        self.assertIn('[data-message-source="voice"]::after', style)
+        self.assertIn(".message-meta", style)
         self.assertIn("stateCaptions", jarvis_state)
 
     def test_phase_four_state_controller_has_explicit_priority_and_signals(self):

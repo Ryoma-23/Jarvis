@@ -114,7 +114,7 @@ class RealtimeTextInputFrontendContractTests(unittest.TestCase):
         )
 
         tool_start = self.script.index("async function handleRealtimeToolCall")
-        tool_end = self.script.index("function renderConversationHistory")
+        tool_end = self.script.index("function updateVoiceStatus")
         tool_source = self.script[tool_start:tool_end]
         self.assertIn('type: "function_call_output"', tool_source)
         self.assertIn("realtimeTextTurnsByResponseId.get(responseId)", tool_source)

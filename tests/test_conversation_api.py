@@ -22,6 +22,9 @@ class ConversationApiContractTests(unittest.TestCase):
 
     def test_browser_loads_history_and_maps_message_ids_without_inner_html(self):
         script = Path("static/script.js").read_text(encoding="utf-8")
+        view = Path("static/js/ui/conversation-view.js").read_text(
+            encoding="utf-8"
+        )
         index = Path("static/index.html").read_text(encoding="utf-8")
 
         self.assertIn('requestJson("/conversations/active")', script)
@@ -29,11 +32,13 @@ class ConversationApiContractTests(unittest.TestCase):
         self.assertIn('window.addEventListener("focus"', script)
         self.assertIn("renderConversationHistory", script)
         self.assertIn("renderConversationMessage", script)
-        self.assertIn("const messageElementsById = new Map();", script)
-        self.assertIn("element.dataset.messageId", script)
-        self.assertIn("document.createTextNode", script)
-        self.assertIn("contentElement.textContent", script)
+        self.assertIn("const messageElementsById = new Map();", view)
+        self.assertIn("element.dataset.messageId", view)
+        self.assertIn("document.createTextNode", view)
+        self.assertIn("contentElement.textContent", view)
         self.assertNotIn("innerHTML", script)
+        self.assertNotIn("innerHTML", view)
+        self.assertIn("/static/js/ui/conversation-view.js", index)
         self.assertIn('id="new-conversation-button"', index)
 
     def test_browser_warns_only_after_persistence_retry_final_failure(self):

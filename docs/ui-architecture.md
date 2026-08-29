@@ -172,6 +172,22 @@ remote amplitude only while it is `speaking`. The selected level adds bounded
 particle displacement, scale, and colored intensity. Unsupported or suspended
 Web Audio produces level zero and leaves the Phase 6 state animation intact.
 
+## Phase 9 Chat integration
+
+Text chat, voice user transcripts, assistant audio transcripts, and text turns
+sent through an active Realtime session already share the persisted
+Conversation history. Phase 9 consolidates their browser rendering in
+`static/js/ui/conversation-view.js`. The module owns message DOM creation,
+safe incremental text updates, Message ID registration, and visual status.
+`static/script.js` retains API, persistence, Realtime, interruption, and queue
+ownership and calls this display-only boundary.
+
+Every message now renders a real `TEXT` or `VOICE` metadata element rather than
+a CSS pseudo-element. Pending user and assistant output displays `SENDING` and
+`STREAMING` respectively; interrupted and failed records display `INTERRUPTED`
+and `FAILED`. Restored history and live messages use the same renderer and
+`textContent`/Text Node safety boundary.
+
 Each visual Jarvis state selects a target profile for rotation speed, particle
 movement, pulse depth, inner particle motion, and intensity. Values ease
 toward the profile to prevent abrupt visual changes. The existing 30 FPS and
