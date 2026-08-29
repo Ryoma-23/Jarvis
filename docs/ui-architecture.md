@@ -237,3 +237,59 @@ Audio Analyser buffer reuse, and explicit WebGL/Web Audio cleanup. Tool and
 error overlays include narrow-screen, increased-contrast, and semantic live
 region behavior. Manual hardware and visual checks are documented in
 `docs/ui-manual-verification.md`.
+
+## Visual Phase A Shader Core
+
+The primary Core renderer is now a GPU-driven particle field. The dependency
+order is vertex shader, fragment shader, material factory, particle-field
+factory, and runtime controller. `shader-core-runtime.js` owns only scene
+lifecycle, state/audio sampling, quality control, resizing, and Uniform
+updates. The previous `jarvis-core.js` renderer remains as a compatibility
+fallback and exits immediately after the Shader Core initializes.
+
+`particle-field.js` creates one immutable BufferGeometry containing 2,330
+particles. Deterministically generated surface, volume, inward-flow, and
+cluster populations prevent a uniform shell appearance while keeping reloads
+visually stable. Each vertex carries its base position, seed, point size,
+brightness, speed, phase, and layer classification. These buffers are not
+rewritten during animation.
+
+The vertex shader performs slow orbital rotation, curl-like organic
+displacement, inner convergence, outer drift, state-dependent motion, and
+audio expansion. Point size is corrected for camera distance and current DPR.
+The fragment shader uses `gl_PointCoord` to discard square corners and combines
+a bright center with a soft colored halo, particle brightness variation, and
+view-depth fading.
+
+The runtime updates only `uTime`, `uStateBlend`, `uAudioLevel`,
+`uMotionIntensity`, `uCoreScale`, `uColorPrimary`, `uColorSecondary`, and
+`uPixelRatio`. State and Audio Reactive ownership remains unchanged. Hidden
+page throttling, 20/30 FPS targets, adaptive DPR, reduced-motion behavior,
+explicit disposal, and the CSS fallback remain active.
+
+## Visual Phase B Bloom and volumetric glow
+
+The Core canvas now renders through the official Three.js r128 Examples
+post-processing chain: WebGLRenderer, RenderPass, UnrealBloomPass, then the
+composer's final screen output. Bloom uses a high `0.88` threshold, moderate
+`0.72` strength, `0.30` radius, Reinhard tone mapping, and `0.92` exposure to
+preserve state hue and saturation. Because the Core canvas is isolated from
+the DOM UI, panels, labels, and controls never enter the Bloom render target.
+
+Selective Bloom is driven by HDR output from the particle shader. Inner-core
+particles and exceptional per-particle brightness receive the strongest
+weight. Audio peaks, state-transition waves, and active Tool state temporarily
+raise that weight, while ordinary outer particles normally stay below the
+Bloom threshold.
+
+`volumetric-glow.js` adds three camera-facing planar layers at different depth
+and scale. Their fragment shader combines radial attenuation with slow noise,
+state colors, audio energy, Tool accent, and a decaying transition ring. This
+is a lightweight screen-facing aura rather than ray-marched volumetrics.
+
+The EffectComposer follows renderer DPR and stage size after every resize and
+adaptive-quality change. Bloom render targets, glow geometry/materials,
+particle resources, and the renderer are explicitly disposed. If composer
+creation or rendering fails, the runtime logs `CORE_BLOOM_FALLBACK` and
+continues with direct WebGLRenderer output; the existing legacy WebGL and CSS
+fallbacks remain below that boundary.

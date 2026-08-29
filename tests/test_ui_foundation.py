@@ -174,9 +174,10 @@ class UiFoundationContractTests(unittest.TestCase):
         index = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
         dom = (STATIC_DIR / "js" / "dom.js").read_text(encoding="utf-8")
         style = (STATIC_DIR / "style.css").read_text(encoding="utf-8")
-        core = (
-            STATIC_DIR / "js" / "core" / "jarvis-core.js"
+        runtime = (
+            STATIC_DIR / "js" / "core" / "shader-core-runtime.js"
         ).read_text(encoding="utf-8")
+        field = (STATIC_DIR / "js" / "core" / "particle-field.js").read_text(encoding="utf-8")
         three_module = STATIC_DIR / "vendor" / "three" / "three.min.js"
         three_license = (
             STATIC_DIR / "vendor" / "three" / "LICENSE"
@@ -191,13 +192,12 @@ class UiFoundationContractTests(unittest.TestCase):
             index.index("/static/js/core/jarvis-core.js"),
         )
         self.assertIn('byId("jarvis-core-canvas")', dom)
-        self.assertIn("const THREE = global.THREE;", core)
-        self.assertIn("CORE_WEBGL_DEPENDENCY_UNAVAILABLE", core)
-        self.assertIn("new THREE.WebGLRenderer", core)
-        self.assertIn("new THREE.Points(", core)
-        self.assertNotIn("new THREE.SphereGeometry", core)
-        self.assertIn('stage.dataset.renderer = "webgl"', core)
-        self.assertIn('stage.dataset.renderer = "fallback"', core)
+        self.assertIn("const THREE = global.THREE;", runtime)
+        self.assertIn("new THREE.WebGLRenderer", runtime)
+        self.assertIn("new THREE.Points(", field)
+        self.assertNotIn("new THREE.SphereGeometry", field)
+        self.assertIn('stage.dataset.renderer = "webgl"', runtime)
+        self.assertIn('stage.dataset.renderer = "fallback"', runtime)
         self.assertIn('.core-stage[data-renderer="webgl"] .core-canvas', style)
         self.assertGreater(three_module.stat().st_size, 300_000)
         self.assertIn("MIT License", three_license)
@@ -205,63 +205,90 @@ class UiFoundationContractTests(unittest.TestCase):
 
     def test_phase_five_core_limits_background_rendering_and_gpu_cost(self):
         core = (
-            STATIC_DIR / "js" / "core" / "jarvis-core.js"
+            STATIC_DIR / "js" / "core" / "shader-core-runtime.js"
         ).read_text(encoding="utf-8")
 
-        self.assertIn("const particleCount = 1000", core)
         self.assertIn("const activeFrameDurationMs = 1000 / 30", core)
         self.assertIn("const idleFrameDurationMs = 1000 / 20", core)
-        self.assertIn('powerPreference: "low-power"', core)
+        self.assertIn('powerPreference: "high-performance"', core)
         self.assertIn("qualityDprCaps[qualityLevel]", core)
         self.assertIn('document.addEventListener("visibilitychange"', core)
         self.assertIn("document.hidden", core)
         self.assertIn("reducedMotion.matches", core)
         self.assertIn("renderer.dispose()", core)
 
-    def test_phase_six_core_uses_fluid_particle_layers_without_lines(self):
-        core = (
-            STATIC_DIR / "js" / "core" / "jarvis-core.js"
-        ).read_text(encoding="utf-8")
+    def test_visual_phase_a_uses_shader_particles_and_static_geometry(self):
+        index = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
+        material = (STATIC_DIR / "js" / "core" / "core-materials.js").read_text(encoding="utf-8")
+        field = (STATIC_DIR / "js" / "core" / "particle-field.js").read_text(encoding="utf-8")
+        runtime = (STATIC_DIR / "js" / "core" / "shader-core-runtime.js").read_text(encoding="utf-8")
 
-        self.assertNotIn("THREE.LineSegments", core)
-        self.assertNotIn("THREE.LineBasicMaterial", core)
-        self.assertIn("const coreLayerConfigs", core)
-        self.assertIn("count: 260", core)
-        self.assertIn("count: 170", core)
-        self.assertIn("count: 90", core)
-        self.assertIn("function createCoreLayer(config)", core)
-        self.assertIn("function updateCoreMovement(deltaSeconds)", core)
-        self.assertIn("updateParticleMovement()", core)
-        self.assertIn("activeProfile = stateProfiles", core)
-        self.assertIn("visualValues[key] = approach", core)
-        self.assertIn("coreLayers.forEach(disposeObject)", core)
+        expected_order = ["particle-vertex.js", "particle-fragment.js", "core-materials.js", "particle-field.js", "shader-core-runtime.js"]
+        self.assertEqual(sorted(expected_order, key=index.index), expected_order)
+        self.assertIn("new THREE.ShaderMaterial", material)
+        self.assertNotIn("THREE.PointsMaterial", material)
+        for attribute in ("aBasePosition", "aSeed", "aParticleSize", "aBrightness", "aSpeed", "aPhase", "aLayer"):
+            self.assertIn(attribute, field)
+        self.assertIn("surface: 1050", field)
+        self.assertIn("volume: 720", field)
+        self.assertIn("flow: 300", field)
+        self.assertIn("cluster: 260", field)
+        self.assertNotIn("needsUpdate", field)
+        self.assertNotIn("needsUpdate", runtime)
 
-    def test_phase_six_core_polish_uses_smaller_antialiased_layers(self):
-        core = (
-            STATIC_DIR / "js" / "core" / "jarvis-core.js"
-        ).read_text(encoding="utf-8")
+    def test_visual_phase_a_shader_has_required_uniforms_and_round_glow(self):
+        vertex = (STATIC_DIR / "js" / "core" / "shaders" / "particle-vertex.js").read_text(encoding="utf-8")
+        fragment = (STATIC_DIR / "js" / "core" / "shaders" / "particle-fragment.js").read_text(encoding="utf-8")
+        material = (STATIC_DIR / "js" / "core" / "core-materials.js").read_text(encoding="utf-8")
 
-        self.assertIn("radius: 0.5832", core)
-        self.assertIn("radius: 0.3483", core)
-        self.assertIn("radius: 0.162", core)
-        self.assertIn('textureCanvas.width = 96', core)
-        self.assertIn("new THREE.CanvasTexture(textureCanvas)", core)
-        self.assertIn("map: particleTexture", core)
-        self.assertIn("alphaTest: 0.015", core)
-        self.assertIn("size: 0.060", core)
-        self.assertIn("opacity: 0.88", core)
-        self.assertIn("whiteMix: 0.46", core)
-        self.assertIn("particleTexture.dispose()", core)
+        for uniform in ("uTime", "uStateBlend", "uAudioLevel", "uMotionIntensity", "uCoreScale", "uColorPrimary", "uColorSecondary", "uPixelRatio"):
+            self.assertIn(uniform, vertex + fragment)
+            self.assertIn(uniform, material)
+        self.assertIn("gl_PointCoord", fragment)
+        self.assertIn("discard", fragment)
+        self.assertIn("brightCore", fragment)
+        self.assertIn("distanceScale", vertex)
 
-    def test_phase_six_visible_particle_outline_uses_cumulative_scale(self):
-        core = (
-            STATIC_DIR / "js" / "core" / "jarvis-core.js"
-        ).read_text(encoding="utf-8")
+    def test_visual_phase_b_uses_local_official_bloom_pipeline(self):
+        index = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
+        post = (STATIC_DIR / "js" / "core" / "post-processing.js").read_text(encoding="utf-8")
+        vendor = STATIC_DIR / "vendor" / "three" / "examples" / "js"
+        expected = [
+            "CopyShader.js", "LuminosityHighPassShader.js", "Pass.js",
+            "EffectComposer.js", "RenderPass.js", "ShaderPass.js", "UnrealBloomPass.js",
+        ]
+        for filename in expected:
+            self.assertIn(filename, index)
+        self.assertLess(index.index("RenderPass.js"), index.index("UnrealBloomPass.js"))
+        self.assertLess(index.index("UnrealBloomPass.js"), index.index("post-processing.js"))
+        self.assertTrue((vendor / "postprocessing" / "EffectComposer.js").is_file())
+        self.assertTrue((vendor / "postprocessing" / "UnrealBloomPass.js").is_file())
+        self.assertIn("new THREE.EffectComposer(renderer)", post)
+        self.assertIn("new THREE.RenderPass(scene, camera)", post)
+        self.assertIn("new THREE.UnrealBloomPass", post)
+        self.assertIn("bloomPass.threshold = 0.88", post)
+        self.assertIn("bloomPass.strength = 0.72", post)
+        self.assertIn("bloomPass.radius = 0.30", post)
 
-        self.assertIn("const particleSphereRadius = 1.1178", core)
-        self.assertIn("const particleSphereJitter = 0.0972", core)
-        self.assertIn("const radius = particleSphereRadius", core)
-        self.assertNotIn("const radius = 1.38", core)
+    def test_visual_phase_b_glow_is_selective_resizable_and_disposable(self):
+        vertex = (STATIC_DIR / "js" / "core" / "shaders" / "particle-vertex.js").read_text(encoding="utf-8")
+        glow = (STATIC_DIR / "js" / "core" / "volumetric-glow.js").read_text(encoding="utf-8")
+        runtime = (STATIC_DIR / "js" / "core" / "shader-core-runtime.js").read_text(encoding="utf-8")
+        post = (STATIC_DIR / "js" / "core" / "post-processing.js").read_text(encoding="utf-8")
+
+        self.assertIn("vBloomWeight", vertex)
+        self.assertIn("highEnergy", vertex)
+        self.assertIn("nucleus", vertex)
+        self.assertIn("uTransitionPulse", vertex + glow)
+        self.assertIn("uToolAccent", vertex + glow)
+        self.assertIn("uAudioLevel", vertex + glow)
+        self.assertIn("const layers = [", glow)
+        self.assertIn("postProcessing.setSize", runtime)
+        self.assertIn("composer.setPixelRatio(pixelRatio)", post)
+        self.assertIn("bloomPass.dispose()", post)
+        self.assertIn("composer.dispose()", post)
+        self.assertIn("CORE_BLOOM_FALLBACK", runtime)
+        self.assertIn("renderer.render(scene, camera)", runtime)
 
     def test_phase_eight_audio_analysis_is_split_and_cleanup_safe(self):
         index = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
@@ -287,36 +314,29 @@ class UiFoundationContractTests(unittest.TestCase):
 
     def test_phase_eight_core_uses_state_specific_bounded_audio_level(self):
         core = (
-            STATIC_DIR / "js" / "core" / "jarvis-core.js"
+            STATIC_DIR / "js" / "core" / "shader-core-runtime.js"
         ).read_text(encoding="utf-8")
 
-        self.assertIn('activeJarvisState === "listening"', core)
-        self.assertIn('activeJarvisState === "speaking"', core)
-        self.assertIn("targetLevel = levels.input", core)
-        self.assertIn("targetLevel = levels.output", core)
-        self.assertIn("audioLevel * 0.105", core)
-        self.assertIn("audioLevel * 0.045", core)
+        self.assertIn('activeState === "listening"', core)
+        self.assertIn('activeState === "speaking"', core)
+        self.assertIn("return levels.input || 0", core)
+        self.assertIn("return levels.output || 0", core)
+        self.assertIn("uniforms.uAudioLevel.value", core)
 
     def test_phase_seven_adapts_fps_and_dpr_without_rebuilding_scene(self):
         core = (
-            STATIC_DIR / "js" / "core" / "jarvis-core.js"
+            STATIC_DIR / "js" / "core" / "shader-core-runtime.js"
         ).read_text(encoding="utf-8")
 
         self.assertIn("const activeFrameDurationMs = 1000 / 30", core)
         self.assertIn("const idleFrameDurationMs = 1000 / 20", core)
         self.assertIn("const qualityDprCaps = Object.freeze([1.25, 1.5, 1.75])", core)
         self.assertIn("const qualitySampleSize = 90", core)
-        self.assertIn("const qualityChangeCooldownMs = 15_000", core)
-        self.assertIn("function getTargetFrameDurationMs()", core)
-        self.assertIn(
-            "lastFrameAt = time - (frameInterval % targetFrameDurationMs)",
-            core,
-        )
-        self.assertIn("frameInterval > targetDuration * 1.5", core)
-        self.assertIn("slowRatio > 0.20", core)
-        self.assertIn("stableQualityWindows >= 4", core)
-        self.assertIn("applyQualityLevel(qualityLevel - 1, time)", core)
-        self.assertIn("applyQualityLevel(qualityLevel + 1, time)", core)
+        self.assertIn("const qualityChangeCooldownMs = 15000", core)
+        self.assertIn("function sampleQuality(frameDuration, now)", core)
+        self.assertIn("average > 39 && qualityLevel > 0", core)
+        self.assertIn("average < 28 && qualityLevel < qualityDprCaps.length - 1", core)
+        self.assertIn("updateRendererDensity()", core)
 
     def test_existing_script_publishes_voice_status_to_ui_state(self):
         script = (STATIC_DIR / "script.js").read_text(encoding="utf-8")

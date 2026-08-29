@@ -3,6 +3,7 @@
 
 const THREE = global.THREE;
 const jarvisUI = global.JarvisUI;
+if (jarvisUI && jarvisUI.shaderCoreActive) return;
 const canvas = jarvisUI && jarvisUI.dom
     ? jarvisUI.dom.elements.coreCanvas
     : null;
