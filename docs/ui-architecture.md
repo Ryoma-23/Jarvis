@@ -312,3 +312,30 @@ particles toward the surface, displacing and saturating only the particles it
 crosses. The two modes therefore differ by physical direction rather than a
 color or overlay. Idle, Thinking, disconnection, and reduced-motion conditions
 set resonance strength to zero. Existing Phase C motion remains the baseline.
+
+## Visual Phase E spatial background
+
+`spatial-background.js` owns a second immutable GPU Points field behind the
+Core. Its 520 deterministic particles occupy a broad volume from `z=-1.4` to
+approximately `z=-7.4`, use NormalBlending, low alpha, dark state color, and
+sub-pixel-to-three-pixel point sizes. State energy changes brightness by only a
+small fraction, keeping the Neural Core visually dominant. At widths of 680px
+or less the same geometry uses a 220-particle draw range without rebuilding.
+
+The background vertex shader provides extremely slow drift and a maximum
+few-hundredths-unit parallax offset derived from Core time, rotation speed, and
+axis tilt. It never reads pointer position. Reduced-motion mode fixes time and
+parallax at zero. Resize updates camera projection, DPR, Composer targets, and
+the compact draw range; disposal releases background Geometry and Material.
+
+The former flat `.core-grid` is now a floor-plane perspective treatment. A
+conic angular mask produces lines converging on the center horizon while a
+perspective-transformed repeating horizontal gradient supplies depth spacing.
+Radial masking removes grid detail around the Core and toward the container
+edges. The grid and atmospheric layer exist only inside `.core-stage`, so panel
+text is not composited over them.
+
+Atmosphere uses two extremely low-opacity procedural CSS gradient patterns at
+different scales. Their stepped background-position animation changes slowly
+to break color banding without resembling visible grain. Narrow layouts reduce
+both grid and atmosphere opacity, and reduced-motion disables noise movement.

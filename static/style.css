@@ -333,23 +333,44 @@ h2 {
     min-height: 0;
     place-items: center;
     overflow: hidden;
+    isolation: isolate;
+}
+
+.core-stage::before {
+    position: absolute;
+    z-index: 0;
+    inset: 0;
+    content: "";
+    pointer-events: none;
+    opacity: 0.035;
+    background-image:
+        repeating-radial-gradient(circle at 37% 43%, rgba(116, 211, 239, 0.32) 0 1px, transparent 1px 5px),
+        repeating-linear-gradient(117deg, rgba(135, 163, 178, 0.18) 0 1px, transparent 1px 7px);
+    background-position: 0 0, 17px 11px;
+    background-size: 173px 149px, 131px 157px;
+    mix-blend-mode: screen;
+    mask-image: radial-gradient(ellipse at center, black 12%, rgba(0, 0, 0, 0.72) 58%, transparent 94%);
+    animation: spatial-noise-drift 32s steps(16, end) infinite;
 }
 
 .core-grid {
     position: absolute;
-    inset: 7% 4%;
-    opacity: 0.2;
+    z-index: 1;
+    inset: 48% -10% -28%;
+    opacity: 0.17;
     background-image:
-        linear-gradient(rgba(93, 187, 214, 0.09) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(93, 187, 214, 0.09) 1px, transparent 1px);
-    background-size: 54px 54px;
-    mask-image: radial-gradient(circle, black, transparent 67%);
+        repeating-linear-gradient(rgba(93, 187, 214, 0.10) 0 1px, transparent 1px 46px),
+        repeating-conic-gradient(from 268deg at 50% 0%, transparent 0deg 8.4deg, rgba(93, 187, 214, 0.11) 8.55deg 8.75deg, transparent 8.9deg 17deg);
+    transform: perspective(430px) rotateX(61deg) scaleX(1.18);
+    transform-origin: 50% 0;
+    mask-image:
+        radial-gradient(circle at 50% 0, transparent 0 12%, rgba(0, 0, 0, 0.28) 24%, black 55%, transparent 96%);
 }
 
 .core-canvas {
     position: absolute;
     inset: 0;
-    z-index: 0;
+    z-index: 2;
     display: block;
     width: 100%;
     height: 100%;
@@ -425,6 +446,7 @@ h2 {
 
 .core-visual {
     position: relative;
+    z-index: 2;
     width: clamp(230px, 36vw, 450px);
     aspect-ratio: 1;
     filter: drop-shadow(0 0 35px rgba(var(--color-state-rgb), 0.13));
@@ -509,7 +531,7 @@ h2 {
 .core-readout {
     position: absolute;
     bottom: clamp(18px, 5vh, 52px);
-    z-index: 1;
+    z-index: 3;
     text-align: center;
 }
 
@@ -842,6 +864,12 @@ body[data-jarvis-state="error"] {
     }
 }
 
+@keyframes spatial-noise-drift {
+    0% { background-position: 0 0, 17px 11px; }
+    50% { background-position: 19px -13px, -11px 29px; }
+    100% { background-position: 37px -27px, -39px 47px; }
+}
+
 @media (max-width: 900px) {
     .workspace {
         grid-template-columns: minmax(330px, 1.25fr) minmax(270px, 0.85fr);
@@ -903,6 +931,15 @@ body[data-jarvis-state="error"] {
         top: 12px;
     }
 
+    .core-grid {
+        inset-inline: -24%;
+        opacity: 0.095;
+    }
+
+    .core-stage::before {
+        opacity: 0.018;
+    }
+
     .ui-notification {
         top: 62px;
     }
@@ -916,6 +953,10 @@ body[data-jarvis-state="error"] {
         animation-duration: 0.01ms !important;
         animation-iteration-count: 1 !important;
         transition-duration: 0.01ms !important;
+    }
+
+    .core-stage::before {
+        animation: none;
     }
 }
 

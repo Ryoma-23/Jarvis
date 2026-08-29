@@ -6,7 +6,7 @@ const jarvisUI = global.JarvisUI;
 const canvas = jarvisUI && jarvisUI.dom ? jarvisUI.dom.elements.coreCanvas : null;
 const stage = canvas ? canvas.closest(".core-stage") : null;
 const reducedMotion = global.matchMedia("(prefers-reduced-motion: reduce)");
-if (!THREE || !canvas || !stage || !jarvisUI.particleField || !jarvisUI.coreStateTransitions) return;
+if (!THREE || !canvas || !stage || !jarvisUI.particleField || !jarvisUI.coreStateTransitions || !jarvisUI.spatialBackground) return;
 
 const activeFrameDurationMs = 1000 / 30;
 const idleFrameDurationMs = 1000 / 20;
@@ -17,6 +17,7 @@ let renderer;
 let scene;
 let camera;
 let field;
+let spatialBackground;
 let glow;
 let postProcessing;
 let resizeObserver;
@@ -50,6 +51,7 @@ function updateRendererDensity() {
     const ratio = pixelRatio();
     renderer.setPixelRatio(ratio);
     field.uniforms.uPixelRatio.value = ratio;
+    spatialBackground.uniforms.uPixelRatio.value = ratio;
     if (postProcessing) {
         postProcessing.setSize(Math.max(1, stage.clientWidth), Math.max(1, stage.clientHeight), ratio);
     }
@@ -60,6 +62,7 @@ function resize() {
     const height = Math.max(1, stage.clientHeight);
     camera.aspect = width / height;
     camera.updateProjectionMatrix();
+    spatialBackground.setCompact(width <= 680);
     updateRendererDensity();
     renderer.setSize(width, height, false);
 }
@@ -152,6 +155,13 @@ function render(now) {
     uniforms.uColorPrimary.value.setRGB(profile.primary[0], profile.primary[1], profile.primary[2]);
     uniforms.uColorSecondary.value.setRGB(profile.secondary[0], profile.secondary[1], profile.secondary[2]);
     if (!reducedMotion.matches) uniforms.uTime.value = elapsedSeconds;
+    spatialBackground.uniforms.uTime.value = reducedMotion.matches ? 0 : elapsedSeconds;
+    spatialBackground.uniforms.uStateEnergy.value = profile.noiseAmount * 0.12;
+    spatialBackground.uniforms.uParallax.value.set(
+        reducedMotion.matches ? 0 : Math.sin(elapsedSeconds * 0.045 + profile.axisTilt) * 0.035,
+        reducedMotion.matches ? 0 : Math.cos(elapsedSeconds * 0.038 + profile.rotationSpeed) * 0.022
+    );
+    spatialBackground.uniforms.uColor.value.copy(uniforms.uColorSecondary.value).multiplyScalar(0.34);
     glow.uniforms.uTime.value = uniforms.uTime.value;
     glow.uniforms.uAudioLevel.value = uniforms.uAudioLevel.value;
     glow.uniforms.uTransitionPulse.value = uniforms.uTransitionPulse.value;
@@ -182,6 +192,7 @@ function dispose() {
     if (resizeObserver) resizeObserver.disconnect();
     if (unsubscribeState) unsubscribeState();
     if (postProcessing) postProcessing.dispose();
+    if (spatialBackground) spatialBackground.dispose();
     if (glow) glow.dispose();
     field.dispose();
     renderer.dispose();
@@ -194,7 +205,9 @@ try {
     camera = new THREE.PerspectiveCamera(42, 1, 0.1, 20);
     camera.position.z = 3.25;
     field = jarvisUI.particleField.createParticleField({ pixelRatio: pixelRatio() });
+    spatialBackground = jarvisUI.spatialBackground.createSpatialBackground({ pixelRatio: pixelRatio() });
     glow = jarvisUI.volumetricGlow.createVolumetricGlow();
+    scene.add(spatialBackground.object);
     scene.add(glow.object);
     scene.add(field.points);
     try {
@@ -224,6 +237,7 @@ try {
     report("info", "CORE_SHADER_READY", postProcessing ? "GPU Neural Core and Bloom initialized." : "GPU Neural Core initialized without Bloom.");
 } catch (error) {
     if (postProcessing) postProcessing.dispose();
+    if (spatialBackground) spatialBackground.dispose();
     if (glow) glow.dispose();
     if (field) field.dispose();
     if (renderer) renderer.dispose();

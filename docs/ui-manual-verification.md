@@ -75,6 +75,19 @@
 4. Confirm IDLE and THINKING retain the Phase C appearance without any audio
    overlay. With reduced motion enabled, confirm resonance deformation is off.
 
+## Spatial background
+
+1. Confirm sparse, dim particles appear behind rather than on top of the Core,
+   and remain much darker than Core particles in every state.
+2. Confirm the lower spatial grid converges toward the Core and fades near the
+   Core itself instead of appearing as a flat full-screen checkerboard.
+3. Resize across 680px and confirm the background becomes quieter without a
+   flash, stretched grid, or broken projection.
+4. Confirm System Log and Conversation text retain their prior contrast and do
+   not receive grid, noise, or Bloom overlays.
+5. Enable reduced motion and confirm background particles, parallax, and
+   atmospheric drift stop while the static depth composition remains visible.
+
 ## Accessibility
 
 1. Navigate every button and text input using only Tab and Shift+Tab; confirm a

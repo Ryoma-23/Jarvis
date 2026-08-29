@@ -331,6 +331,31 @@ class UiFoundationContractTests(unittest.TestCase):
         self.assertIn('activeState === "speaking" ? audioLevels.output || 0', runtime)
         self.assertIn("uniforms.uResonanceLevel.value = 0", runtime)
 
+    def test_visual_phase_e_spatial_background_is_dim_responsive_and_static_safe(self):
+        index = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
+        background = (STATIC_DIR / "js" / "core" / "spatial-background.js").read_text(encoding="utf-8")
+        vertex = (STATIC_DIR / "js" / "core" / "shaders" / "background-vertex.js").read_text(encoding="utf-8")
+        fragment = (STATIC_DIR / "js" / "core" / "shaders" / "background-fragment.js").read_text(encoding="utf-8")
+        runtime = (STATIC_DIR / "js" / "core" / "shader-core-runtime.js").read_text(encoding="utf-8")
+        style = (STATIC_DIR / "style.css").read_text(encoding="utf-8")
+
+        expected_order = ["background-vertex.js", "background-fragment.js", "spatial-background.js", "shader-core-runtime.js"]
+        self.assertEqual(sorted(expected_order, key=index.index), expected_order)
+        self.assertIn("const desktopParticleCount = 520", background)
+        self.assertIn("const compactParticleCount = 220", background)
+        self.assertIn("THREE.NormalBlending", background)
+        self.assertIn("geometry.setDrawRange", background)
+        self.assertIn("positions[offset + 2] = -1.4", background)
+        self.assertIn("uParallax", vertex + background)
+        self.assertIn("uStateEnergy", vertex + background)
+        self.assertIn("softness * vAlpha * 0.24", fragment)
+        self.assertIn("spatialBackground.setCompact(width <= 680)", runtime)
+        self.assertIn("reducedMotion.matches ? 0 : elapsedSeconds", runtime)
+        self.assertIn("spatialBackground.dispose()", runtime)
+        self.assertIn("repeating-conic-gradient", style)
+        self.assertIn("@keyframes spatial-noise-drift", style)
+        self.assertIn("animation: none", style)
+
     def test_phase_eight_audio_analysis_is_split_and_cleanup_safe(self):
         index = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
         script = (STATIC_DIR / "script.js").read_text(encoding="utf-8")
