@@ -166,6 +166,34 @@ class NotionClient:
         normalized_page_id = self._require_text(page_id, "page_id")
         return self._request("GET", f"/pages/{normalized_page_id}")
 
+    def retrieve_block_children(
+        self,
+        block_id: str,
+        *,
+        start_cursor: str | None = None,
+        page_size: int = 100,
+    ) -> dict[str, Any]:
+        normalized_block_id = self._require_text(block_id, "block_id")
+
+        if not 1 <= page_size <= 100:
+            raise NotionConfigurationError(
+                "Block Childrenのpage_sizeは1から100の範囲が必要です。"
+            )
+
+        query_params: dict[str, Any] = {"page_size": page_size}
+
+        if start_cursor is not None:
+            query_params["start_cursor"] = self._require_text(
+                start_cursor,
+                "start_cursor",
+            )
+
+        return self._request(
+            "GET",
+            f"/blocks/{normalized_block_id}/children",
+            query_params=query_params,
+        )
+
     def retrieve_database(self, database_id: str) -> dict[str, Any]:
         normalized_database_id = self._require_text(
             database_id,
@@ -236,6 +264,7 @@ class NotionClient:
         *,
         parent_page_id: str,
         title: str,
+        children: list[dict[str, Any]] | None = None,
     ) -> dict[str, Any]:
         normalized_parent_id = self._require_text(
             parent_page_id,
@@ -243,28 +272,38 @@ class NotionClient:
         )
         normalized_title = self._require_text(title, "title")
 
+        body: dict[str, Any] = {
+            "parent": {
+                "type": "page_id",
+                "page_id": normalized_parent_id,
+            },
+            "properties": {
+                "title": {
+                    "type": "title",
+                    "title": [
+                        {
+                            "type": "text",
+                            "text": {
+                                "content": normalized_title,
+                            },
+                        }
+                    ],
+                }
+            },
+        }
+
+        if children is not None:
+            if not isinstance(children, list) or not children:
+                raise NotionConfigurationError(
+                    "Pageのchildrenは空でないリストが必要です。"
+                )
+
+            body["children"] = children
+
         return self._request(
             "POST",
             "/pages",
-            json_body={
-                "parent": {
-                    "type": "page_id",
-                    "page_id": normalized_parent_id,
-                },
-                "properties": {
-                    "title": {
-                        "type": "title",
-                        "title": [
-                            {
-                                "type": "text",
-                                "text": {
-                                    "content": normalized_title,
-                                },
-                            }
-                        ],
-                    }
-                },
-            },
+            json_body=body,
         )
 
     def create_data_source_page(
@@ -382,19 +421,27 @@ class NotionClient:
         path: str,
         *,
         json_body: dict[str, Any] | None = None,
+        query_params: dict[str, Any] | None = None,
     ) -> dict[str, Any]:
+        request_kwargs = {
+            "headers": {
+                "Authorization": f"Bearer {self._api_token}",
+                "Notion-Version": self._api_version,
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+            },
+            "json": json_body,
+            "timeout": self._timeout_seconds,
+        }
+
+        if query_params is not None:
+            request_kwargs["params"] = query_params
+
         try:
             response = self._session.request(
                 method,
                 f"{NOTION_API_BASE_URL}{path}",
-                headers={
-                    "Authorization": f"Bearer {self._api_token}",
-                    "Notion-Version": self._api_version,
-                    "Content-Type": "application/json",
-                    "Accept": "application/json",
-                },
-                json=json_body,
-                timeout=self._timeout_seconds,
+                **request_kwargs,
             )
         except requests.Timeout:
             raise NotionConnectionError(

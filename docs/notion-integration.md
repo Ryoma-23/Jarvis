@@ -395,3 +395,178 @@ Official references:
 - [Trash a page](https://developers.notion.com/reference/trash-page)
 - [Data source properties](https://developers.notion.com/reference/property-object)
 - [Query a data source](https://developers.notion.com/reference/query-a-data-source)
+
+## Phase 5: Notion Page Chunking
+
+Phase 5 adds a read-only document-processing layer. It does not change the
+Memo, Task, or Memory repositories, their Feature Flags, or the current source
+of truth.
+
+The processing flow is:
+
+```text
+Notion Page
+→ paginated Block Children retrieval
+→ recursive retrieval for has_children Blocks
+→ common plain-text normalization
+→ empty/decorative Block filtering
+→ heading-aware section splitting
+→ deterministic Chunk metadata
+```
+
+Notion returns only one level of Block Children per request. JARVIS follows
+`next_cursor` until each level is complete and then recursively retrieves every
+Block whose `has_children` value is true. A depth limit and checks for repeated
+cursors, duplicate Block IDs, malformed responses, and cycles prevent an invalid
+response from causing an unbounded traversal.
+
+Text normalization uses each rich-text item's `plain_text`, so annotations such
+as bold, italic, and color do not alter Chunk identity. Paragraphs, headings,
+bulleted and numbered list items, to-do items, quotes, toggles, code, equations,
+table rows, child-page titles, links, and media captions are supported. Empty
+text, dividers, breadcrumbs, table containers, and other decoration-only Blocks
+do not produce text, while any supported descendants are still traversed.
+
+### Heading-aware chunks and identity
+
+Heading 1-3 values form a hierarchy. Each Chunk repeats its current heading path
+before the body, which keeps section context when a long section is split. The
+default maximum size is 1,200 characters and can be overridden by callers with a
+minimum of 100 characters.
+
+Every Chunk contains:
+
+| Field | Meaning |
+| --- | --- |
+| `chunk_id` | Deterministic ID for Page, anchor Block, and normalized content |
+| `notion_page_id` | Source Notion Page ID |
+| `block_id` | Stable section/first-content anchor Block ID |
+| `title` | Source Page title |
+| `chunk_index` | Current document-order index |
+| `content_hash` | SHA-256 of normalized Chunk content |
+| `last_edited_time` | Source Page's latest edit timestamp |
+| `source_type` | `notion_page` |
+| `notion_url` | Source Page URL |
+
+`heading_path` and all contributing `block_ids` are also retained for later
+indexing and diagnostics. `chunk_index` and `last_edited_time` are metadata only;
+they are deliberately excluded from identity. The ID input is the canonical Page
+ID, canonical anchor Block ID, and `content_hash`. Therefore the same normalized
+content from the same source Block produces the same Chunk ID on every sync, while
+a content change produces a new ID.
+
+This phase stores no chunks and adds no Vector DB, embeddings, or RAG retrieval.
+Those layers can consume the deterministic Chunk objects in later phases.
+
+### Verification
+
+Run unit tests without calling Notion:
+
+```powershell
+.\.venv\Scripts\python.exe -m unittest tests.test_notion_client tests.test_notion_chunking
+```
+
+Run the isolated live verification with:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\verify_notion_chunking.py
+```
+
+The live command creates one timestamped child Page under
+`NOTION_PARENT_PAGE_ID`, retrieves nested content twice, verifies stable Chunk IDs
+and required Metadata, and moves the Page to Notion Trash in a `finally` cleanup.
+
+Official references:
+
+- [Working with page content](https://developers.notion.com/guides/data-apis/working-with-page-content)
+- [Retrieve block children](https://developers.notion.com/reference/get-block-children)
+- [Block object](https://developers.notion.com/reference/block)
+- [Rich text object](https://developers.notion.com/reference/rich-text)
+- [Pagination](https://developers.notion.com/reference/pagination)
+
+## Phase 6: Embedding
+
+Phase 6 converts Phase 5 Chunks into OpenAI embedding vectors. It introduces a
+dedicated `OpenAIEmbeddingClient`; the existing response and intent client in
+`app/openai_client.py` is not reused or modified.
+
+The processing flow is:
+
+```text
+Notion Page Chunks
+→ exclude empty content
+→ calculate Embedding version
+→ skip an already stored matching version
+→ send pending content in batches
+→ commit each successful batch to local SQLite
+```
+
+OpenAI accepts multiple strings in one Embeddings request. Empty strings are not
+accepted, and the `dimensions` parameter is available for `text-embedding-3`
+models. JARVIS therefore removes empty Chunks before the API boundary and sends a
+maximum of the configured batch size in each request.
+
+### Configuration
+
+The defaults work without adding new values to `.env`:
+
+```dotenv
+OPENAI_EMBEDDING_MODEL=text-embedding-3-small
+OPENAI_EMBEDDING_DIMENSIONS=1536
+OPENAI_EMBEDDING_BATCH_SIZE=100
+```
+
+The existing `OPENAI_API_KEY` value is used to construct the separate Embedding
+client. JARVIS never writes these values to `.env`, the database, logs, or error
+messages. Batch size must be between 1 and 2,048.
+
+`text-embedding-3-large` can be evaluated by changing the model and dimensions
+settings. Small and large records have different versions and can coexist, so
+switching models does not overwrite the previous evaluation data.
+
+### Versioning and restart behavior
+
+The Embedding version is a deterministic SHA-256 value calculated from:
+
+```text
+content_hash + model + dimensions
+```
+
+The local record ID additionally includes `chunk_id`. A stored record is reused
+only when its record ID, content hash, model, dimensions, and vector length all
+match. Content, model, or dimension changes therefore create a new record, while
+an unchanged Chunk makes no API call.
+
+Generated records are stored in the ignored file `data/embeddings.sqlite3`.
+SQLite is used only as restart-safe Phase 6 persistence and is not a Vector DB.
+Each successful API batch is committed in one transaction. If a later batch
+fails, earlier batches remain committed; rerunning the same command skips them
+and resumes with only the missing Chunks.
+
+### Commands
+
+Embed one Notion Page and persist the results:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\embed_notion_page.py <NOTION_PAGE_ID>
+```
+
+Run a small live OpenAI API check using a temporary Store:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\verify_embedding.py
+```
+
+Run unit tests without calling OpenAI or Notion:
+
+```powershell
+.\.venv\Scripts\python.exe -m unittest tests.test_embedding_client tests.test_embedding_service
+```
+
+Phase 6 does not add similarity search, a Vector DB, or RAG retrieval. It only
+produces versioned vectors for those later phases.
+
+Official OpenAI documentation:
+
+- [Create embeddings](https://developers.openai.com/api/reference/ruby/resources/embeddings/methods/create)
+- [text-embedding-3-small](https://developers.openai.com/api/docs/models/text-embedding-3-small)

@@ -30,6 +30,31 @@ def _boolean_environment_value(
 
     return value.lower() in {"1", "true", "yes", "on"}
 
+
+def _positive_integer_environment_value(
+    name: str,
+    *,
+    default: int,
+) -> int:
+    value = _optional_environment_value(name)
+
+    if value is None:
+        return default
+
+    try:
+        parsed = int(value)
+    except ValueError:
+        raise ValueError(
+            f"{name} は1以上の整数で設定してください。"
+        ) from None
+
+    if parsed < 1:
+        raise ValueError(
+            f"{name} は1以上の整数で設定してください。"
+        )
+
+    return parsed
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 DATA_DIR = BASE_DIR / "data"
@@ -38,6 +63,7 @@ NOTES_FILE = DATA_DIR / "notes.json"
 TASKS_FILE = DATA_DIR / "tasks.json"
 MEMORY_FILE = DATA_DIR / "memory.json"
 CONVERSATION_DB_FILE = DATA_DIR / "conversations.sqlite3"
+EMBEDDINGS_DB_FILE = DATA_DIR / "embeddings.sqlite3"
 NOTION_RESOURCES_FILE = DATA_DIR / "notion_resources.json"
 
 PROMPTS_DIR = BASE_DIR / "prompts"
@@ -47,6 +73,20 @@ NOTE_INTENT_PROMPT_PATH = PROMPTS_DIR / "note_intent_prompt.txt"
 TASK_INTENT_PROMPT_PATH = PROMPTS_DIR / "task_intent_prompt.txt"
 MEMORY_INTENT_PROMPT_PATH = PROMPTS_DIR / "memory_intent_prompt.txt"
 ROUTER_INTENT_PROMPT_PATH = PROMPTS_DIR / "router_intent_prompt.txt"
+
+OPENAI_API_KEY = _optional_environment_value("OPENAI_API_KEY")
+OPENAI_EMBEDDING_MODEL = (
+    _optional_environment_value("OPENAI_EMBEDDING_MODEL")
+    or "text-embedding-3-small"
+)
+OPENAI_EMBEDDING_DIMENSIONS = _positive_integer_environment_value(
+    "OPENAI_EMBEDDING_DIMENSIONS",
+    default=1536,
+)
+OPENAI_EMBEDDING_BATCH_SIZE = _positive_integer_environment_value(
+    "OPENAI_EMBEDDING_BATCH_SIZE",
+    default=100,
+)
 
 NOTION_API_TOKEN = _optional_environment_value("NOTION_API_TOKEN")
 NOTION_PARENT_PAGE_ID = _optional_environment_value(
