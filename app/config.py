@@ -17,6 +17,19 @@ def _optional_environment_value(name: str) -> str | None:
     normalized = value.strip()
     return normalized or None
 
+
+def _boolean_environment_value(
+    name: str,
+    *,
+    default: bool = False,
+) -> bool:
+    value = _optional_environment_value(name)
+
+    if value is None:
+        return default
+
+    return value.lower() in {"1", "true", "yes", "on"}
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 DATA_DIR = BASE_DIR / "data"
@@ -41,6 +54,21 @@ NOTION_PARENT_PAGE_ID = _optional_environment_value(
 )
 NOTION_NOTES_DATA_SOURCE_ID = _optional_environment_value(
     "NOTION_NOTES_DATA_SOURCE_ID"
+)
+NOTION_TASKS_DATA_SOURCE_ID = _optional_environment_value(
+    "NOTION_TASKS_DATA_SOURCE_ID"
+)
+NOTION_MEMORY_DATA_SOURCE_ID = _optional_environment_value(
+    "NOTION_MEMORY_DATA_SOURCE_ID"
+)
+NOTION_NOTES_READ_ENABLED = _boolean_environment_value(
+    "NOTION_NOTES_READ_ENABLED"
+)
+NOTION_TASKS_READ_ENABLED = _boolean_environment_value(
+    "NOTION_TASKS_READ_ENABLED"
+)
+NOTION_MEMORY_READ_ENABLED = _boolean_environment_value(
+    "NOTION_MEMORY_READ_ENABLED"
 )
 NOTION_API_VERSION = (
     _optional_environment_value("NOTION_API_VERSION")

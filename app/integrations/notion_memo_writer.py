@@ -79,37 +79,10 @@ class NotionMemoWriter:
         return self._data_source_id
 
     def validate_schema(self) -> dict[str, Any]:
-        data_source = self._client.retrieve_data_source(
-            self._data_source_id
+        data_source = validate_notes_data_source_schema(
+            self._client,
+            self._data_source_id,
         )
-        properties = data_source.get("properties")
-
-        if not isinstance(properties, dict):
-            raise NotionResponseError(
-                "Notes Data Sourceのpropertiesを取得できませんでした。"
-            )
-
-        mismatches = []
-
-        for name, expected_type in REQUIRED_NOTES_PROPERTY_TYPES.items():
-            property_schema = properties.get(name)
-            actual_type = (
-                property_schema.get("type")
-                if isinstance(property_schema, dict)
-                else None
-            )
-
-            if actual_type != expected_type:
-                mismatches.append(
-                    f"{name}: expected={expected_type}, actual={actual_type}"
-                )
-
-        if mismatches:
-            raise NotionConfigurationError(
-                "Notes Data Sourceのスキーマが一致しません: "
-                + "; ".join(mismatches)
-            )
-
         self._schema_validated = True
         return data_source
 
@@ -195,6 +168,12 @@ class NotionMemoWriter:
 
         return None
 
+    def trash_page(self, page_id: str) -> dict[str, Any]:
+        if not self._schema_validated:
+            self.validate_schema()
+
+        return self._client.update_page(page_id, in_trash=True)
+
 
 def build_notion_note_sync_key(
     *,
@@ -205,6 +184,42 @@ def build_notion_note_sync_key(
     source = f"{note_id}\0{created_at}\0{content}".encode("utf-8")
     digest = hashlib.sha256(source).hexdigest()
     return f"jarvis-note:{note_id}:{digest}"
+
+
+def validate_notes_data_source_schema(
+    client: NotionClient,
+    data_source_id: str,
+) -> dict[str, Any]:
+    data_source = client.retrieve_data_source(data_source_id)
+    properties = data_source.get("properties")
+
+    if not isinstance(properties, dict):
+        raise NotionResponseError(
+            "Notes Data Sourceのpropertiesを取得できませんでした。"
+        )
+
+    mismatches = []
+
+    for name, expected_type in REQUIRED_NOTES_PROPERTY_TYPES.items():
+        property_schema = properties.get(name)
+        actual_type = (
+            property_schema.get("type")
+            if isinstance(property_schema, dict)
+            else None
+        )
+
+        if actual_type != expected_type:
+            mismatches.append(
+                f"{name}: expected={expected_type}, actual={actual_type}"
+            )
+
+    if mismatches:
+        raise NotionConfigurationError(
+            "Notes Data Sourceのスキーマが一致しません: "
+            + "; ".join(mismatches)
+        )
+
+    return data_source
 
 
 def _build_title(content: str) -> str:

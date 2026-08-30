@@ -23,8 +23,12 @@ from app.integrations.notion_memo_writer import (
 )
 from app.integrations.notion_resources import (
     load_notion_resources,
+    resolve_memory_data_source_id,
     resolve_notes_data_source_id,
+    resolve_tasks_data_source_id,
+    save_memory_notion_resource,
     save_notes_notion_resource,
+    save_tasks_notion_resource,
 )
 from scripts.setup_notion_notes import setup_notion_notes
 
@@ -225,6 +229,34 @@ class NotionNotesSetupTests(unittest.TestCase):
                 self.assertEqual(
                     resolve_notes_data_source_id(),
                     "environment-data-source-id",
+                )
+
+    def test_task_and_memory_resource_ids_round_trip(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "notion_resources.json"
+            save_tasks_notion_resource(
+                database_id="tasks-database",
+                data_source_id="tasks-data-source",
+                path=path,
+            )
+            save_memory_notion_resource(
+                database_id="memory-database",
+                data_source_id="memory-data-source",
+                path=path,
+            )
+
+            with (
+                patch.object(config, "NOTION_RESOURCES_FILE", path),
+                patch.object(config, "NOTION_TASKS_DATA_SOURCE_ID", None),
+                patch.object(config, "NOTION_MEMORY_DATA_SOURCE_ID", None),
+            ):
+                self.assertEqual(
+                    resolve_tasks_data_source_id(),
+                    "tasks-data-source",
+                )
+                self.assertEqual(
+                    resolve_memory_data_source_id(),
+                    "memory-data-source",
                 )
 
 

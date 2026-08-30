@@ -231,6 +231,61 @@ class NotionClientTests(unittest.TestCase):
             timeout=10.0,
         )
 
+    def test_data_source_query_sends_sorts_and_start_cursor(self):
+        session = Mock()
+        session.request.return_value = FakeResponse(
+            200,
+            {"object": "list", "results": []},
+        )
+        client = NotionClient(
+            api_token="secret-token",
+            session=session,
+        )
+        sorts = [
+            {"property": "Created At", "direction": "ascending"}
+        ]
+
+        client.query_data_source(
+            "data-source-id",
+            sorts=sorts,
+            start_cursor="next-page-cursor",
+        )
+
+        self.assertEqual(
+            session.request.call_args.kwargs["json"],
+            {
+                "page_size": 100,
+                "sorts": sorts,
+                "start_cursor": "next-page-cursor",
+            },
+        )
+
+    def test_update_page_uses_properties_and_2026_in_trash_field(self):
+        session = Mock()
+        session.request.return_value = FakeResponse(
+            200,
+            {"object": "page", "id": "page-id", "in_trash": True},
+        )
+        client = NotionClient(
+            api_token="secret-token",
+            session=session,
+        )
+
+        client.update_page("page-id", in_trash=True)
+
+        self.assertEqual(
+            session.request.call_args.args,
+            ("PATCH", f"{NOTION_API_BASE_URL}/pages/page-id"),
+        )
+        self.assertEqual(
+            session.request.call_args.kwargs["json"],
+            {"in_trash": True},
+        )
+        self.assertNotIn(
+            "archived",
+            session.request.call_args.kwargs["json"],
+        )
+
     def test_http_errors_are_mapped_to_specific_safe_exceptions(self):
         cases = (
             (401, NotionAuthenticationError),

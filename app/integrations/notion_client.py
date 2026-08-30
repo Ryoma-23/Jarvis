@@ -295,11 +295,50 @@ class NotionClient:
             },
         )
 
+    def update_page(
+        self,
+        page_id: str,
+        *,
+        properties: dict[str, Any] | None = None,
+        in_trash: bool | None = None,
+    ) -> dict[str, Any]:
+        normalized_page_id = self._require_text(page_id, "page_id")
+        body: dict[str, Any] = {}
+
+        if properties is not None:
+            if not isinstance(properties, dict) or not properties:
+                raise NotionConfigurationError(
+                    "更新するPageのpropertiesが指定されていません。"
+                )
+
+            body["properties"] = properties
+
+        if in_trash is not None:
+            if not isinstance(in_trash, bool):
+                raise NotionConfigurationError(
+                    "in_trashは真偽値で指定してください。"
+                )
+
+            body["in_trash"] = in_trash
+
+        if not body:
+            raise NotionConfigurationError(
+                "Pageの更新内容が指定されていません。"
+            )
+
+        return self._request(
+            "PATCH",
+            f"/pages/{normalized_page_id}",
+            json_body=body,
+        )
+
     def query_data_source(
         self,
         data_source_id: str,
         *,
         filter_body: dict[str, Any] | None = None,
+        sorts: list[dict[str, Any]] | None = None,
+        start_cursor: str | None = None,
         page_size: int = 100,
     ) -> dict[str, Any]:
         normalized_data_source_id = self._require_text(
@@ -316,6 +355,20 @@ class NotionClient:
 
         if filter_body is not None:
             body["filter"] = filter_body
+
+        if sorts is not None:
+            if not isinstance(sorts, list):
+                raise NotionConfigurationError(
+                    "Data Source Queryのsortsはリストで指定してください。"
+                )
+
+            body["sorts"] = sorts
+
+        if start_cursor is not None:
+            body["start_cursor"] = self._require_text(
+                start_cursor,
+                "start_cursor",
+            )
 
         return self._request(
             "POST",

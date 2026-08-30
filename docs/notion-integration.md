@@ -180,3 +180,218 @@ Run a real Local and Notion Dual Write verification with:
 
 The command creates one clearly named verification Memo and leaves it in both
 `data/notes.json` and Notion for inspection.
+
+## Phase 3: Structured Memo Read
+
+Phase 3 reads Memo records only from the configured Notes Data Source. It does
+not use Notion workspace Search, a Vector Database, Embeddings, or RAG.
+
+The reader supports these structured operations:
+
+- list every Memo with an explicit `Created At` ascending sort
+- filter `Content` with the Data Source `rich_text.contains` condition
+- filter `Jarvis Local ID` with the Data Source `number.equals` condition;
+  multiple historical matches are returned without data loss
+- retrieve one Memo directly by its Notion Page ID
+- follow `has_more` and `next_cursor` until every query page is collected
+
+The Data Source schema is validated before the first read. A malformed page,
+missing pagination cursor, or Notion API error is treated as a failed Notion
+read instead of returning a silent partial result. The service's single-record
+Local ID operation falls back to Local JSON when historical Notion pages make
+the Local ID ambiguous.
+
+Official references:
+
+- [Query a data source](https://developers.notion.com/reference/query-a-data-source)
+- [Filter data source entries](https://developers.notion.com/reference/filter-data-source-entries)
+- [Sort data source entries](https://developers.notion.com/reference/sort-data-source-entries)
+- [Notion pagination](https://developers.notion.com/reference/intro#pagination)
+
+### Feature flag and fallback
+
+Notion Read is disabled by default. To enable it for Memo list, Content search,
+Local ID retrieval, and Page ID retrieval, add this value to the local `.env`:
+
+```dotenv
+NOTION_NOTES_READ_ENABLED=true
+```
+
+The repository does not modify `.env`. Values `1`, `true`, `yes`, and `on` are
+accepted case-insensitively. With the flag disabled, all existing read behavior
+continues to use `data/notes.json`.
+
+With the flag enabled, a configured reader uses the Notes Data Source. If the
+configuration is unavailable, schema validation fails, a response is malformed,
+or a Notion request fails, the same operation falls back to Local JSON. Existing
+text and Realtime list/search result strings remain unchanged.
+
+Memo records created before Phase 2 have not been migrated to Notion. Therefore,
+successful Notion reads contain only records that exist in the Notes Data Source;
+they do not merge legacy Local-only records. Backfilling those records belongs to
+a later storage integration phase. The Phase 3 parity check intentionally compares
+Notion with Local records whose `notion_sync_status` is `synced`.
+
+### Verification
+
+Run the Local/Notion structured-read comparison with:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\verify_notion_memo_read.py
+```
+
+The command is read-only. It checks the complete sorted list, Local ID filter,
+Content partial-match filter, Page ID retrieval, and the major fields and counts
+of synced Local/Notion Memo records tracked by Local Page ID. Notion pages left
+from an older Local state are reported as `Untracked Notion count`; they are not
+deleted and do not invalidate the tracked-record comparison. Pagination with
+more than 100 results is covered without a live API call by the unit tests.
+
+Notion normalizes the tested `Created At` Date property to minute precision even
+when JARVIS sends an ISO timestamp containing seconds. The parity command compares
+that field at minute precision; Local JSON keeps its original seconds and existing
+Local display behavior is not changed.
+
+Run the Phase 3 unit tests with:
+
+```powershell
+.\.venv\Scripts\python.exe -m unittest tests.test_notion_client tests.test_notion_memo_reader tests.test_note_service
+```
+
+## Phase 4: Existing Storage Integration
+
+Phase 4 moves storage selection below the Service layer:
+
+```text
+IntentService / Realtime Tool
+→ Memo / Task / Memory Service
+→ Entity Repository
+   ├─ Local JSON
+   ├─ Notion Data Source
+   └─ Local-first Dual Write
+```
+
+Router, IntentService, and Realtime tools continue to call the same Service
+functions and do not know which storage backend is active.
+
+### Repository behavior
+
+All writes remain Local-first. A create or update is saved to JSON before Notion
+is called. A Notion failure leaves `notion_sync_status: pending` and does not make
+the existing JARVIS operation unavailable.
+
+Deletes are recoverable tombstones rather than physical JSON removal. The record
+receives `deleted_at` and is immediately hidden from Local and Notion-backed reads.
+If Notion trash succeeds its status becomes `deleted`; otherwise it remains
+`delete_pending` and the migration command retries it. Tombstones retain the Local
+integer ID, Sync Key, and Notion Page ID and prevent deleted IDs from being reused.
+
+Notion API version `2026-03-11` uses `in_trash: true`; the removed `archived`
+request field is never sent.
+
+### Task and Memory Data Sources
+
+Create or validate both Data Sources with:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\setup_notion_storage.py --entity all
+```
+
+`--entity tasks` and `--entity memory` can be used separately. Non-secret Database
+and Data Source IDs are saved to ignored `data/notion_resources.json`.
+
+Task properties:
+
+| Property | Type |
+| --- | --- |
+| Title | title |
+| Status | status |
+| Due Date | date |
+| Created At | date |
+| Completed At | date |
+| Jarvis ID | number |
+| Sync Key | rich_text |
+
+Local `todo` maps to Notion `Not started`; Local `done` maps to `Done`.
+`complete_tasks()` writes Status and Completed At in the same Notion Page update.
+
+Long-term Memory properties:
+
+| Property | Type |
+| --- | --- |
+| Content | title |
+| Category | select |
+| Created At | date |
+| Updated At | date |
+| Jarvis ID | number |
+| Sync Key | rich_text |
+
+`format_memory_for_prompt()` continues to load every active Memory record. It is
+not replaced with RAG or relevance retrieval in this phase.
+
+### Existing-data migration
+
+Migration defaults to a read-only Dry Run:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\migrate_notion_storage.py --entity all --dry-run
+```
+
+Apply after reviewing the counts:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\migrate_notion_storage.py --entity all --apply
+```
+
+The command derives missing timezone-aware ISO timestamps and Sync Keys in memory.
+Dry Run does not modify JSON or Notion. Apply queries every Sync Key before create,
+reuses an existing Page, stores the Page ID locally, and retries `delete_pending`
+tombstones. Local files are never cleared.
+
+Compare migrated Task and Memory records without writing:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\verify_notion_storage.py --entity all
+```
+
+The comparison checks Local-tracked Page counts, IDs, content fields, state fields,
+Sync Keys, and dates. As in Phase 3, Notion Date properties are compared at minute
+precision because Notion normalizes submitted seconds.
+
+Run an isolated real CRUD verification with:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\verify_notion_storage_crud.py
+```
+
+It creates one uniquely named verification Page in each Memo, Task, and Memory
+Data Source, retrieves and updates the Task and Memory Pages, and moves all three
+verification Pages to Notion Trash. It does not add records to Local JSON.
+
+### Read source flags
+
+Read switching is independent for each entity and disabled by default:
+
+```dotenv
+NOTION_NOTES_READ_ENABLED=true
+NOTION_TASKS_READ_ENABLED=true
+NOTION_MEMORY_READ_ENABLED=true
+```
+
+The repository does not modify `.env`. When a flag is enabled, list/search/prompt
+reads use the corresponding Notion Data Source. Invalid configuration, network
+failure, schema mismatch, or malformed pagination causes that operation to fall
+back to active Local JSON records. Locally tombstoned Page IDs remain hidden even
+while a Notion trash retry is pending.
+
+Do not switch an entity flag permanently until migration comparison, CRUD checks,
+text and Realtime manual checks, and outage behavior have been accepted. Keeping
+the flags off preserves Local JSON as the current source of truth and rollback
+path.
+
+Official references:
+
+- [Update a page](https://developers.notion.com/reference/patch-page)
+- [Trash a page](https://developers.notion.com/reference/trash-page)
+- [Data source properties](https://developers.notion.com/reference/property-object)
+- [Query a data source](https://developers.notion.com/reference/query-a-data-source)
