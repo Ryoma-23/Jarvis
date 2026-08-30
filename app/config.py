@@ -64,6 +64,7 @@ TASKS_FILE = DATA_DIR / "tasks.json"
 MEMORY_FILE = DATA_DIR / "memory.json"
 CONVERSATION_DB_FILE = DATA_DIR / "conversations.sqlite3"
 EMBEDDINGS_DB_FILE = DATA_DIR / "embeddings.sqlite3"
+CHROMA_PERSIST_DIRECTORY = DATA_DIR / "chroma"
 NOTION_RESOURCES_FILE = DATA_DIR / "notion_resources.json"
 
 PROMPTS_DIR = BASE_DIR / "prompts"

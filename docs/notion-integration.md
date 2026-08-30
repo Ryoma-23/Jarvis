@@ -570,3 +570,86 @@ Official OpenAI documentation:
 
 - [Create embeddings](https://developers.openai.com/api/reference/ruby/resources/embeddings/methods/create)
 - [text-embedding-3-small](https://developers.openai.com/api/docs/models/text-embedding-3-small)
+
+## Phase 7: Chroma Vector DB
+
+Phase 7 adds Chroma as a regenerable local search index:
+
+```text
+Notion Page (source of truth)
+→ Phase 5 deterministic Chunks
+→ Phase 6 versioned Embeddings
+→ Chroma Collection (regenerable index)
+```
+
+Chroma `1.5.9` is the first Vector DB dependency in this repository. A local
+`PersistentClient` stores its files under the ignored `data/chroma/` directory.
+The Chroma embedding function is explicitly disabled: only vectors already
+generated and validated by Phase 6 can be upserted.
+
+### Collections and Metadata
+
+Collection names are deterministic for the exact Embedding model and dimensions.
+Changing either setting selects a different Collection and leaves the previous
+index available for comparison.
+
+Each record uses the Phase 5 `chunk_id` as its Chroma ID, the normalized Chunk
+content as its document, and includes at least:
+
+- Notion Page ID and canonical Page key
+- Block ID and contributing Block IDs
+- Page title and Notion URL
+- Chunk index and heading path
+- Content hash and last-edited timestamp
+- Embedding version, model, and dimensions
+
+### Page resynchronization
+
+A Page sync first retrieves the current Notion content and completes any missing
+Phase 6 Embeddings. All current Chunk IDs are then upserted. Only after every
+upsert succeeds does JARVIS delete IDs that were previously indexed for that Page
+but are absent from the current Notion result.
+
+An API or Chroma failure never creates a fallback document. Rerunning repeats the
+Notion-derived sync and converges the Collection to the current Page. Historical
+Embedding cache records may remain in `embeddings.sqlite3`, but stale records are
+removed from the active Chroma index.
+
+Sync one Page:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\sync_notion_page_to_chroma.py <NOTION_PAGE_ID>
+```
+
+### Missing Page audit
+
+The audit enumerates distinct Notion Page IDs in the current Collection and calls
+the Notion Page API for each. A 404 response or a Page in Trash is reported with
+all affected Chunk IDs. Permission, authentication, connection, and server errors
+abort the audit rather than being misclassified as missing. The command never
+deletes Chroma records.
+
+```powershell
+.\.venv\Scripts\python.exe scripts\audit_chroma_pages.py
+```
+
+Run the isolated end-to-end verification with:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\verify_chroma.py
+```
+
+It creates one temporary Notion child Page, runs Chunking, Embedding, persistent
+Chroma sync twice, verifies unchanged-Chunk skipping and Collection separation,
+moves the Notion Page to Trash, detects the stale indexed Page, and removes the
+local Chroma/Embedding test data.
+
+Phase 7 does not make Chroma authoritative and does not add semantic query or RAG
+answer generation. Chroma can be rebuilt entirely from Notion.
+
+Official references:
+
+- [Chroma PersistentClient](https://docs.trychroma.com/reference/python/client)
+- [Chroma Collection API](https://docs.trychroma.com/reference/python/collection)
+- [Chroma upsert](https://docs.trychroma.com/docs/collections/update-data)
+- [Chroma metadata filtering](https://docs.trychroma.com/docs/querying-collections/metadata-filtering)

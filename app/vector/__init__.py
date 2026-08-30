@@ -1,0 +1,1 @@
+"""Regenerable vector-index integrations."""

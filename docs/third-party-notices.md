@@ -25,3 +25,15 @@ The complete upstream license text is stored in
 Visual Phase G adds no third-party runtime dependency. Its startup sequence,
 micro-interactions, color grading, and lifecycle cleanup use local application
 CSS and the existing Three.js shader/post-processing stack listed above.
+
+## Chroma
+
+- Package: `chromadb`
+- Version: 1.5.9
+- Source: official Python package from PyPI
+- License: Apache License 2.0
+- Runtime use: local regenerable vector index under `data/chroma/`
+
+Chroma is introduced in Notion/RAG Phase 7. Notion remains the source of truth;
+the local Chroma data contains only derived Chunk documents, Metadata, and
+Embedding vectors and can be regenerated.
