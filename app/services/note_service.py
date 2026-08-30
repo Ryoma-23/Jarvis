@@ -1,8 +1,22 @@
 import json
+import logging
 
 from datetime import datetime
+from functools import lru_cache
 
+from app import config
 from app.config import DATA_DIR, NOTES_FILE
+from app.integrations.notion_client import NotionClient, NotionError
+from app.integrations.notion_memo_writer import (
+    NotionMemoWriter,
+    build_notion_note_sync_key,
+)
+from app.integrations.notion_resources import (
+    resolve_notes_data_source_id,
+)
+
+
+logger = logging.getLogger(__name__)
 
 
 def init_notes_file():
@@ -35,17 +49,117 @@ def add_note(content):
     if notes:
         next_id = max(note["id"] for note in notes) + 1
 
+    now = datetime.now().astimezone()
+    created_at = now.strftime("%Y-%m-%d %H:%M:%S")
     note = {
         "id": next_id,
         "content": content,
-        "created_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        "created_at": created_at,
+        "created_at_iso": now.isoformat(timespec="seconds"),
+        "sync_key": build_notion_note_sync_key(
+            note_id=next_id,
+            content=content,
+            created_at=created_at,
+        ),
+        "notion_page_id": None,
+        "notion_sync_status": "pending",
     }
 
     notes.append(note)
 
     save_notes(notes)
+    _sync_note_with_notion(note, notes)
 
     return note
+
+
+def get_notion_memo_writer() -> NotionMemoWriter | None:
+    data_source_id = resolve_notes_data_source_id()
+
+    if not config.NOTION_API_TOKEN or not data_source_id:
+        return None
+
+    return _build_notion_memo_writer(
+        config.NOTION_API_TOKEN,
+        config.NOTION_API_VERSION,
+        data_source_id,
+    )
+
+
+def retry_pending_notion_notes():
+    notes = load_notes()
+    attempted = 0
+    synced = 0
+
+    for note in notes:
+        if note.get("notion_sync_status") != "pending":
+            continue
+
+        if not note.get("sync_key") or not note.get("created_at_iso"):
+            continue
+
+        attempted += 1
+        _sync_note_with_notion(note, notes)
+
+        if note.get("notion_sync_status") == "synced":
+            synced += 1
+
+    return {
+        "attempted": attempted,
+        "synced": synced,
+        "pending": attempted - synced,
+    }
+
+
+@lru_cache(maxsize=1)
+def _build_notion_memo_writer(
+    api_token: str,
+    api_version: str,
+    data_source_id: str,
+) -> NotionMemoWriter:
+    return NotionMemoWriter(
+        client=NotionClient(
+            api_token=api_token,
+            api_version=api_version,
+        ),
+        data_source_id=data_source_id,
+    )
+
+
+def _sync_note_with_notion(note, notes) -> None:
+    try:
+        writer = get_notion_memo_writer()
+
+        if writer is None:
+            return
+
+        result = writer.sync_note(note)
+    except NotionError as error:
+        logger.warning(
+            "Notion memo sync remains pending: note_id=%s error=%s",
+            note["id"],
+            error,
+        )
+        return
+    except Exception as error:
+        logger.warning(
+            "Unexpected Notion memo sync failure: note_id=%s error_type=%s",
+            note["id"],
+            type(error).__name__,
+        )
+        return
+
+    note["notion_page_id"] = result.page_id
+    note["notion_sync_status"] = "synced"
+
+    try:
+        save_notes(notes)
+    except Exception as error:
+        logger.warning(
+            "Notion memo metadata save failed: note_id=%s error_type=%s",
+            note["id"],
+            type(error).__name__,
+        )
 
 
 def format_notes_list():
