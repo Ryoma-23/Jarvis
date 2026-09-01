@@ -1,3 +1,4 @@
+import math
 import os
 
 from pathlib import Path
@@ -55,6 +56,33 @@ def _positive_integer_environment_value(
 
     return parsed
 
+
+def _bounded_float_environment_value(
+    name: str,
+    *,
+    default: float,
+    minimum: float,
+    maximum: float,
+) -> float:
+    value = _optional_environment_value(name)
+
+    if value is None:
+        return default
+
+    try:
+        parsed = float(value)
+    except ValueError:
+        raise ValueError(
+            f"{name} は{minimum}以上{maximum}以下の数値で設定してください。"
+        ) from None
+
+    if not math.isfinite(parsed) or not minimum <= parsed <= maximum:
+        raise ValueError(
+            f"{name} は{minimum}以上{maximum}以下の数値で設定してください。"
+        )
+
+    return parsed
+
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 DATA_DIR = BASE_DIR / "data"
@@ -87,6 +115,20 @@ OPENAI_EMBEDDING_DIMENSIONS = _positive_integer_environment_value(
 OPENAI_EMBEDDING_BATCH_SIZE = _positive_integer_environment_value(
     "OPENAI_EMBEDDING_BATCH_SIZE",
     default=100,
+)
+RAG_RETRIEVAL_TOP_K = _positive_integer_environment_value(
+    "RAG_RETRIEVAL_TOP_K",
+    default=5,
+)
+RAG_RETRIEVAL_MIN_SCORE = _bounded_float_environment_value(
+    "RAG_RETRIEVAL_MIN_SCORE",
+    default=0.45,
+    minimum=0.0,
+    maximum=1.0,
+)
+RAG_RETRIEVAL_MAX_CONTEXT_TOKENS = _positive_integer_environment_value(
+    "RAG_RETRIEVAL_MAX_CONTEXT_TOKENS",
+    default=2000,
 )
 
 NOTION_API_TOKEN = _optional_environment_value("NOTION_API_TOKEN")

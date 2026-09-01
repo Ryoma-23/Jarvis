@@ -1,4 +1,5 @@
 import hashlib
+import math
 import re
 
 from dataclasses import dataclass
@@ -41,6 +42,14 @@ class IndexedNotionPage:
     notion_page_id: str
     notion_page_key: str
     chunk_ids: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class ChromaQueryRecord:
+    chunk_id: str
+    document: str
+    metadata: dict[str, Any]
+    distance: float
 
 
 class ChromaIndex:
@@ -285,6 +294,90 @@ class ChromaIndex:
                 f"種別: {type(error).__name__}。"
             ) from None
 
+    def query(
+        self,
+        query_embedding: list[float],
+        *,
+        n_results: int,
+    ) -> list[ChromaQueryRecord]:
+        self._validate_query_embedding(query_embedding)
+
+        if (
+            not isinstance(n_results, int)
+            or isinstance(n_results, bool)
+            or n_results < 1
+        ):
+            raise ChromaIndexError(
+                "Chromaの検索件数は1以上の整数が必要です。"
+            )
+
+        result_count = min(n_results, self.count())
+
+        if result_count == 0:
+            return []
+
+        try:
+            response = self._collection.query(
+                query_embeddings=[query_embedding],
+                n_results=result_count,
+                include=["documents", "metadatas", "distances"],
+            )
+        except Exception as error:
+            raise ChromaIndexError(
+                "Chromaの類似検索に失敗しました。"
+                f"種別: {type(error).__name__}。"
+            ) from None
+
+        ids = _single_query_values(response, "ids")
+        documents = _single_query_values(response, "documents")
+        metadatas = _single_query_values(response, "metadatas")
+        distances = _single_query_values(response, "distances")
+
+        if not (
+            len(ids)
+            == len(documents)
+            == len(metadatas)
+            == len(distances)
+        ):
+            raise ChromaIndexError(
+                "Chromaの類似検索レスポンス件数が一致しません。"
+            )
+
+        records = []
+
+        for chunk_id, document, metadata, distance in zip(
+            ids,
+            documents,
+            metadatas,
+            distances,
+            strict=True,
+        ):
+            if (
+                not isinstance(chunk_id, str)
+                or not chunk_id.strip()
+                or not isinstance(document, str)
+                or not document.strip()
+                or not isinstance(metadata, dict)
+                or not isinstance(distance, (int, float))
+                or isinstance(distance, bool)
+                or not math.isfinite(float(distance))
+                or float(distance) < 0
+            ):
+                raise ChromaIndexError(
+                    "Chromaの類似検索レコードが不正です。"
+                )
+
+            records.append(
+                ChromaQueryRecord(
+                    chunk_id=chunk_id,
+                    document=document,
+                    metadata=dict(metadata),
+                    distance=float(distance),
+                )
+            )
+
+        return records
+
     def count(self) -> int:
         try:
             return int(self._collection.count())
@@ -358,6 +451,24 @@ class ChromaIndex:
                 "Chunk MetadataのEmbedding設定がCollectionと一致しません。"
             )
 
+    def _validate_query_embedding(
+        self,
+        query_embedding: list[float],
+    ) -> None:
+        if (
+            not isinstance(query_embedding, list)
+            or len(query_embedding) != self.dimensions
+            or any(
+                not isinstance(value, (int, float))
+                or isinstance(value, bool)
+                or not math.isfinite(float(value))
+                for value in query_embedding
+            )
+        ):
+            raise ChromaIndexError(
+                "Chromaへ渡す質問Embeddingの次元数または形式が不正です。"
+            )
+
 
 def build_chroma_collection_name(*, model: str, dimensions: int) -> str:
     normalized_model = (model or "").strip().lower()
@@ -379,3 +490,21 @@ def canonical_notion_page_id(value: str) -> str:
         raise ChromaIndexError("Notion Page IDが指定されていません。")
 
     return normalized
+
+
+def _single_query_values(
+    response: dict[str, Any],
+    key: str,
+) -> list[Any]:
+    values = response.get(key)
+
+    if (
+        not isinstance(values, list)
+        or len(values) != 1
+        or not isinstance(values[0], list)
+    ):
+        raise ChromaIndexError(
+            f"Chromaの類似検索レスポンス{key}が不正です。"
+        )
+
+    return values[0]

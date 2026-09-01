@@ -195,6 +195,31 @@ class ChromaIndexTests(unittest.TestCase):
             build_chroma_collection_name(model=MODEL, dimensions=2),
         )
 
+    def test_queries_with_external_embedding_and_returns_distance(self):
+        index = self._index()
+        index.sync_page(
+            notion_page_id=PAGE_ID,
+            records=[
+                _record("near", "Near", [1.0, 0.0, 0.0]),
+                _record("far", "Far", [0.0, 1.0, 0.0]),
+            ],
+        )
+
+        records = index.query([1.0, 0.0, 0.0], n_results=2)
+
+        self.assertEqual(
+            [record.chunk_id for record in records],
+            ["near", "far"],
+        )
+        self.assertAlmostEqual(records[0].distance, 0.0)
+        self.assertGreater(records[1].distance, records[0].distance)
+
+    def test_query_rejects_wrong_embedding_dimensions(self):
+        index = self._index()
+
+        with self.assertRaisesRegex(ChromaIndexError, "次元数または形式"):
+            index.query([1.0, 0.0], n_results=1)
+
 
 class ChromaNotionPageAuditorTests(unittest.TestCase):
     def setUp(self):

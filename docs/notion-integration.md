@@ -653,3 +653,101 @@ Official references:
 - [Chroma Collection API](https://docs.trychroma.com/reference/python/collection)
 - [Chroma upsert](https://docs.trychroma.com/docs/collections/update-data)
 - [Chroma metadata filtering](https://docs.trychroma.com/docs/querying-collections/metadata-filtering)
+
+## Phase 8: RAG Retrieval
+
+Phase 8 adds standalone semantic retrieval over the Phase 7 Chroma Collection.
+It does not connect retrieval to the Router, text chat, Realtime tools, or answer
+generation yet.
+
+The processing flow is:
+
+```text
+Question
+→ dedicated OpenAI Embedding client
+→ active model/dimensions Chroma Collection
+→ Top K by L2 distance
+→ convert distance to score and apply threshold
+→ remove exact duplicates and merge adjacent same-Page Chunks
+→ apply total Context token upper bound
+→ RetrievedChunk[]
+```
+
+`RetrievedChunk` is the common retrieval result and contains only:
+
+- `content`
+- `score`
+- `title`
+- `notion_page_id`
+- `notion_url`
+- `source_type`
+
+### Retrieval settings
+
+The defaults work without adding values to `.env`:
+
+```dotenv
+RAG_RETRIEVAL_TOP_K=5
+RAG_RETRIEVAL_MIN_SCORE=0.45
+RAG_RETRIEVAL_MAX_CONTEXT_TOKENS=2000
+```
+
+The question must use the same `OPENAI_EMBEDDING_MODEL` and
+`OPENAI_EMBEDDING_DIMENSIONS` as the selected Chroma Collection. Retrieval fails
+clearly instead of querying a mismatched Collection.
+
+The existing Phase 7 Collection uses Chroma's default L2 distance. Phase 8
+converts it to a higher-is-better bounded score with:
+
+```text
+score = 1 / (1 + distance)
+```
+
+The threshold is applied before duplicate cleanup. Exact duplicate content from
+the same Notion Page is retained only once. Results with consecutive
+`chunk_index` values from that Page are merged in document order; repeated
+heading lines and directly overlapping lines are not repeated. Non-adjacent
+Chunks remain separate results.
+
+Because Phase 8 is intentionally independent of a target chat model, it does not
+add a tokenizer dependency. The Context limiter counts UTF-8 bytes as a
+conservative upper bound for byte-level tokenizers and truncates the lowest-level
+content representation when necessary. The configured limit therefore will not
+be exceeded by the value reported by the evaluation command. When retrieval is
+connected to a specific LLM in a later phase, this estimator can be replaced by
+that model's exact tokenizer without changing `RetrievedChunk`.
+
+### Standalone evaluation
+
+Run the three fixed evaluation questions from the roadmap:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\evaluate_rag_retrieval.py
+```
+
+The fixed cases are:
+
+- `前にAECについてどう考えてた？`
+- `最近後回しにしてた開発作業は？`
+- `気分で音楽を選ぶ機能について考えたことは？`
+
+Evaluate one or more custom questions instead:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\evaluate_rag_retrieval.py `
+  --question "確認したい質問" `
+  --question "別の質問"
+```
+
+The command calls OpenAI once per question to create the question Embedding, but
+does not call Notion or an answer-generation LLM. It prints the score, source
+metadata, retrieved content, and conservative Context token upper bound. Only
+Pages already synchronized into the active Chroma Collection can be found.
+
+Run the isolated unit tests without calling OpenAI or Notion:
+
+```powershell
+.\.venv\Scripts\python.exe -m unittest `
+  tests.test_rag_retrieval `
+  tests.test_chroma_index
+```
