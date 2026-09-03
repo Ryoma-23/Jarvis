@@ -243,6 +243,65 @@ class NotionClientTests(unittest.TestCase):
                         page_size=page_size,
                     )
 
+    def test_retrieve_page_property_items_uses_get_pagination_parameters(self):
+        session = Mock()
+        session.request.return_value = FakeResponse(
+            200,
+            {
+                "object": "list",
+                "results": [],
+                "has_more": False,
+                "next_cursor": None,
+            },
+        )
+        client = NotionClient(
+            api_token="secret-token",
+            timeout_seconds=6.0,
+            session=session,
+        )
+
+        client.retrieve_page_property_items(
+            "page-id",
+            "property-id",
+            start_cursor="next-cursor",
+            page_size=75,
+        )
+
+        session.request.assert_called_once_with(
+            "GET",
+            (
+                f"{NOTION_API_BASE_URL}/pages/page-id/properties/"
+                "property-id"
+            ),
+            headers={
+                "Authorization": "Bearer secret-token",
+                "Notion-Version": DEFAULT_NOTION_API_VERSION,
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+            },
+            json=None,
+            timeout=6.0,
+            params={
+                "page_size": 75,
+                "start_cursor": "next-cursor",
+            },
+        )
+
+    def test_retrieve_page_property_items_rejects_invalid_page_size(self):
+        client = NotionClient(
+            api_token="secret-token",
+            session=Mock(),
+        )
+
+        for page_size in (0, 101):
+            with self.subTest(page_size=page_size):
+                with self.assertRaises(NotionConfigurationError):
+                    client.retrieve_page_property_items(
+                        "page-id",
+                        "property-id",
+                        page_size=page_size,
+                    )
+
     def test_create_database_uses_initial_data_source_schema(self):
         session = Mock()
         session.request.return_value = FakeResponse(

@@ -621,6 +621,59 @@ Sync one Page:
 .\.venv\Scripts\python.exe scripts\sync_notion_page_to_chroma.py <NOTION_PAGE_ID>
 ```
 
+### Notes Data Source Content bulk sync
+
+Memo pages store their text in the Notes Data Source `Content` property rather
+than in Block Children. The Memo ingestion path therefore queries every Notes
+page, retrieves the complete `Content` rich-text property with its own
+pagination, and converts it into the same `NotionChunk` contract used by normal
+pages:
+
+```text
+Notes Data Source Query (all pages)
+→ complete Content property retrieval per Page
+→ deterministic Memo Chunks
+→ versioned Embeddings
+→ active Chroma Collection
+```
+
+The Notion title is retained as the Chunk title and as a heading in the Chunk
+content. Property-backed virtual Block IDs are derived from the canonical Page
+ID, so unchanged title and Content values produce the same Chunk IDs on every
+run. Memo records use `source_type=notion_memo` to distinguish them from normal
+Block-backed pages.
+
+Preview every page and candidate Chunk without calling OpenAI or changing
+Chroma:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\sync_notion_notes_to_chroma.py --dry-run
+```
+
+Create missing Embeddings and converge each Memo page in Chroma:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\sync_notion_notes_to_chroma.py --apply
+```
+
+Dry Run is the default when neither option is specified. Apply is restart-safe:
+unchanged Chunk versions reuse the local Embedding cache, Chunk IDs are
+upserted, and stale Chunks belonging to each processed Memo page are deleted.
+If one page fails, the remaining pages are attempted and the command exits with
+a failure summary. Rerunning processes only missing or changed Embeddings.
+An empty `Content` property produces no Chunk and removes an older Chroma Chunk
+for that same page during Apply.
+
+This command is currently explicit, not scheduled automatically. Run Apply after
+adding or editing Memo pages until an incremental synchronization trigger is
+introduced. The Data Source Query API currently returns at most 10,000 results
+per query, so a larger Notes source will require a partitioned sync strategy.
+
+Official Notion references:
+
+- [Query a data source](https://developers.notion.com/reference/query-a-data-source)
+- [Retrieve a page property item](https://developers.notion.com/reference/retrieve-a-page-property)
+
 ### Missing Page audit
 
 The audit enumerates distinct Notion Page IDs in the current Collection and calls
@@ -832,8 +885,8 @@ store retrieved Chunk content, embeddings, or the source list. The existing
 conversation context builder therefore continues to restore conversation only.
 
 Only content already present in the active Chroma Collection can be retrieved.
-Notion Data Source `Content` properties still require their ingestion/sync path
-before those Memo values can participate in RAG.
+Run `scripts/sync_notion_notes_to_chroma.py --apply` after adding or editing
+Notes Data Source Memo pages so their `Content` values can participate in RAG.
 
 Run Phase 9 tests without live OpenAI or Notion calls:
 

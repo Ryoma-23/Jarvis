@@ -76,7 +76,15 @@ class NotionPageChunker:
         *,
         page: dict[str, Any],
         blocks: list[NormalizedNotionBlock],
+        source_type: str = "notion_page",
     ) -> list[NotionChunk]:
+        normalized_source_type = (source_type or "").strip()
+
+        if not normalized_source_type:
+            raise NotionConfigurationError(
+                "Chunkのsource_typeが指定されていません。"
+            )
+
         page_id = _required_page_text(page, "id")
         title = _extract_page_title(page)
         last_edited_time = _required_page_text(
@@ -117,7 +125,7 @@ class NotionPageChunker:
                     content=content,
                     content_hash=content_hash,
                     last_edited_time=last_edited_time,
-                    source_type="notion_page",
+                    source_type=normalized_source_type,
                     notion_url=notion_url,
                     heading_path=heading_path,
                     block_ids=block_ids,

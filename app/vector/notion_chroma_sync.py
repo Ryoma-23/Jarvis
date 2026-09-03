@@ -60,6 +60,25 @@ class NotionChromaSyncService:
 
     def sync_page(self, notion_page_id: str) -> NotionChromaSyncResult:
         chunks = self._chunking_service.chunk_page(notion_page_id)
+        return self.sync_chunks(
+            notion_page_id=notion_page_id,
+            chunks=chunks,
+        )
+
+    def sync_chunks(
+        self,
+        *,
+        notion_page_id: str,
+        chunks: list[NotionChunk],
+    ) -> NotionChromaSyncResult:
+        page_key = canonical_notion_page_id(notion_page_id)
+
+        for chunk in chunks:
+            if canonical_notion_page_id(chunk.notion_page_id) != page_key:
+                raise ChromaIndexError(
+                    "同期対象Page IDとChunkのNotion Page IDが一致しません。"
+                )
+
         embedding_result = self._embedding_service.embed_chunks(chunks)
         chroma_records = [
             self._chroma_record(chunk)

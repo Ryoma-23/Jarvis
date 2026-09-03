@@ -13,6 +13,7 @@ from app.embeddings.embedding_service import EmbeddingService
 from app.embeddings.embedding_store import EmbeddingStore
 from app.integrations.openai_embedding_client import OpenAIEmbeddingClient
 from app.vector.chroma_index import ChromaIndex
+from app.vector.chroma_index import ChromaIndexError
 from app.vector.notion_chroma_sync import NotionChromaSyncService
 
 
@@ -109,6 +110,43 @@ class NotionChromaSyncServiceTests(unittest.TestCase):
             metadata_by_id["notion-chunk:a"]["title"],
             "Pipeline Test",
         )
+
+    def test_syncs_prebuilt_chunks_without_refetching_notion_page(self):
+        chunk = _chunk("memo", "Memo property content", 0)
+        self.embedding_client.create_embeddings.return_value = [
+            [0.1, 0.2, 0.3]
+        ]
+
+        result = self.service.sync_chunks(
+            notion_page_id=PAGE_ID,
+            chunks=[chunk],
+        )
+
+        self.assertEqual(result.chunk_count, 1)
+        self.chunking_service.chunk_page.assert_not_called()
+        self.assertEqual(
+            self.chroma_index.get_page_chunk_ids(PAGE_ID),
+            ("notion-chunk:memo",),
+        )
+
+    def test_rejects_prebuilt_chunk_from_another_page(self):
+        chunk = _chunk("wrong-page", "Wrong page content", 0)
+        chunk = NotionChunk(
+            **{
+                **chunk.to_dict(),
+                "notion_page_id": "another-page-id",
+                "heading_path": chunk.heading_path,
+                "block_ids": chunk.block_ids,
+            }
+        )
+
+        with self.assertRaisesRegex(ChromaIndexError, "一致しません"):
+            self.service.sync_chunks(
+                notion_page_id=PAGE_ID,
+                chunks=[chunk],
+            )
+
+        self.embedding_client.create_embeddings.assert_not_called()
 
 
 if __name__ == "__main__":

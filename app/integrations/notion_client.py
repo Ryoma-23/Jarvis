@@ -194,6 +194,42 @@ class NotionClient:
             query_params=query_params,
         )
 
+    def retrieve_page_property_items(
+        self,
+        page_id: str,
+        property_id: str,
+        *,
+        start_cursor: str | None = None,
+        page_size: int = 100,
+    ) -> dict[str, Any]:
+        normalized_page_id = self._require_text(page_id, "page_id")
+        normalized_property_id = self._require_text(
+            property_id,
+            "property_id",
+        )
+
+        if not 1 <= page_size <= 100:
+            raise NotionConfigurationError(
+                "Page Property取得のpage_sizeは1から100の範囲が必要です。"
+            )
+
+        query_params: dict[str, Any] = {"page_size": page_size}
+
+        if start_cursor is not None:
+            query_params["start_cursor"] = self._require_text(
+                start_cursor,
+                "start_cursor",
+            )
+
+        return self._request(
+            "GET",
+            (
+                f"/pages/{normalized_page_id}/properties/"
+                f"{normalized_property_id}"
+            ),
+            query_params=query_params,
+        )
+
     def retrieve_database(self, database_id: str) -> dict[str, Any]:
         normalized_database_id = self._require_text(
             database_id,

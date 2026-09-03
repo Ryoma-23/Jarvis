@@ -18,6 +18,7 @@ from app.integrations.notion_memo_writer import (
 
 
 NOTION_QUERY_PAGE_SIZE = 100
+NOTION_PROPERTY_PAGE_SIZE = 100
 CREATED_AT_ASCENDING_SORT = [
     {
         "property": CREATED_AT_PROPERTY,
@@ -58,6 +59,9 @@ class NotionMemoReader:
 
     def list_notes(self) -> list[dict[str, Any]]:
         return self._query_all()
+
+    def list_notes_for_indexing(self) -> list[dict[str, Any]]:
+        return self._query_all(retrieve_complete_content=True)
 
     def search_content(self, keyword: str) -> list[dict[str, Any]]:
         normalized_keyword = (keyword or "").strip()
@@ -105,6 +109,7 @@ class NotionMemoReader:
         self,
         *,
         filter_body: dict[str, Any] | None = None,
+        retrieve_complete_content: bool = False,
     ) -> list[dict[str, Any]]:
         self._ensure_schema()
         pages = []
@@ -132,7 +137,13 @@ class NotionMemoReader:
                     "Notes Data Source Queryのhas_moreを取得できませんでした。"
                 )
 
-            pages.extend(self._memo_from_page(page) for page in results)
+            for page in results:
+                memo = self._memo_from_page(page)
+
+                if retrieve_complete_content:
+                    memo["content"] = self._retrieve_complete_content(page)
+
+                pages.append(memo)
 
             if not has_more:
                 return pages
@@ -194,6 +205,10 @@ class NotionMemoReader:
         sync_key = _extract_rich_text(properties, SYNC_KEY_PROPERTY)
         source = _extract_select_name(properties, SOURCE_PROPERTY)
         url = page.get("url")
+        last_edited_time = _required_text(
+            page.get("last_edited_time"),
+            "last_edited_time",
+        )
 
         return {
             "id": note_id,
@@ -206,7 +221,83 @@ class NotionMemoReader:
             "notion_title": title,
             "notion_source": source,
             "notion_url": url.strip() if isinstance(url, str) else "",
+            "notion_last_edited_time": last_edited_time,
         }
+
+    def _retrieve_complete_content(self, page: Any) -> str:
+        if not isinstance(page, dict):
+            raise NotionResponseError(
+                "Notes Data Source Queryに不正なPageが含まれています。"
+            )
+
+        page_id = _required_text(page.get("id"), "Page ID")
+        properties = page.get("properties")
+        content_property = (
+            properties.get(CONTENT_PROPERTY)
+            if isinstance(properties, dict)
+            else None
+        )
+        property_id = (
+            content_property.get("id")
+            if isinstance(content_property, dict)
+            else None
+        )
+        property_id = _required_text(property_id, "Content Property ID")
+        fragments = []
+        start_cursor = None
+        seen_cursors = set()
+
+        while True:
+            response = self._client.retrieve_page_property_items(
+                page_id,
+                property_id,
+                start_cursor=start_cursor,
+                page_size=NOTION_PROPERTY_PAGE_SIZE,
+            )
+            results = response.get("results")
+            has_more = response.get("has_more")
+
+            if not isinstance(results, list):
+                raise NotionResponseError(
+                    "Notion MemoのContent Property resultsを取得できませんでした。"
+                )
+
+            if not isinstance(has_more, bool):
+                raise NotionResponseError(
+                    "Notion MemoのContent Property has_moreを取得できませんでした。"
+                )
+
+            for item in results:
+                if not isinstance(item, dict):
+                    raise NotionResponseError(
+                        "Notion MemoのContent Propertyが不正です。"
+                    )
+
+                rich_text = item.get("rich_text")
+
+                if not isinstance(rich_text, dict):
+                    raise NotionResponseError(
+                        "Notion MemoのContent Propertyがrich_textではありません。"
+                    )
+
+                fragments.append(_plain_text_fragment(rich_text))
+
+            if not has_more:
+                return "".join(fragments)
+
+            next_cursor = response.get("next_cursor")
+
+            if (
+                not isinstance(next_cursor, str)
+                or not next_cursor.strip()
+                or next_cursor in seen_cursors
+            ):
+                raise NotionResponseError(
+                    "Notion MemoのContent Propertyページネーション情報が不正です。"
+                )
+
+            seen_cursors.add(next_cursor)
+            start_cursor = next_cursor
 
 
 def _extract_rich_text(
@@ -252,6 +343,23 @@ def _extract_rich_text(
         values.append(content)
 
     return "".join(values)
+
+
+def _plain_text_fragment(fragment: dict[str, Any]) -> str:
+    plain_text = fragment.get("plain_text")
+
+    if isinstance(plain_text, str):
+        return plain_text
+
+    text = fragment.get("text")
+    content = text.get("content") if isinstance(text, dict) else None
+
+    if not isinstance(content, str):
+        raise NotionResponseError(
+            "Notion MemoのContent Property rich_textが不正です。"
+        )
+
+    return content
 
 
 def _extract_integer(

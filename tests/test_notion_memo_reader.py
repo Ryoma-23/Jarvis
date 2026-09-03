@@ -51,6 +51,7 @@ def page_fixture(
     return {
         "object": "page",
         "id": f"page-{note_id}",
+        "last_edited_time": "2026-08-30T08:00:00.000Z",
         "parent": {
             "type": "data_source_id",
             "data_source_id": DATA_SOURCE_ID.replace("-", ""),
@@ -58,10 +59,12 @@ def page_fixture(
         "url": f"https://www.notion.so/page-{note_id}",
         "properties": {
             TITLE_PROPERTY: {
+                "id": "title",
                 "type": "title",
                 "title": [{"plain_text": content[:100]}],
             },
             CONTENT_PROPERTY: {
+                "id": "content-property-id",
                 "type": "rich_text",
                 "rich_text": [
                     {"plain_text": content[:2]},
@@ -198,12 +201,66 @@ class NotionMemoReaderTests(unittest.TestCase):
         self.assertEqual(note["notion_page_id"], "page-4")
         self.assertEqual(note["notion_source"], "JARVIS")
         self.assertEqual(
+            note["notion_last_edited_time"],
+            "2026-08-30T08:00:00.000Z",
+        )
+        self.assertEqual(
             note["created_at"],
             datetime.fromisoformat(
                 "2026-08-30T16:30:00+09:00"
             ).astimezone().strftime("%Y-%m-%d %H:%M:%S"),
         )
         client.retrieve_page.assert_called_once_with("page-4")
+
+    def test_indexing_read_retrieves_every_content_property_page(self):
+        reader, client = reader_with_client()
+        client.query_data_source.return_value = {
+            "results": [page_fixture(8, "queryの途中値")],
+            "has_more": False,
+        }
+        client.retrieve_page_property_items.side_effect = (
+            {
+                "results": [
+                    {
+                        "type": "rich_text",
+                        "rich_text": {"plain_text": "完全な"},
+                    }
+                ],
+                "has_more": True,
+                "next_cursor": "content-cursor-2",
+            },
+            {
+                "results": [
+                    {
+                        "type": "rich_text",
+                        "rich_text": {"plain_text": "Content"},
+                    }
+                ],
+                "has_more": False,
+                "next_cursor": None,
+            },
+        )
+
+        notes = reader.list_notes_for_indexing()
+
+        self.assertEqual(notes[0]["content"], "完全なContent")
+        self.assertEqual(
+            client.retrieve_page_property_items.call_args_list,
+            [
+                call(
+                    "page-8",
+                    "content-property-id",
+                    start_cursor=None,
+                    page_size=100,
+                ),
+                call(
+                    "page-8",
+                    "content-property-id",
+                    start_cursor="content-cursor-2",
+                    page_size=100,
+                ),
+            ],
+        )
 
     def test_local_and_notion_major_fields_and_counts_match(self):
         reader, client = reader_with_client()
