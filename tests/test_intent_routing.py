@@ -23,6 +23,17 @@ class RouterServiceBaselineTests(unittest.TestCase):
             ("やることを追加", "task"),
             ("これを覚えて", "memory"),
             ("記憶を見せて", "memory"),
+            ("今日の未完了タスクを見せて", "task"),
+            ("前にAECについてどう考えてた？", "knowledge_search"),
+            ("最近後回しにしてた開発作業は？", "knowledge_search"),
+            (
+                "気分で音楽を選ぶ機能について考えたことは？",
+                "knowledge_search",
+            ),
+            (
+                "前にメモしたAECについてどう考えてた？",
+                "knowledge_search",
+            ),
             ("普通の相談です", None),
         )
 
@@ -68,6 +79,33 @@ class RouterServiceBaselineTests(unittest.TestCase):
                 return_value="router prompt",
             ),
         ):
+            self.assertEqual(router_service.route_message("相談"), "chat")
+
+    def test_router_accepts_knowledge_search_from_ai_classification(self):
+        client = Mock()
+        client.responses.create.return_value = SimpleNamespace(
+            output_text='{"route": "knowledge_search"}'
+        )
+
+        with (
+            patch.object(router_service, "client", client),
+            patch.object(
+                router_service,
+                "load_router_prompt",
+                return_value="router prompt",
+            ),
+        ):
+            route = router_service.route_message("以前の構想を確認したい")
+
+        self.assertEqual(route, "knowledge_search")
+
+    def test_router_rejects_unknown_ai_route(self):
+        client = Mock()
+        client.responses.create.return_value = SimpleNamespace(
+            output_text='{"route": "delete_everything"}'
+        )
+
+        with patch.object(router_service, "client", client):
             self.assertEqual(router_service.route_message("相談"), "chat")
 
 

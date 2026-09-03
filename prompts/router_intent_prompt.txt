@@ -9,6 +9,7 @@ routeは次のいずれかです。
 - note
 - task
 - memory
+- knowledge_search
 
 判断基準:
 
@@ -24,7 +25,16 @@ task:
 memory:
 覚えておいて、今後のために覚えて、今後の会話で使って、覚えていること一覧、記憶削除、記憶更新
 
+knowledge_search:
+過去にユーザーが考えたこと、話したこと、検討した方針、以前のアイデアなど、曖昧な過去情報を意味で探す質問
+例：前にAECについてどう考えてた？、最近後回しにしてた開発作業は？、気分で音楽を選ぶ機能について考えたことは？
+
+重要:
+- 今日の未完了タスク、タスク一覧、期限付きタスクなど、状態や日付が明確なTask操作はtaskにする
+- 明示的なメモ検索はnote、長期記憶検索はmemoryにする
+- 一般知識の質問や現在の相談はchatにする
+
 出力形式:
 {
-  "route": "chat | note | task | memory"
+  "route": "chat | note | task | memory | knowledge_search"
 }

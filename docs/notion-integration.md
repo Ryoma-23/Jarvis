@@ -751,3 +751,96 @@ Run the isolated unit tests without calling OpenAI or Notion:
   tests.test_rag_retrieval `
   tests.test_chroma_index
 ```
+
+## Phase 9: LLM Context Integration
+
+Phase 9 connects Phase 8 retrieval to text and Realtime conversations while
+keeping the existing structured Memo, Task, and Memory operations unchanged.
+No new environment variable is required.
+
+### Text routing and Context
+
+The text Router now supports:
+
+```text
+Router
+├─ note
+├─ task
+├─ memory
+├─ knowledge_search
+└─ chat
+```
+
+`knowledge_search` is for ambiguous recall of prior thoughts, discussions,
+ideas, and decisions. Explicit Memo CRUD remains `note`; explicit Task status,
+date, list, and CRUD requests remain `task`; explicit long-term-memory CRUD
+remains `memory`. In particular, `今日の未完了タスク` takes the structured
+Task route and does not query Chroma.
+
+Only `knowledge_search` calls `RagRetrievalService`. A successful retrieval is
+added to that one Responses API request as a transient System Context. Each
+reference contains the Chunk content, score, title, Notion Page ID, Notion URL,
+and source type. The guard instructions treat retrieved content as untrusted
+data, require answers to use only supported information, and require the title
+and Notion URL for sources used in the answer.
+
+The final SSE `done` payload also includes a `sources` array without Chunk
+content. This lets an API client retain exact source information independently
+of the generated prose.
+
+If retrieval returns no Chunk above the configured score threshold, JARVIS does
+not call the answer-generation model. It directly returns:
+
+```text
+関連情報を見つけられませんでした。
+```
+
+Embedding or Chroma failures return a separate temporary-unavailable message
+and never fall through to ordinary chat. Error logs contain the exception type,
+not the question text or credentials.
+
+### Realtime knowledge Tool
+
+Realtime sessions expose one additional read-only function Tool:
+
+```text
+Realtime model
+→ search_knowledge(question)
+→ RagRetrievalService
+→ Chroma
+→ function_call_output
+→ follow-up audio response
+```
+
+The Tool result contains `success`, `found`, `message`, and `results`. Found
+results use the common `RetrievedChunk` fields, including title and Notion URL.
+For `found=false`, Realtime instructions require the model to speak the returned
+message without guessing. They also explicitly reserve `list_tasks` with
+`status_filter=todo` for today's incomplete tasks and preserve `search_notes`
+and `search_memory` for their structured searches.
+
+The Window already sends local Tool results back to Realtime as a
+`function_call_output` conversation item and creates the follow-up response, so
+Phase 9 requires no browser transport change.
+
+### Conversation persistence boundary
+
+Retrieved Chunk content and source payloads are transient. The Conversation
+SQLite database still stores only the visible user message and final Assistant
+message for this flow. The Assistant row records the route name but does not
+store retrieved Chunk content, embeddings, or the source list. The existing
+conversation context builder therefore continues to restore conversation only.
+
+Only content already present in the active Chroma Collection can be retrieved.
+Notion Data Source `Content` properties still require their ingestion/sync path
+before those Memo values can participate in RAG.
+
+Run Phase 9 tests without live OpenAI or Notion calls:
+
+```powershell
+.\.venv\Scripts\python.exe -m unittest `
+  tests.test_knowledge_service `
+  tests.test_realtime_knowledge_tool `
+  tests.test_intent_routing `
+  tests.test_chat_service
+```

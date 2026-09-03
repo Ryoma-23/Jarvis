@@ -20,6 +20,9 @@ from app.services.realtime_tools.memory_tools import (
     tool_update_memory,
     tool_delete_memory
 )
+from app.services.realtime_tools.knowledge_tools import (
+    tool_search_knowledge,
+)
 
 
 TOOL_REGISTRY = {
@@ -42,4 +45,7 @@ TOOL_REGISTRY = {
     "search_memory": tool_search_memory,
     "update_memory": tool_update_memory,
     "delete_memory": tool_delete_memory,
+
+    # knowledge
+    "search_knowledge": tool_search_knowledge,
 }

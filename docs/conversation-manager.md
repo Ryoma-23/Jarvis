@@ -173,6 +173,18 @@ Normal Responses API input still starts with the existing system prompt,
 current time, and long-term memory context. The common user and assistant
 history follows those system messages.
 
+For the `knowledge_search` route only, Phase 9 inserts one additional transient
+System Context before the common history. It contains the retrieved text,
+title, Notion URL, Page ID, source type, and score plus instructions to treat the
+retrieved text as data and avoid unsupported answers. If no result passes the
+retrieval threshold, the service returns a deterministic not-found reply without
+calling the answer model. Other routes never call the RAG Retriever.
+
+The text stream's final event includes source metadata for
+`knowledge_search`, but retrieved Chunk content and source metadata are not
+written to Conversation SQLite. The database still contains only the visible
+user and Assistant messages plus the existing route marker.
+
 Memo, Task, and Memory operations use their existing intent handlers. Their
 user request and returned result are stored as a normal visible user/assistant
 pair with intent metadata, without making an additional chat-completion call.

@@ -22,6 +22,8 @@ from app.services.conversation_retry_service import (
 )
 from app.services.conversation_service import ConversationService
 from app.services.conversation_store import ConversationStore
+from app.rag.retrieval_service import RetrievedChunk
+from app.services.knowledge_service import KnowledgeSearchOutcome
 
 
 def parse_sse_payloads(chunks):
@@ -140,6 +142,127 @@ class ChatServiceConversationHistoryTests(unittest.TestCase):
         self.assertEqual(
             request["input"][3:],
             [{"role": "user", "content": "こんにちは"}],
+        )
+
+    def test_knowledge_search_adds_temporary_context_and_returns_sources(self):
+        client = Mock()
+        client.responses.create.return_value = [
+            text_delta("AECについて以前検討していました。"),
+        ]
+        outcome = KnowledgeSearchOutcome(
+            status="found",
+            chunks=(
+                RetrievedChunk(
+                    content="AECを有効にする案を検討しました。",
+                    score=0.74,
+                    title="AECメモ",
+                    notion_page_id="page-aec",
+                    notion_url="https://www.notion.so/page-aec",
+                    source_type="notion_page",
+                ),
+            ),
+        )
+
+        with (
+            patch.object(chat_service, "client", client),
+            patch.object(
+                chat_service,
+                "route_message",
+                return_value="knowledge_search",
+            ),
+            patch.object(
+                chat_service,
+                "search_knowledge",
+                return_value=outcome,
+            ) as search,
+            patch.object(
+                chat_service,
+                "load_system_prompt",
+                return_value="system prompt",
+            ),
+            patch.object(
+                chat_service,
+                "format_memory_for_prompt",
+                return_value="memory context",
+            ),
+        ):
+            chunks = list(
+                chat_service.generate_chat_stream(
+                    "前にAECについてどう考えてた？"
+                )
+            )
+
+        search.assert_called_once_with("前にAECについてどう考えてた？")
+        request = client.responses.create.call_args.kwargs
+        self.assertEqual(request["input"][3]["role"], "system")
+        self.assertIn("AECメモ", request["input"][3]["content"])
+        self.assertIn(
+            "https://www.notion.so/page-aec",
+            request["input"][3]["content"],
+        )
+        self.assertIn(
+            "AECを有効にする案を検討しました。",
+            request["input"][3]["content"],
+        )
+        self.assertEqual(
+            request["input"][4],
+            {"role": "user", "content": "前にAECについてどう考えてた？"},
+        )
+
+        payloads = parse_sse_payloads(chunks)
+        self.assertEqual(
+            payloads[-1]["sources"],
+            outcome.sources(),
+        )
+        conversation = self.service.get_active_conversation()
+        messages = self.service.store.get_messages(conversation["id"])
+        self.assertEqual(
+            [message["role"] for message in messages],
+            ["user", "assistant"],
+        )
+        self.assertEqual(
+            messages[-1]["metadata"],
+            {"route": "knowledge_search"},
+        )
+        self.assertNotIn("AECを有効", str(messages[-1]["metadata"]))
+
+    def test_knowledge_search_without_results_skips_answer_model(self):
+        client = Mock()
+        outcome = KnowledgeSearchOutcome(status="not_found")
+
+        with (
+            patch.object(chat_service, "client", client),
+            patch.object(
+                chat_service,
+                "route_message",
+                return_value="knowledge_search",
+            ),
+            patch.object(
+                chat_service,
+                "search_knowledge",
+                return_value=outcome,
+            ),
+        ):
+            chunks = list(
+                chat_service.generate_chat_stream("前の検討内容は？")
+            )
+
+        client.responses.create.assert_not_called()
+        payloads = parse_sse_payloads(chunks)
+        self.assertEqual(
+            payloads[1]["text"],
+            "関連情報を見つけられませんでした。",
+        )
+        self.assertEqual(payloads[-1]["sources"], [])
+        conversation = self.service.get_active_conversation()
+        messages = self.service.store.get_messages(conversation["id"])
+        self.assertEqual(len(messages), 2)
+        self.assertEqual(
+            messages[-1]["metadata"],
+            {
+                "route": "knowledge_search",
+                "kind": "knowledge_result",
+            },
         )
 
     def test_sqlite_save_failure_does_not_stop_stream_and_retries_in_order(self):
@@ -337,6 +460,10 @@ class ChatServiceConversationHistoryTests(unittest.TestCase):
                     patch.object(chat_service, "client", client),
                     patch.object(
                         chat_service,
+                        "search_knowledge",
+                    ) as search_knowledge,
+                    patch.object(
+                        chat_service,
                         "route_message",
                         return_value=route,
                     ),
@@ -374,6 +501,7 @@ class ChatServiceConversationHistoryTests(unittest.TestCase):
                     ],
                 )
                 handler.assert_called_once_with(message)
+                search_knowledge.assert_not_called()
                 client.responses.create.assert_not_called()
                 self.assertEqual(
                     [(item["role"], item["content"]) for item in messages],

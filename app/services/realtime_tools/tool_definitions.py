@@ -232,5 +232,24 @@ REALTIME_TOOL_DEFINITIONS = [
             },
             "required": ["memory_ids"]
         }
+    },
+    {
+        "type": "function",
+        "name": "search_knowledge",
+        "description": (
+            "過去に考えたこと、話したこと、以前のアイデアや方針など、"
+            "曖昧な過去情報をKnowledge Indexから意味検索します。"
+            "メモの明示的なキーワード検索やTask一覧には使用しません。"
+        ),
+        "parameters": {
+            "type": "object",
+            "properties": {
+                "question": {
+                    "type": "string",
+                    "description": "過去情報について確認したい質問"
+                }
+            },
+            "required": ["question"]
+        }
     }
 ]

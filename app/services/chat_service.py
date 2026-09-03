@@ -18,6 +18,10 @@ from app.services.intent_service import (
     handle_note_intent,
     handle_task_intent,
 )
+from app.services.knowledge_service import (
+    format_knowledge_context,
+    search_knowledge,
+)
 from app.services.memory_service import format_memory_for_prompt
 from app.services.router_service import route_message
 
@@ -46,6 +50,7 @@ def generate_chat_stream(
     full_reply = ""
     response_id = None
     route = None
+    knowledge_outcome = None
 
     try:
         conversation = _resolve_chat_conversation(
@@ -72,13 +77,24 @@ def generate_chat_stream(
         route = route_message(message)
         specialized_reply = _handle_specialized_intent(route, message)
 
+        if route == "knowledge_search":
+            knowledge_outcome = search_knowledge(message)
+
+            if not knowledge_outcome.found:
+                specialized_reply = knowledge_outcome.user_message
+
         if specialized_reply is not None:
             full_reply = specialized_reply
+            metadata_kind = (
+                "knowledge_result"
+                if route == "knowledge_search"
+                else "intent_result"
+            )
             assistant_outcome = _persist_assistant_message(
                 conversation_service=conversation_service,
                 content=full_reply,
                 status="completed",
-                metadata={"route": route, "kind": "intent_result"},
+                metadata={"route": route, "kind": metadata_kind},
                 conversation_id=active_conversation_id,
             )
             assistant_message = assistant_outcome.message
@@ -94,12 +110,17 @@ def generate_chat_stream(
                 ),
                 active_conversation_id,
             )
+            done_payload = {
+                "done": True,
+                "assistant_message_id": assistant_message["id"],
+            }
+
+            if knowledge_outcome is not None:
+                done_payload["sources"] = knowledge_outcome.sources()
+
             yield _sse_payload(
                 _with_persistence_status(
-                    {
-                        "done": True,
-                        "assistant_message_id": assistant_message["id"],
-                    },
+                    done_payload,
                     assistant_outcome,
                 ),
                 active_conversation_id,
@@ -134,7 +155,19 @@ def generate_chat_stream(
                 "role": "system",
                 "content": memory_context,
             },
-        ] + context
+        ]
+
+        if knowledge_outcome is not None and knowledge_outcome.found:
+            messages.append(
+                {
+                    "role": "system",
+                    "content": format_knowledge_context(
+                        knowledge_outcome
+                    ),
+                }
+            )
+
+        messages += context
 
         stream = client.responses.create(
             model="gpt-5-mini",
@@ -171,12 +204,17 @@ def generate_chat_stream(
         assistant_message = assistant_outcome.message
         assistant_message_saved = True
 
+        done_payload = {
+            "done": True,
+            "assistant_message_id": assistant_message["id"],
+        }
+
+        if knowledge_outcome is not None:
+            done_payload["sources"] = knowledge_outcome.sources()
+
         yield _sse_payload(
             _with_persistence_status(
-                {
-                    "done": True,
-                    "assistant_message_id": assistant_message["id"],
-                },
+                done_payload,
                 assistant_outcome,
             ),
             active_conversation_id,
