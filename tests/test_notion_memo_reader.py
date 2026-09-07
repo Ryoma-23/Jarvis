@@ -262,6 +262,34 @@ class NotionMemoReaderTests(unittest.TestCase):
             ],
         )
 
+    def test_list_then_hydrate_fetches_full_content_on_demand(self):
+        reader, client = reader_with_client()
+        client.query_data_source.return_value = {
+            "results": [page_fixture(9, "途中値")],
+            "has_more": False,
+        }
+        client.retrieve_page_property_items.return_value = {
+            "results": [
+                {
+                    "type": "rich_text",
+                    "rich_text": {"plain_text": "完全なContent"},
+                }
+            ],
+            "has_more": False,
+        }
+
+        memo = reader.list_notes()[0]
+        hydrated = reader.hydrate_content_for_indexing(memo)
+
+        self.assertEqual(memo["content"], "途中値")
+        self.assertEqual(hydrated["content"], "完全なContent")
+        client.retrieve_page_property_items.assert_called_once_with(
+            "page-9",
+            "content-property-id",
+            start_cursor=None,
+            page_size=100,
+        )
+
     def test_local_and_notion_major_fields_and_counts_match(self):
         reader, client = reader_with_client()
         local_notes = [

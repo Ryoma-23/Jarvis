@@ -261,7 +261,17 @@ class NotionPageChunkingService:
         )
 
     def chunk_page(self, page_id: str) -> list[NotionChunk]:
-        page = self._client.retrieve_page(page_id)
+        page = self.retrieve_page(page_id)
+        return self.chunk_retrieved_page(page)
+
+    def retrieve_page(self, page_id: str) -> dict[str, Any]:
+        return self._client.retrieve_page(page_id)
+
+    def chunk_retrieved_page(
+        self,
+        page: dict[str, Any],
+    ) -> list[NotionChunk]:
+        page_id = _required_page_text(page, "id")
         nodes = self._fetcher.fetch_page_blocks(page_id)
         blocks = self._normalizer.normalize(nodes)
         return self._chunker.chunk(page=page, blocks=blocks)

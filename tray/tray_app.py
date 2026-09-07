@@ -27,6 +27,7 @@ from core.restart_policy import (
     get_restart_attempt_text,
 )
 from tray.realtime_bridge import TrayRealtimeBridge
+from tray.knowledge_sync_scheduler import KnowledgeSyncScheduler
 from tray.tray_icon import create_icon_image
 from tray.window_client import (
     show_jarvis_window as show_window_from_client,
@@ -53,6 +54,7 @@ class TrayApp:
             on_started=self.on_realtime_started,
             on_finished=self.on_realtime_finished,
         )
+        self.knowledge_sync_scheduler = KnowledgeSyncScheduler()
         self._window_exit_recovery_session_id = None
 
     def show_jarvis_window(self) -> bool:
@@ -453,6 +455,7 @@ class TrayApp:
         tray_log("Jarvis Trayを終了します。")
 
         self.is_shutting_down = True
+        self.knowledge_sync_scheduler.stop()
 
         try:
             self.realtime_bridge.stop()
@@ -579,6 +582,7 @@ class TrayApp:
             daemon=True,
         )
         realtime_monitor_thread.start()
+        self.knowledge_sync_scheduler.start()
 
     def run(self):
         tray_log("Jarvis Tray mainを開始します。")

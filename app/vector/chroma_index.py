@@ -42,6 +42,8 @@ class IndexedNotionPage:
     notion_page_id: str
     notion_page_key: str
     chunk_ids: tuple[str, ...]
+    source_types: tuple[str, ...] = ()
+    last_edited_times: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -203,6 +205,22 @@ class ChromaIndex:
 
         return tuple(sorted(ids))
 
+    def delete_page(self, notion_page_id: str) -> int:
+        chunk_ids = self.get_page_chunk_ids(notion_page_id)
+
+        if not chunk_ids:
+            return 0
+
+        try:
+            self._collection.delete(ids=list(chunk_ids))
+        except Exception as error:
+            raise ChromaIndexError(
+                "ChromaからPage Chunkを削除できませんでした。"
+                f"種別: {type(error).__name__}。"
+            ) from None
+
+        return len(chunk_ids)
+
     def list_indexed_pages(self) -> list[IndexedNotionPage]:
         pages: dict[str, dict[str, Any]] = {}
         offset = 0
@@ -260,9 +278,24 @@ class ChromaIndex:
                     {
                         "notion_page_id": page_id,
                         "chunk_ids": [],
+                        "source_types": set(),
+                        "last_edited_times": set(),
                     },
                 )
                 page["chunk_ids"].append(chunk_id)
+                source_type = metadata.get("source_type")
+                last_edited_time = metadata.get("last_edited_time")
+
+                if isinstance(source_type, str) and source_type.strip():
+                    page["source_types"].add(source_type.strip())
+
+                if (
+                    isinstance(last_edited_time, str)
+                    and last_edited_time.strip()
+                ):
+                    page["last_edited_times"].add(
+                        last_edited_time.strip()
+                    )
 
             if len(ids) < DEFAULT_CHROMA_SCAN_PAGE_SIZE:
                 break
@@ -274,6 +307,10 @@ class ChromaIndex:
                 notion_page_id=page["notion_page_id"],
                 notion_page_key=page_key,
                 chunk_ids=tuple(sorted(page["chunk_ids"])),
+                source_types=tuple(sorted(page["source_types"])),
+                last_edited_times=tuple(
+                    sorted(page["last_edited_times"])
+                ),
             )
             for page_key, page in sorted(pages.items())
         ]

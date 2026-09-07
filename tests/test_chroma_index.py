@@ -168,6 +168,24 @@ class ChromaIndexTests(unittest.TestCase):
             ("other-chunk",),
         )
 
+    def test_lists_page_sync_metadata_and_can_delete_whole_page(self):
+        index = self._index()
+        index.sync_page(
+            notion_page_id=PAGE_ID,
+            records=[_record("chunk-a", "First", [0.1, 0.2, 0.3])],
+        )
+
+        page = index.list_indexed_pages()[0]
+
+        self.assertEqual(page.source_types, ("notion_page",))
+        self.assertEqual(
+            page.last_edited_times,
+            ("2026-08-30T00:00:00+00:00",),
+        )
+        self.assertEqual(index.delete_page(PAGE_ID), 1)
+        self.assertEqual(index.delete_page(PAGE_ID), 0)
+        self.assertEqual(index.count(), 0)
+
     def test_rejects_wrong_vector_dimension_before_upsert(self):
         index = self._index()
 

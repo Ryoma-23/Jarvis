@@ -63,6 +63,30 @@ class NotionMemoReader:
     def list_notes_for_indexing(self) -> list[dict[str, Any]]:
         return self._query_all(retrieve_complete_content=True)
 
+    def hydrate_content_for_indexing(
+        self,
+        memo: dict[str, Any],
+    ) -> dict[str, Any]:
+        if not isinstance(memo, dict):
+            raise NotionResponseError(
+                "Contentを取得するNotion Memoが不正です。"
+            )
+
+        hydrated = dict(memo)
+        page_id = _required_text(
+            memo.get("notion_page_id"),
+            "Page ID",
+        )
+        property_id = _required_text(
+            memo.get("notion_content_property_id"),
+            "Content Property ID",
+        )
+        hydrated["content"] = self._retrieve_complete_content_items(
+            page_id=page_id,
+            property_id=property_id,
+        )
+        return hydrated
+
     def search_content(self, keyword: str) -> list[dict[str, Any]]:
         normalized_keyword = (keyword or "").strip()
 
@@ -200,6 +224,16 @@ class NotionMemoReader:
 
         note_id = _extract_integer(properties, LOCAL_ID_PROPERTY)
         content = _extract_rich_text(properties, CONTENT_PROPERTY)
+        content_property = properties.get(CONTENT_PROPERTY)
+        content_property_id = (
+            content_property.get("id")
+            if isinstance(content_property, dict)
+            else None
+        )
+        content_property_id = _required_text(
+            content_property_id,
+            "Content Property ID",
+        )
         title = _extract_rich_text(properties, TITLE_PROPERTY, value_key="title")
         created_at_iso = _extract_date_start(properties, CREATED_AT_PROPERTY)
         sync_key = _extract_rich_text(properties, SYNC_KEY_PROPERTY)
@@ -222,6 +256,7 @@ class NotionMemoReader:
             "notion_source": source,
             "notion_url": url.strip() if isinstance(url, str) else "",
             "notion_last_edited_time": last_edited_time,
+            "notion_content_property_id": content_property_id,
         }
 
     def _retrieve_complete_content(self, page: Any) -> str:
@@ -243,6 +278,17 @@ class NotionMemoReader:
             else None
         )
         property_id = _required_text(property_id, "Content Property ID")
+        return self._retrieve_complete_content_items(
+            page_id=page_id,
+            property_id=property_id,
+        )
+
+    def _retrieve_complete_content_items(
+        self,
+        *,
+        page_id: str,
+        property_id: str,
+    ) -> str:
         fragments = []
         start_cursor = None
         seen_cursors = set()

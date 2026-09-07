@@ -94,6 +94,15 @@ CONVERSATION_DB_FILE = DATA_DIR / "conversations.sqlite3"
 EMBEDDINGS_DB_FILE = DATA_DIR / "embeddings.sqlite3"
 CHROMA_PERSIST_DIRECTORY = DATA_DIR / "chroma"
 NOTION_RESOURCES_FILE = DATA_DIR / "notion_resources.json"
+NOTION_KNOWLEDGE_SOURCES_FILE = (
+    DATA_DIR / "notion_knowledge_sources.json"
+)
+NOTION_KNOWLEDGE_SYNC_STATE_FILE = (
+    DATA_DIR / "notion_knowledge_sync_state.json"
+)
+NOTION_KNOWLEDGE_SYNC_LOCK_FILE = (
+    DATA_DIR / "notion_knowledge_sync.lock"
+)
 
 PROMPTS_DIR = BASE_DIR / "prompts"
 
@@ -129,6 +138,19 @@ RAG_RETRIEVAL_MIN_SCORE = _bounded_float_environment_value(
 RAG_RETRIEVAL_MAX_CONTEXT_TOKENS = _positive_integer_environment_value(
     "RAG_RETRIEVAL_MAX_CONTEXT_TOKENS",
     default=2000,
+)
+NOTION_KNOWLEDGE_SYNC_ENABLED = _boolean_environment_value(
+    "NOTION_KNOWLEDGE_SYNC_ENABLED"
+)
+NOTION_KNOWLEDGE_SYNC_INTERVAL_MINUTES = (
+    _positive_integer_environment_value(
+        "NOTION_KNOWLEDGE_SYNC_INTERVAL_MINUTES",
+        default=60,
+    )
+)
+NOTION_KNOWLEDGE_SYNC_RETRY_COUNT = _positive_integer_environment_value(
+    "NOTION_KNOWLEDGE_SYNC_RETRY_COUNT",
+    default=3,
 )
 
 NOTION_API_TOKEN = _optional_environment_value("NOTION_API_TOKEN")

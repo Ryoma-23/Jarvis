@@ -664,10 +664,10 @@ a failure summary. Rerunning processes only missing or changed Embeddings.
 An empty `Content` property produces no Chunk and removes an older Chroma Chunk
 for that same page during Apply.
 
-This command is currently explicit, not scheduled automatically. Run Apply after
-adding or editing Memo pages until an incremental synchronization trigger is
-introduced. The Data Source Query API currently returns at most 10,000 results
-per query, so a larger Notes source will require a partitioned sync strategy.
+The Data Source Query API currently returns at most 10,000 results per query,
+so a larger Notes source will require a partitioned sync strategy. The unified
+incremental synchronization described below supersedes manually running this
+command for routine operation.
 
 Official Notion references:
 
@@ -885,8 +885,8 @@ store retrieved Chunk content, embeddings, or the source list. The existing
 conversation context builder therefore continues to restore conversation only.
 
 Only content already present in the active Chroma Collection can be retrieved.
-Run `scripts/sync_notion_notes_to_chroma.py --apply` after adding or editing
-Notes Data Source Memo pages so their `Content` values can participate in RAG.
+Use `scripts/sync_notion_knowledge.py --apply`, or enable the Tray scheduler
+described below, after adding or editing a knowledge source.
 
 Run Phase 9 tests without live OpenAI or Notion calls:
 
@@ -896,4 +896,121 @@ Run Phase 9 tests without live OpenAI or Notion calls:
   tests.test_realtime_knowledge_tool `
   tests.test_intent_routing `
   tests.test_chat_service
+```
+
+## Incremental knowledge-source synchronization
+
+The operational synchronization layer keeps the active Chroma Collection in
+step with two Notion source types:
+
+- normal Notion Pages explicitly listed in
+  `data/notion_knowledge_sources.json`
+- every Page in the existing Notes Data Source when `include_notes` is enabled
+
+The registry and synchronization state are non-secret local files under
+`data/` and are ignored by Git. `NOTION_PARENT_PAGE_ID` is not used by this
+flow; it remains only for commands that create a child Page or Database under
+that parent. A normal Page becomes readable after the JARVIS Connection is
+added to it and its Page ID is registered.
+
+### Initialize the source registry
+
+Import normal Pages that are already present in Chroma. Always inspect the Dry
+Run before saving the registry:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\manage_notion_knowledge_sources.py `
+  import-indexed
+.\.venv\Scripts\python.exe scripts\manage_notion_knowledge_sources.py `
+  import-indexed --apply
+```
+
+Register another normal Page after sharing it with the JARVIS Connection:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\manage_notion_knowledge_sources.py `
+  add <NOTION_PAGE_ID> --label "開発記録"
+.\.venv\Scripts\python.exe scripts\manage_notion_knowledge_sources.py `
+  add <NOTION_PAGE_ID> --label "開発記録" --apply
+```
+
+The older single-Page command remains available and now registers the Page
+after a successful synchronization, preventing a later unified sync from
+treating it as an unregistered source:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\sync_notion_page_to_chroma.py `
+  <NOTION_PAGE_ID> --label "開発記録"
+```
+
+Show the current registry:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\manage_notion_knowledge_sources.py list
+```
+
+`remove <PAGE_ID> --apply` removes a Page from the registry. The next unified
+sync Dry Run reports its Chroma records as `would_delete`; the next Apply
+removes those records. The Notion Page itself is never modified. Turning Notes
+off with `set-notes off --apply` likewise makes their Chroma records removable
+on the next Apply without deleting Notes from Notion.
+
+An absent registry is deliberately non-authoritative: Notes can still sync,
+but already indexed normal Pages are not deleted. Once the registry has been
+saved, it is authoritative, so initialize it with `import-indexed --apply`
+before removing sources.
+
+### Run one incremental synchronization
+
+```powershell
+.\.venv\Scripts\python.exe scripts\sync_notion_knowledge.py --dry-run
+.\.venv\Scripts\python.exe scripts\sync_notion_knowledge.py --apply
+```
+
+Each source Page's `last_edited_time` is compared with
+`data/notion_knowledge_sync_state.json` and the metadata already stored in
+Chroma. Unchanged normal Pages do not fetch Block Children. Unchanged Memo
+Pages do not fetch the full paginated `Content` property. Changed Pages are
+Chunked, only missing or changed Embeddings are generated, and the Page is
+upserted into Chroma.
+
+After a successful Notes query, an indexed Memo no longer returned by the Data
+Source is removed from Chroma. A registered normal Page that is in Trash or
+returns Notion 404 also has its Chroma records removed. Authentication,
+explicit 403 permission, schema, and connection failures are not interpreted
+as deletion. Notion can also use 404 when a Connection loses access; this is
+treated as unavailable and its regenerable Chroma records are removed until
+access is restored.
+The state file is saved after every Apply, even when a different Page failed,
+so a later run can resume without repeating completed work.
+
+The command uses `data/notion_knowledge_sync.lock` to prevent overlapping
+runs. A lock older than six hours is treated as left behind by an interrupted
+process. Transient Notion 429/5xx/connection, Embedding API, and Chroma errors
+are retried with a bounded backoff. Errors and logs do not include API tokens.
+
+### Enable periodic synchronization
+
+Periodic synchronization is disabled by default, so existing JARVIS startup
+behavior is unchanged. Add these values to the local `.env` only when ready:
+
+```dotenv
+NOTION_KNOWLEDGE_SYNC_ENABLED=true
+NOTION_KNOWLEDGE_SYNC_INTERVAL_MINUTES=60
+NOTION_KNOWLEDGE_SYNC_RETRY_COUNT=3
+```
+
+Restart the JARVIS Tray after changing the values. When enabled, the Tray runs
+one Apply synchronization at startup and repeats it at the configured interval
+in a background process. The JARVIS server, text chat, Realtime, and structured
+Memo/Task/Memory operations continue if a scheduled synchronization fails.
+Only the exit status is written to the Tray log; retrieved content, questions,
+and credentials are not logged.
+
+Run the synchronization unit tests without contacting Notion or OpenAI:
+
+```powershell
+.\.venv\Scripts\python.exe -m unittest `
+  tests.test_knowledge_sync `
+  tests.test_knowledge_sync_scheduler
 ```

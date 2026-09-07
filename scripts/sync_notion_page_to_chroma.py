@@ -38,6 +38,10 @@ from app.integrations.openai_embedding_client import (  # noqa: E402
     EmbeddingError,
     OpenAIEmbeddingClient,
 )
+from app.knowledge_sync.registry import (  # noqa: E402
+    KnowledgeSourceRegistryError,
+    KnowledgeSourceRegistryStore,
+)
 from app.vector.chroma_index import (  # noqa: E402
     ChromaIndex,
     ChromaIndexError,
@@ -54,7 +58,13 @@ def main() -> int:
         )
     )
     parser.add_argument("page_id", help="同期対象のNotion Page ID")
+    parser.add_argument(
+        "--label",
+        default="",
+        help="参照元レジストリで表示する任意の名前",
+    )
     args = parser.parse_args()
+    chroma_index = None
 
     try:
         notion_client = NotionClient(
@@ -84,14 +94,25 @@ def main() -> int:
             model=OPENAI_EMBEDDING_MODEL,
             dimensions=OPENAI_EMBEDDING_DIMENSIONS,
         ).sync_page(args.page_id)
+        registry_store = KnowledgeSourceRegistryStore()
+        registry_store.save(
+            registry_store.load().add_page(
+                result.notion_page_id,
+                label=args.label,
+            )
+        )
     except (
         NotionError,
         EmbeddingError,
         EmbeddingStoreError,
         ChromaIndexError,
+        KnowledgeSourceRegistryError,
     ) as error:
         print(f"Notion Chroma同期に失敗しました: {error}", file=sys.stderr)
         return 1
+    finally:
+        if chroma_index is not None:
+            chroma_index.close()
 
     print("Notion Chroma同期が完了しました。")
     print(f"Page ID: {result.notion_page_id}")
@@ -101,6 +122,7 @@ def main() -> int:
     print(f"Embedding skipped: {result.embedding_result.skipped_unchanged}")
     print(f"Chroma upserted: {result.chroma_result.upserted_chunks}")
     print(f"Stale chunks deleted: {result.chroma_result.deleted_chunks}")
+    print("Knowledge source registry: registered")
     return 0
 
 
