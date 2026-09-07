@@ -36,7 +36,7 @@ mouse-following parallax, and large repeating flashes are intentionally absent.
 ## Layer hierarchy
 
 1. Blue-black atmospheric background
-2. Sparse spatial particles and perspective floor
+2. Subtle spatial atmosphere and perspective floor
 3. Volumetric Aura and Shader Core
 4. Core state and Tool readouts
 5. Edge overlays for Log and Conversation

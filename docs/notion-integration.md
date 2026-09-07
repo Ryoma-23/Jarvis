@@ -1,5 +1,9 @@
 # Notion Integration
 
+The completed implementation history and architecture decisions from the
+initial connection through RAG integration are recorded in
+[`notion-rag-development-record.md`](notion-rag-development-record.md).
+
 ## Scope
 
 Phase 1 provides an isolated Notion REST API connection check. It does not
