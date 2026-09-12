@@ -882,6 +882,7 @@ async function startRealtimeVoice(
         startedNotified: false,
         sessionCreatedReceived: false,
         historyRestoring: true,
+        wakeGreetingRequested: false,
         conversationId: null,
         finishing: false,
         finishPromise: null
@@ -1160,6 +1161,7 @@ async function initializeRealtimeDataChannel(
 
         setRealtimeMicrophoneEnabled(currentLocalStream, true);
         lifecycle.historyRestoring = false;
+        requestRealtimeWakeGreeting(sessionId);
         markRealtimeConversationActivity(sessionId);
         updateVoiceStatus("connected", "接続中");
         processRealtimeTextInputQueue();
@@ -2135,7 +2137,45 @@ function isMeaningfulRealtimeUserTranscript(transcript, isBargeIn) {
 }
 
 
-function requestRealtimeResponse(sessionId, textTurn = null) {
+function requestRealtimeWakeGreeting(sessionId) {
+    const lifecycle = getRealtimeLifecycle(sessionId);
+
+    if (
+        !lifecycle || lifecycle.finishing || lifecycle.historyRestoring ||
+        lifecycle.source !== "wakeword" || lifecycle.wakeGreetingRequested
+    ) {
+        return false;
+    }
+
+    // Reserve before sending so repeated initialization cannot greet twice.
+    lifecycle.wakeGreetingRequested = true;
+    // Preserve the session's personality, memory and conversation history.
+    // The wake detector already recognized this utterance before connecting.
+    if (!dataChannel || dataChannel.readyState !== "open") {
+        return false;
+    }
+
+    try {
+        dataChannel.send(JSON.stringify({
+            type: "conversation.item.create",
+            item: {
+                type: "message",
+                role: "user",
+                content: [{type: "input_text", text: "Hey Jarvis"}]
+            }
+        }));
+    } catch (error) {
+        console.warn("Realtime起動時の呼びかけ送信エラー:", error);
+        return false;
+    }
+
+    return requestRealtimeResponse(sessionId, null, {
+        tool_choice: "none"
+    });
+}
+
+
+function requestRealtimeResponse(sessionId, textTurn = null, responseOptions = null) {
     if (!isCurrentRealtimeSession(sessionId)) {
         return false;
     }
@@ -2150,6 +2190,10 @@ function requestRealtimeResponse(sessionId, textTurn = null) {
     const responseEvent = {
         type: "response.create"
     };
+
+    if (responseOptions) {
+        responseEvent.response = responseOptions;
+    }
 
     if (textTurn) {
         realtimeTextTurnSequence += 1;

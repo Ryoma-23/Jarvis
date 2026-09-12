@@ -517,3 +517,20 @@ audio process remains after tray shutdown.
 - The complete wake-word → Realtime → wake-word cycle can be repeated multiple times.
 - Existing tray, window, text conversation, and manual Realtime behavior still works.
 - Hardware and audio behavior is verified manually.
+
+## Wake-word greeting
+
+After Realtime history restoration, a wakeword session adds the detected
+"Hey Jarvis" as a user input_text message via conversation.item.create and requests
+a spoken reply with response.create and tool_choice=none. No response-specific
+instructions override the normal session personality, memory, or voice rules;
+the model generates the reply using those instructions and conversation history.
+Wording is not fixed, although similar replies can naturally recur. Manual starts
+do not greet. It shares normal response tracking, audio playback,
+interruption, and idle handling. Repeated initialization cannot request it twice;
+a failed send is not retried automatically.
+
+Run `node --test tests/js/wake-greeting.test.cjs` for lifecycle regression checks.
+Manually check wake-word startup, audible greeting, a follow-up voice request,
+manual startup without a greeting, and disconnect/re-wake. Hardware playback and
+microphone timing require testing on the actual device.
