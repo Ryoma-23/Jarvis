@@ -534,3 +534,50 @@ Run `node --test tests/js/wake-greeting.test.cjs` for lifecycle regression check
 Manually check wake-word startup, audible greeting, a follow-up voice request,
 manual startup without a greeting, and disconnect/re-wake. Hardware playback and
 microphone timing require testing on the actual device.
+
+## Additional wake phrases
+
+The existing openWakeWord detector remains responsible for Hey Jarvis. A local
+sherpa-onnx KeywordSpotter also receives the same 16 kHz microphone frames and
+detects Jarvis, Wake up, and Wake up Jarvis. No extra microphone or cloud speech
+recognition is used. Wake up can trigger before the final Jarvis in the longer
+phrase; one activation is sufficient and the existing pause/cooldown prevents
+duplicate activation. The UI uses Hey Jarvis as the canonical greeting input for
+all wake activations; this is not a verbatim transcription of these aliases.
+
+Install requirements and run `python download_wakeword_models.py` once. The
+official sherpa-onnx zh-en 3M 2025-12-20 model is stored under data/wakeword/sherpa-kws
+(ignored by Git). Startup does not download models. If the extra detector is
+unavailable, a warning is printed and existing Hey Jarvis detection remains active.
+The English words are encoded with the model's en.phone lexicon. Source:
+https://k2-fsa.github.io/sherpa/onnx/kws/pretrained_models/index.html
+
+WAKEWORD_KEYWORD_THRESHOLD defaults to 0.35; higher values reduce sensitivity.
+Short/common phrases may activate during ordinary speech. Test each phrase at the
+usual distance, then disconnect and repeat; verify normal conversation and ambient
+speech do not cause unwanted activation. The extra stream is reset on resume.
+
+## Jarvis pronunciation profile v3 (stricter detection)
+
+Jarvis alternatives are supplied inline on every new detection stream, including
+after resume. They do not depend on regenerating the downloaded keywords.txt.
+Each pronunciation has a distinct ID, normalized to Jarvis before activation.
+The keyword search uses 16 active paths to accommodate the expanded vocabulary.
+Jarvis alternatives now use WAKEWORD_JARVIS_THRESHOLD=0.35 (previously 0.25).
+Wake up retains threshold 0.35. WAKEWORD_KEYWORD_TRAILING_BLANKS=4 adds
+end confirmation for all sherpa keywords (previously 1), with some extra latency.
+The profile supports additional English and bilingual-model phoneme renderings;
+it is not a general Japanese speech recognizer or a guarantee for every accent.
+
+After a full tray restart, logs/jarvis_tray.log must show
+`jarvis-pronunciation-v3-strict loaded`. Successful detections log `detected=Jarvis`.
+Validate repeated standalone Jarvis calls at the usual microphone distance,
+follow-up conversation, disconnect/resume, and ordinary speech for false triggers.
+Recordings used for local evaluation are not committed to the repository.
+
+This adjustment trades some recall for stricter detection after reported video
+false activations. In the supplied 17-second recording, detections changed from
+five to four. Twelve synthetic ordinary-speech clips had no triggers with either
+profile; these do not reproduce the reported video. The actual triggering video
+must be checked in the live microphone environment before claiming resolution.
+This keyword detector does not distinguish a human voice from speaker playback.

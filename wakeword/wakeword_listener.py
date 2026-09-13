@@ -20,6 +20,8 @@ from core.config import (
     WAKEWORD_TARGET_FRAME_SAMPLES,
     WAKEWORD_TARGET_SAMPLE_RATE,
     WAKEWORD_THRESHOLD,
+    WAKEWORD_KEYWORD_MODEL_DIR,
+    WAKEWORD_KEYWORD_THRESHOLD,
 )
 from wakeword.audio_converter import (
     convert_sample_rate,
@@ -41,6 +43,7 @@ class WakeWordListener:
         self._stream: sd.InputStream | None = None
         self._model: Model | None = None
         self._device: AudioInputDevice | None = None
+        self._keyword_detector = None
 
         self._detection_enabled_at = 0.0
 
@@ -129,6 +132,7 @@ class WakeWordListener:
             self._thread.join(timeout=5.0)
 
         self._thread = None
+        self._keyword_detector = None
         self._model = None
         self._device = None
 
@@ -152,6 +156,18 @@ class WakeWordListener:
             "[WakeWord] 利用可能モデル:",
             list(self._model.models.keys()),
         )
+
+        try:
+            from wakeword.keyword_detector import KeywordDetector, PROFILE_VERSION
+            self._keyword_detector = KeywordDetector(
+                WAKEWORD_KEYWORD_MODEL_DIR, WAKEWORD_KEYWORD_THRESHOLD
+            )
+            from core.logger import tray_log
+            tray_log(f"[WakeWord] {PROFILE_VERSION} loaded; Jarvis / Wake up / Wake up, Jarvis")
+        except Exception as error:
+            self._keyword_detector = None
+            print(f"[WakeWord] 追加検出を利用できません: {error}")
+            print("[WakeWord] download_wakeword_models.pyを実行してください。Hey Jarvisのみで続行します。")
 
     def _open_stream(self) -> None:
         if self._stream is not None:
@@ -410,6 +426,14 @@ class WakeWordListener:
             predictions
         )
 
+        keyword = None
+        if self._keyword_detector is not None:
+            try:
+                keyword = self._keyword_detector.predict(converted_audio)
+            except Exception as error:
+                print(f"[WakeWord] 追加検出エラー。Hey Jarvisのみで続行: {error}")
+                self._keyword_detector = None
+
         current_time = time.monotonic()
 
         if current_time < self._detection_enabled_at:
@@ -424,7 +448,7 @@ class WakeWordListener:
         #         f"{jarvis_score:.3f}"
         #     )
 
-        if jarvis_score < WAKEWORD_THRESHOLD:
+        if keyword is None and jarvis_score < WAKEWORD_THRESHOLD:
             return
 
         elapsed = (
@@ -454,7 +478,10 @@ class WakeWordListener:
         self._close_stream()
         self._clear_audio_queue()
 
-        self._on_detected(jarvis_score)
+        from core.logger import tray_log
+        tray_log(f"[WakeWord] detected={keyword or 'Hey Jarvis'}")
+        # Existing callback consumes an activation score, not a transcription.
+        self._on_detected(jarvis_score if keyword is None else 1.0)
     
     def _clear_audio_queue(self) -> None:
         """
@@ -482,6 +509,9 @@ class WakeWordListener:
         openWakeWordが保持している予測結果と
         音声特徴量のバッファを初期化する。
         """
+
+        if self._keyword_detector is not None:
+            self._keyword_detector.reset()
 
         if self._model is None:
             return
@@ -546,7 +576,7 @@ class WakeWordListener:
 
                     print(
                         "[WakeWord] "
-                        "「Hey Jarvis」を待機中です。"
+                        "呼びかけを待機中です。"
                     )
 
                 try:
@@ -575,6 +605,7 @@ class WakeWordListener:
         finally:
             self._close_stream()
             self._clear_audio_queue()
+            self._keyword_detector = None
             self._model = None
             self._device = None
 
