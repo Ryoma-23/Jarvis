@@ -427,6 +427,32 @@ NOTION_KNOWLEDGE_SYNC_RETRY_COUNT=3
 統合同期を別Processとして実行します。同期に失敗しても、JARVIS Server、Text Chat、
 Realtime、Memo・Task・Memory機能は停止しません。
 
+### 4.5 Memo保存直後の即時同期
+
+JARVISの`add_note()`からNotion保存に成功したMemoは、任意のFeature Flagで保存完了
+応答の前に対象PageだけをRAG Indexへ同期できます。
+
+```dotenv
+NOTION_MEMO_RAG_SYNC_ON_WRITE_ENABLED=true
+```
+
+```text
+note_service.add_note()
+  → Local JSON保存
+  → Notion Notesへ保存
+  → Notion Page ID確定
+  → 対象Memoの完全なContent取得
+  → Chunking / Embedding / Chroma Upsert
+  → Sync State更新
+  → 従来形式の保存完了応答
+```
+
+通常PageやNotes全件は走査せず、作成されたMemo 1件だけを同期します。定期同期と同じ
+Lock、Retry、Embedding Cache、Sync Stateを共有するため、競合と重複Embeddingを防止
+します。即時Indexingに失敗してもLocal・Notionの保存は取り消さず、次回定期同期で
+再試行します。Notion UIから直接作成・編集したMemoはイベントを発生させないため、
+引き続き定期同期または手動同期の対象です。
+
 ## 5. 主な設定値
 
 | 設定 | 用途 |
@@ -447,6 +473,7 @@ Realtime、Memo・Task・Memory機能は停止しません。
 | `NOTION_KNOWLEDGE_SYNC_ENABLED` | Tray定期同期の有効化 |
 | `NOTION_KNOWLEDGE_SYNC_INTERVAL_MINUTES` | 定期同期間隔 |
 | `NOTION_KNOWLEDGE_SYNC_RETRY_COUNT` | 一時障害時の最大試行回数 |
+| `NOTION_MEMO_RAG_SYNC_ON_WRITE_ENABLED` | JARVIS Memo保存後の即時RAG同期 |
 
 ## 6. 主な運用コマンド
 

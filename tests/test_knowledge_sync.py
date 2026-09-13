@@ -1,5 +1,6 @@
 import json
 import tempfile
+import threading
 import time
 import unittest
 
@@ -108,6 +109,25 @@ class KnowledgeSyncLockTests(unittest.TestCase):
 
             with KnowledgeSyncLock(path, stale_after_seconds=10):
                 self.assertTrue(path.exists())
+
+    def test_lock_can_wait_for_a_running_sync_to_finish(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "sync.lock"
+            first = KnowledgeSyncLock(path)
+            second = KnowledgeSyncLock(path)
+            first.acquire()
+            release_timer = threading.Timer(0.02, first.release)
+            release_timer.start()
+
+            try:
+                second.acquire(
+                    timeout_seconds=1.0,
+                    poll_interval_seconds=0.005,
+                )
+                self.assertTrue(path.exists())
+            finally:
+                release_timer.join()
+                second.release()
 
 
 class NotionKnowledgeSyncServiceTests(unittest.TestCase):

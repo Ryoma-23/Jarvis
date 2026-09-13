@@ -129,6 +129,15 @@ class NotionMemoReader:
         self._ensure_schema()
         return self._memo_from_page(self._client.retrieve_page(page_id))
 
+    def get_by_page_id_for_indexing(
+        self,
+        page_id: str,
+    ) -> dict[str, Any]:
+        self._ensure_schema()
+        page = self._client.retrieve_page(page_id)
+        memo = self._memo_from_page(page)
+        return self.hydrate_content_for_indexing(memo)
+
     def _query_all(
         self,
         *,

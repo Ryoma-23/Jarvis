@@ -212,6 +212,31 @@ class NotionMemoReaderTests(unittest.TestCase):
         )
         client.retrieve_page.assert_called_once_with("page-4")
 
+    def test_page_id_indexing_retrieval_hydrates_complete_content(self):
+        reader, client = reader_with_client()
+        page = page_fixture(10, "queryの途中値")
+        client.retrieve_page.return_value = page
+        client.retrieve_page_property_items.return_value = {
+            "results": [
+                {
+                    "type": "rich_text",
+                    "rich_text": {"plain_text": "完全なContent"},
+                }
+            ],
+            "has_more": False,
+        }
+
+        memo = reader.get_by_page_id_for_indexing("page-10")
+
+        self.assertEqual(memo["content"], "完全なContent")
+        client.retrieve_page.assert_called_once_with("page-10")
+        client.retrieve_page_property_items.assert_called_once_with(
+            "page-10",
+            "content-property-id",
+            start_cursor=None,
+            page_size=100,
+        )
+
     def test_indexing_read_retrieves_every_content_property_page(self):
         reader, client = reader_with_client()
         client.query_data_source.return_value = {

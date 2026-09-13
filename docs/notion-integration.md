@@ -889,8 +889,9 @@ store retrieved Chunk content, embeddings, or the source list. The existing
 conversation context builder therefore continues to restore conversation only.
 
 Only content already present in the active Chroma Collection can be retrieved.
-Use `scripts/sync_notion_knowledge.py --apply`, or enable the Tray scheduler
-described below, after adding or editing a knowledge source.
+Memo Pages written by JARVIS can be indexed immediately with the on-write
+setting described below. For normal Pages and Notion-side edits, use
+`scripts/sync_notion_knowledge.py --apply` or the Tray scheduler.
 
 Run Phase 9 tests without live OpenAI or Notion calls:
 
@@ -1011,10 +1012,50 @@ Memo/Task/Memory operations continue if a scheduled synchronization fails.
 Only the exit status is written to the Tray log; retrieved content, questions,
 and credentials are not logged.
 
+### Index a JARVIS Memo immediately after writing
+
+Enable synchronous on-write indexing when a Memo must be searchable as soon as
+JARVIS confirms that it was saved:
+
+```dotenv
+NOTION_MEMO_RAG_SYNC_ON_WRITE_ENABLED=true
+```
+
+Restart the JARVIS server and Tray after changing `.env`. The Memo flow then is:
+
+```text
+save Local JSON
+→ write the Notes Data Source Page
+→ obtain the Notion Page ID
+→ retrieve that one Page and its complete Content property
+→ Chunk and Embed only that Memo
+→ upsert its Chunks into Chroma
+→ update the shared incremental-sync state
+→ return the existing Memo saved response
+```
+
+The immediate path does not scan registered normal Pages or every Memo. It uses
+the same deterministic Chunk IDs, Embedding cache, Chroma Collection, sync
+state, retry policy, and process lock as the periodic sync. If the periodic
+sync currently owns the lock, the save path waits for up to 15 seconds before
+deferring to a later scheduled run.
+
+Local-first behavior is unchanged. A Local or Notion write failure does not
+start indexing. An Embedding, Chroma, state, or lock failure does not undo the
+already saved Memo or change the text/Realtime response format; the failure
+type is logged without Memo content or credentials, and the periodic sync can
+retry the Page later.
+
+This trigger applies only to Memo writes made through JARVIS `add_note()`.
+Creating or editing a Memo directly in the Notion UI does not emit a JARVIS
+event, so those changes continue to use the periodic or manual unified sync.
+
 Run the synchronization unit tests without contacting Notion or OpenAI:
 
 ```powershell
 .\.venv\Scripts\python.exe -m unittest `
   tests.test_knowledge_sync `
-  tests.test_knowledge_sync_scheduler
+  tests.test_knowledge_sync_scheduler `
+  tests.test_memo_knowledge_indexer `
+  tests.test_note_service
 ```

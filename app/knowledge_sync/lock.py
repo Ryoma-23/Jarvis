@@ -34,29 +34,48 @@ class KnowledgeSyncLock:
     def __exit__(self, exc_type, exc_value, traceback) -> None:
         self.release()
 
-    def acquire(self) -> None:
+    def acquire(
+        self,
+        *,
+        timeout_seconds: float = 0.0,
+        poll_interval_seconds: float = 0.2,
+    ) -> None:
         if self._acquired:
             return
 
-        self.path.parent.mkdir(parents=True, exist_ok=True)
+        if timeout_seconds < 0:
+            raise ValueError("timeout_secondsは0以上が必要です。")
 
-        for attempt in range(2):
+        if poll_interval_seconds <= 0:
+            raise ValueError("poll_interval_secondsは0より大きい値が必要です。")
+
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        deadline = time.monotonic() + timeout_seconds
+
+        while True:
             try:
                 descriptor = os.open(
                     self.path,
                     os.O_CREAT | os.O_EXCL | os.O_WRONLY,
                 )
             except FileExistsError:
-                if attempt == 0 and self._is_stale():
+                if self._is_stale():
                     try:
                         self.path.unlink()
                     except OSError:
                         pass
-                    continue
+                    else:
+                        continue
 
-                raise KnowledgeSyncAlreadyRunningError(
-                    "Notion知識同期は既に実行中です。"
-                ) from None
+                remaining = deadline - time.monotonic()
+
+                if remaining <= 0:
+                    raise KnowledgeSyncAlreadyRunningError(
+                        "Notion知識同期は既に実行中です。"
+                    ) from None
+
+                time.sleep(min(poll_interval_seconds, remaining))
+                continue
 
             with os.fdopen(descriptor, "w", encoding="utf-8") as file:
                 json.dump(
@@ -70,10 +89,6 @@ class KnowledgeSyncLock:
 
             self._acquired = True
             return
-
-        raise KnowledgeSyncAlreadyRunningError(
-            "Notion知識同期のロックを取得できませんでした。"
-        )
 
     def release(self) -> None:
         if not self._acquired:

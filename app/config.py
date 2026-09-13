@@ -152,6 +152,9 @@ NOTION_KNOWLEDGE_SYNC_RETRY_COUNT = _positive_integer_environment_value(
     "NOTION_KNOWLEDGE_SYNC_RETRY_COUNT",
     default=3,
 )
+NOTION_MEMO_RAG_SYNC_ON_WRITE_ENABLED = _boolean_environment_value(
+    "NOTION_MEMO_RAG_SYNC_ON_WRITE_ENABLED"
+)
 
 NOTION_API_TOKEN = _optional_environment_value("NOTION_API_TOKEN")
 NOTION_PARENT_PAGE_ID = _optional_environment_value(

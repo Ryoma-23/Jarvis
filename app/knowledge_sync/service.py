@@ -1,9 +1,7 @@
-import time
-
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import Any, TypeVar
+from typing import Any
 
 from app.chunking.notion_chunker import NotionPageChunkingService
 from app.chunking.notion_memo_chunker import (
@@ -11,19 +9,16 @@ from app.chunking.notion_memo_chunker import (
     NotionMemoChunker,
 )
 from app.integrations.notion_client import (
-    NotionConnectionError,
-    NotionRateLimitError,
     NotionResourceNotFoundError,
     NotionResponseError,
-    NotionServerError,
 )
 from app.integrations.notion_memo_reader import NotionMemoReader
-from app.integrations.openai_embedding_client import EmbeddingAPIError
 from app.knowledge_sync.registry import (
     KnowledgePageSource,
     KnowledgeSourceRegistry,
     canonical_notion_id,
 )
+from app.knowledge_sync.retry import run_with_sync_retry
 from app.knowledge_sync.state import (
     KnowledgeSyncState,
     KnowledgeSyncStateStore,
@@ -37,7 +32,6 @@ from app.vector.notion_chroma_sync import NotionChromaSyncService
 
 
 NOTION_PAGE_SOURCE_TYPE = "notion_page"
-_T = TypeVar("_T")
 
 
 @dataclass(frozen=True)
@@ -95,7 +89,7 @@ class NotionKnowledgeSyncService:
         embedding_dimensions: int,
         chroma_sync_service: NotionChromaSyncService | None = None,
         retry_count: int = 3,
-        sleeper: Callable[[float], None] = time.sleep,
+        sleeper: Callable[[float], None] | None = None,
     ):
         if retry_count < 1:
             raise ValueError("retry_countは1以上が必要です。")
@@ -493,24 +487,15 @@ class NotionKnowledgeSyncService:
             deleted_chunks=deleted_chunks,
         )
 
-    def _with_retry(self, operation: Callable[[], _T]) -> _T:
-        for attempt in range(1, self._retry_count + 1):
-            try:
-                return operation()
-            except (
-                NotionConnectionError,
-                NotionRateLimitError,
-                NotionServerError,
-                EmbeddingAPIError,
-                ChromaIndexError,
-            ) as error:
-                if attempt >= self._retry_count:
-                    raise
+    def _with_retry(self, operation: Callable[[], Any]) -> Any:
+        arguments = {
+            "attempts": self._retry_count,
+        }
 
-                delay = _retry_delay(error, attempt)
-                self._sleeper(delay)
+        if self._sleeper is not None:
+            arguments["sleeper"] = self._sleeper
 
-        raise RuntimeError("Notion知識同期の再試行に失敗しました。")
+        return run_with_sync_retry(operation, **arguments)
 
 
 def _is_current(
@@ -562,19 +547,6 @@ def _record_state(
         chunk_count=chunk_count,
         synced_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
     )
-
-
-def _retry_delay(error: Exception, attempt: int) -> float:
-    if isinstance(error, NotionRateLimitError):
-        try:
-            retry_after = float(error.retry_after or "")
-        except ValueError:
-            retry_after = 0.0
-
-        if retry_after > 0:
-            return min(retry_after, 60.0)
-
-    return min(float(2 ** (attempt - 1)), 30.0)
 
 
 def _failure_action(

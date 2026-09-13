@@ -3,6 +3,7 @@ import tempfile
 import unittest
 
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 from app.integrations.notion_client import NotionConnectionError
@@ -193,6 +194,131 @@ class NoteRepositoryTests(unittest.TestCase):
 
 
 class NoteServiceBoundaryTests(unittest.TestCase):
+    def test_synced_note_is_indexed_before_add_returns(self):
+        repository = Mock(spec=NoteRepository)
+        note = {
+            "id": 1,
+            "content": "すぐ検索するメモ",
+            "notion_page_id": "notion-page-id",
+            "notion_sync_status": "synced",
+        }
+        repository.add.return_value = note
+        index_result = SimpleNamespace(
+            chunk_count=1,
+            embedded_chunks=1,
+        )
+
+        with (
+            patch.object(
+                note_service,
+                "get_note_repository",
+                return_value=repository,
+            ),
+            patch.object(
+                note_service.config,
+                "NOTION_MEMO_RAG_SYNC_ON_WRITE_ENABLED",
+                True,
+            ),
+            patch.object(
+                note_service,
+                "sync_notion_memo_page_on_write",
+                return_value=index_result,
+            ) as sync_page,
+        ):
+            result = note_service.add_note(note["content"])
+
+        self.assertIs(result, note)
+        sync_page.assert_called_once_with("notion-page-id")
+
+    def test_pending_note_does_not_start_indexing(self):
+        repository = Mock(spec=NoteRepository)
+        repository.add.return_value = {
+            "id": 2,
+            "content": "Notion待ち",
+            "notion_page_id": None,
+            "notion_sync_status": "pending",
+        }
+
+        with (
+            patch.object(
+                note_service,
+                "get_note_repository",
+                return_value=repository,
+            ),
+            patch.object(
+                note_service.config,
+                "NOTION_MEMO_RAG_SYNC_ON_WRITE_ENABLED",
+                True,
+            ),
+            patch.object(
+                note_service,
+                "sync_notion_memo_page_on_write",
+            ) as sync_page,
+        ):
+            note_service.add_note("Notion待ち")
+
+        sync_page.assert_not_called()
+
+    def test_disabled_flag_does_not_start_indexing(self):
+        repository = Mock(spec=NoteRepository)
+        repository.add.return_value = {
+            "id": 3,
+            "content": "即時同期無効",
+            "notion_page_id": "notion-page-id",
+            "notion_sync_status": "synced",
+        }
+
+        with (
+            patch.object(
+                note_service,
+                "get_note_repository",
+                return_value=repository,
+            ),
+            patch.object(
+                note_service.config,
+                "NOTION_MEMO_RAG_SYNC_ON_WRITE_ENABLED",
+                False,
+            ),
+            patch.object(
+                note_service,
+                "sync_notion_memo_page_on_write",
+            ) as sync_page,
+        ):
+            note_service.add_note("即時同期無効")
+
+        sync_page.assert_not_called()
+
+    def test_indexing_failure_does_not_turn_saved_note_into_failure(self):
+        repository = Mock(spec=NoteRepository)
+        note = {
+            "id": 4,
+            "content": "後で再同期",
+            "notion_page_id": "notion-page-id",
+            "notion_sync_status": "synced",
+        }
+        repository.add.return_value = note
+
+        with (
+            patch.object(
+                note_service,
+                "get_note_repository",
+                return_value=repository,
+            ),
+            patch.object(
+                note_service.config,
+                "NOTION_MEMO_RAG_SYNC_ON_WRITE_ENABLED",
+                True,
+            ),
+            patch.object(
+                note_service,
+                "sync_notion_memo_page_on_write",
+                side_effect=RuntimeError("index unavailable"),
+            ),
+        ):
+            result = note_service.add_note(note["content"])
+
+        self.assertIs(result, note)
+
     def test_text_and_realtime_responses_keep_existing_format(self):
         repository = Mock(spec=NoteRepository)
         repository.add.side_effect = (
