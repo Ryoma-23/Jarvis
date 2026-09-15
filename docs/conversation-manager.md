@@ -132,7 +132,7 @@ resume.
 ## Realtime inactivity termination
 
 After shared-history restoration succeeds and the microphone is enabled, the
-Window starts a 60-second client-side inactivity interval. Accepted voice or
+Window starts a 180-second client-side inactivity interval. Accepted voice or
 Realtime text input refreshes the interval. Response generation/playback,
 queued text turns, persistence-related active turns, and tool calls hold the
 timer so the session cannot end while work is still in progress. Completion

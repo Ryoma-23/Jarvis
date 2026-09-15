@@ -18,15 +18,7 @@ JARVIS routes natural-language requests to specialized services, integrates Noti
 
 ## Demo
 
-> デモ動画・GIFは追加予定です。公開素材を用意した後、この位置に掲載します。
-
-収録する操作の例（実演結果ではなく、デモ用シナリオ）：
-
-1. テキストで通常会話を始める。
-2. 「気分に合わせて音楽を選ぶ機能を作りたい、とメモして」→ Memoの保存とNotion上の内容を確認。
-3. Knowledge同期後、「気分で音楽を選ぶ機能について考えたことは？」→ RAGで関連情報を取得し、出典付きで回答。
-4. 音声へ切り替えて続きを話し、再びテキストから同じ会話を続ける。
-5. 会話終了後、「Hey Jarvis」でWindow表示・音声接続を開始する。
+**[▶ JARVISのデモ動画をYouTubeで見る](https://youtu.be/6QoeV7zfbYE)**
 
 ## Why I Built This
 

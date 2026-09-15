@@ -687,13 +687,13 @@ class WindowStaticAssetTests(unittest.TestCase):
         ).read_text(encoding="utf-8")
 
         for expected in (
-            "REALTIME_CONVERSATION_IDLE_TIMEOUT_MS = 60_000",
+            "REALTIME_CONVERSATION_IDLE_TIMEOUT_MS = 180_000",
             "function scheduleRealtimeIdleTimeout(sessionId)",
             "async function handleRealtimeIdleTimeout",
             "timerGeneration !== realtimeIdleTimerGeneration",
             "isRealtimeConversationBusy(sessionId)",
             '"idle_timeout"',
-            '"1分間会話がなかったため終了しました"',
+            '"3分間会話がなかったため終了しました"',
             "resetRealtimeIdleState();",
             "activeRealtimeToolCallCount > 0",
         ):

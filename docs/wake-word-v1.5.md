@@ -126,12 +126,12 @@ The fourth v1.5.2 implementation phase is complete:
 - `response.done` remains a per-response event and does not end the Realtime
   conversation.
 - After history restoration and microphone enablement, the Window starts a
-  client-side 60-second inactivity timer. If no conversation is in progress
+  client-side 180-second inactivity timer. If no conversation is in progress
   when it expires, it ends the session with reason `idle_timeout` through the
   same `finishRealtimeVoice()` cleanup path.
 - The inactivity timer does not run while the user is speaking, a response is
   pending or playing, Realtime text input is queued, or a tool call is running.
-  Accepted voice/text activity and completed output restart the 60-second
+  Accepted voice/text activity and completed output restart the 180-second
   interval.
 - Cleanup and reconnect invalidate the previous timer generation, preventing
   an old session timer from closing a newer connection.
@@ -479,10 +479,10 @@ microphone and speaker:
     final retry logs an error and the Window shows the small history warning.
 24. Disconnect Realtime while a persistence retry is pending. Confirm browser
     microphone cleanup, Tray notification, and Wake Word resume are not delayed.
-25. Connect Realtime and leave it without recognizable conversation for one
-    minute. Confirm it changes to `1分間会話がなかったため終了しました`,
+25. Connect Realtime and leave it without recognizable conversation for three
+    minutes. Confirm it changes to `3分間会話がなかったため終了しました`,
     releases the Realtime microphone, and resumes Wake Word waiting.
-26. Speak again before one minute has elapsed and confirm the timeout restarts
+26. Speak again before three minutes have elapsed and confirm the timeout restarts
     from that turn rather than closing at the original deadline.
 27. Make JARVIS produce a response or tool call that crosses the deadline and
     confirm the session does not close mid-response; it should close only after

@@ -57,7 +57,7 @@ const REALTIME_MEDIA_AUDIO_CONSTRAINTS = Object.freeze({
 const REALTIME_INPUT_NOISE_REDUCTION_TYPE = "far_field";
 const REALTIME_SERVER_VAD_THRESHOLD = 0.8;
 const REALTIME_SERVER_VAD_SILENCE_DURATION_MS = 1200;
-const REALTIME_CONVERSATION_IDLE_TIMEOUT_MS = 60_000;
+const REALTIME_CONVERSATION_IDLE_TIMEOUT_MS = 180_000;
 const REALTIME_BARGE_IN_GUARD_MS = 600;
 const REALTIME_BARGE_IN_MIN_TRANSCRIPT_CHARACTERS = 2;
 const REALTIME_NON_SPEECH_TRANSCRIPTS = new Set([
@@ -1889,7 +1889,7 @@ async function handleRealtimeIdleTimeout(sessionId, timerGeneration) {
         "idle_timeout",
         sessionId,
         "disconnected",
-        "1分間会話がなかったため終了しました"
+        "3分間会話がなかったため終了しました"
     );
 }
 
