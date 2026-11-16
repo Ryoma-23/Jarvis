@@ -65,7 +65,8 @@ class WakewordEvaluationTests(unittest.TestCase):
         result = evaluate_file(path, "positive", 0, self.model, self.detector)
         self.assertEqual(result["event_count"], 2)
         first, second = result["events"]
-        self.assertEqual(first["detectors"], ["openwakeword", "sherpa_onnx"])
+        self.assertEqual(first["detectors"], ["sherpa_onnx"])
+        self.assertEqual(second["detectors"], ["openwakeword", "sherpa_onnx"])
         self.assertEqual(first["sherpa_keyword_id"], "JARVIS_ALT_2")
         self.assertIsNone(first["sherpa_score"])
         self.assertAlmostEqual(second["time_seconds"] - first["time_seconds"], 2.0)
@@ -73,12 +74,12 @@ class WakewordEvaluationTests(unittest.TestCase):
         self.assertEqual(result["peak_openwakeword_score"], 0.8)
 
     def test_each_file_resets_models_and_does_not_apply_startup_guard(self):
-        path = self.wav(np.zeros(1280))
+        path = self.wav(np.zeros(2560))
         for _ in range(2):
-            self.model.predict.side_effect = [{"hey_jarvis": 0.7}] + [{"hey_jarvis": 0.0}] * TAIL_FRAMES
+            self.model.predict.side_effect = [{"hey_jarvis": 0.7}] * 2 + [{"hey_jarvis": 0.0}] * TAIL_FRAMES
             result = evaluate_file(path, "positive", 0, self.model, self.detector)
             self.assertEqual(result["event_count"], 1)
-            self.assertEqual(result["events"][0]["time_seconds"], 0.08)
+            self.assertEqual(result["events"][0]["time_seconds"], 0.16)
         self.assertEqual(self.model.reset.call_count, 2)
         self.assertEqual(self.detector.reset.call_count, 2)
 

@@ -124,7 +124,10 @@ class KeywordDetectorTests(unittest.TestCase):
         return json.loads(self.tray_log.call_args.args[0].split("candidate=", 1)[1])
 
     def test_logs_both_detectors_without_changing_activation(self):
-        listener = self.make_listener("Jarvis", score=0.8)
+        listener = self.make_listener(score=0.8)
+        listener._process_audio(np.zeros(1280, dtype=np.int16))
+        listener._keyword_detector.predict.return_value = "Jarvis"
+        listener._keyword_detector.last_detection_id = "JARVIS"
         listener._process_audio(np.zeros(1280, dtype=np.int16))
         event = self.logged_event()
         self.assertEqual(event["detectors"], ["openwakeword", "sherpa_onnx"])
@@ -135,6 +138,7 @@ class KeywordDetectorTests(unittest.TestCase):
 
     def test_logs_openwakeword_score_as_its_own_score(self):
         listener = self.make_listener(score=0.8)
+        listener._process_audio(np.zeros(1280, dtype=np.int16))
         listener._process_audio(np.zeros(1280, dtype=np.int16))
         event = self.logged_event()
         self.assertEqual(event["detectors"], ["openwakeword"])
@@ -234,7 +238,26 @@ class KeywordDetectorTests(unittest.TestCase):
         listener = self.make_listener(score=0.8)
         listener._keyword_detector = None
         listener._process_audio(np.zeros(1280, dtype=np.int16))
+        listener._process_audio(np.zeros(1280, dtype=np.int16))
         listener._on_detected.assert_called_once_with(0.8)
+
+    def test_isolated_score_spikes_do_not_activate(self):
+        listener = self.make_listener()
+        listener._model.predict.side_effect = [
+            {"hey_jarvis": score} for score in (0.8, 0.1, 0.9, 0.1, 0.8, 0.8)
+        ]
+        for _ in range(5):
+            listener._process_audio(np.zeros(1280, dtype=np.int16))
+            listener._on_detected.assert_not_called()
+        listener._process_audio(np.zeros(1280, dtype=np.int16))
+        listener._on_detected.assert_called_once_with(0.8)
+
+    def test_resume_discards_score_confirmation(self):
+        listener = self.make_listener(score=0.8)
+        listener._process_audio(np.zeros(1280, dtype=np.int16))
+        listener._reset_model_state()
+        listener._process_audio(np.zeros(1280, dtype=np.int16))
+        listener._on_detected.assert_not_called()
 
     def test_resume_resets_both_detectors(self):
         listener = self.make_listener()

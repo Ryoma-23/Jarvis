@@ -18,7 +18,9 @@ from core.config import (
     WAKEWORD_KEYWORD_TRAILING_BLANKS, WAKEWORD_MODEL_NAME,
     WAKEWORD_TARGET_FRAME_SAMPLES, WAKEWORD_TARGET_SAMPLE_RATE,
     WAKEWORD_THRESHOLD,
+    WAKEWORD_CONFIRMATION_FRAMES,
 )
+from wakeword.score_confirmation import ScoreConfirmation
 from wakeword.audio_converter import convert_sample_rate
 from wakeword.keyword_detector import (
     JARVIS_ALIAS_IDS, JARVIS_BASE_PRONUNCIATION, JARVIS_PRONUNCIATIONS,
@@ -69,6 +71,7 @@ def evaluate_file(path, label, channel, model, detector, *, openwakeword_thresho
     events = []
     peak_score = 0.0
     last_event_time = -math.inf
+    confirmation = ScoreConfirmation(openwakeword_threshold, WAKEWORD_CONFIRMATION_FRAMES)
     with wave.open(str(path), "rb") as source:
         block_size = validate_wav(source, channel)
         duration = source.getnframes() / source.getframerate()
@@ -91,9 +94,10 @@ def evaluate_file(path, label, channel, model, detector, *, openwakeword_thresho
             if not math.isfinite(score):
                 raise ValueError("Non-finite openWakeWord score")
             peak_score = max(peak_score, score)
+            confirmed = confirmation.update(score)
             keyword = detector.predict(frame)
             time_seconds = (index + 1) * FRAME_SECONDS
-            if keyword is None and score < openwakeword_threshold:
+            if keyword is None and not confirmed:
                 continue
             if time_seconds - last_event_time + 1e-9 < WAKEWORD_COOLDOWN_SECONDS:
                 continue
@@ -108,7 +112,7 @@ def evaluate_file(path, label, channel, model, detector, *, openwakeword_thresho
                 pronunciation = JARVIS_BASE_PRONUNCIATION
                 threshold = detector.threshold
             detectors = []
-            if score >= openwakeword_threshold:
+            if confirmed:
                 detectors.append("openwakeword")
             if keyword:
                 detectors.append("sherpa_onnx")
@@ -201,6 +205,7 @@ def main(argv=None):
             "schema_version": 1, "profile": PROFILE_VERSION,
             "settings": {
                 "openwakeword_threshold": args.openwakeword_threshold,
+                "openwakeword_confirmation_frames": WAKEWORD_CONFIRMATION_FRAMES,
                 "sherpa_base_threshold": args.sherpa_threshold,
                 "sherpa_alias_threshold": args.jarvis_threshold,
                 "sherpa_trailing_blanks": args.trailing_blanks,

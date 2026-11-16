@@ -21,6 +21,7 @@ from core.config import (
     WAKEWORD_TARGET_FRAME_SAMPLES,
     WAKEWORD_TARGET_SAMPLE_RATE,
     WAKEWORD_THRESHOLD,
+    WAKEWORD_CONFIRMATION_FRAMES,
     WAKEWORD_KEYWORD_MODEL_DIR,
     WAKEWORD_KEYWORD_THRESHOLD,
     WAKEWORD_JARVIS_THRESHOLD,
@@ -33,6 +34,7 @@ from wakeword.audio_device import (
     AudioInputDevice,
     find_wakeword_input_device,
 )
+from wakeword.score_confirmation import ScoreConfirmation
 
 
 class WakeWordListener:
@@ -41,6 +43,7 @@ class WakeWordListener:
         on_detected: Callable[[float], None],
     ):
         self._on_detected = on_detected
+        self._score_confirmation = ScoreConfirmation(WAKEWORD_THRESHOLD, WAKEWORD_CONFIRMATION_FRAMES)
 
         self._thread: threading.Thread | None = None
         self._stream: sd.InputStream | None = None
@@ -438,12 +441,18 @@ class WakeWordListener:
                 self._keyword_detector = None
 
         current_time = time.monotonic()
+        confirmed = self._score_confirmation.update(jarvis_score)
 
         if keyword is None and jarvis_score < WAKEWORD_THRESHOLD:
             return
 
         if current_time < self._detection_enabled_at:
+            self._score_confirmation.reset()
             self._log_detection(keyword, jarvis_score, "resume_guard")
+            return
+
+        if keyword is None and not confirmed:
+            self._log_detection(keyword, jarvis_score, "score_confirmation")
             return
 
         elapsed = (
@@ -491,7 +500,7 @@ class WakeWordListener:
                     pronunciation = JARVIS_BASE_PRONUNCIATION
 
             detectors = []
-            if jarvis_score >= WAKEWORD_THRESHOLD:
+            if self._score_confirmation.consecutive_frames >= WAKEWORD_CONFIRMATION_FRAMES:
                 detectors.append("openwakeword")
             if keyword is not None:
                 detectors.append("sherpa_onnx")
@@ -502,6 +511,8 @@ class WakeWordListener:
                 "openwakeword_model": self._detected_model_key,
                 "openwakeword_score": jarvis_score,
                 "openwakeword_threshold": WAKEWORD_THRESHOLD,
+                "openwakeword_confirmation_frames": WAKEWORD_CONFIRMATION_FRAMES,
+                "openwakeword_consecutive_frames": self._score_confirmation.consecutive_frames,
                 "sherpa_keyword_id": keyword_id,
                 "sherpa_pronunciation": pronunciation,
                 "sherpa_score": None,
@@ -542,6 +553,7 @@ class WakeWordListener:
         音声特徴量のバッファを初期化する。
         """
 
+        self._score_confirmation.reset()
         if self._keyword_detector is not None:
             self._keyword_detector.reset()
 

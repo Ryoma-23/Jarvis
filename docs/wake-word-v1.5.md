@@ -184,7 +184,7 @@ The Realtime `session.update` keeps the existing Japanese
 - VAD threshold: `0.8`
 - Speech-stop silence duration: `1200 ms`
 - Automatic response creation: disabled; the Window sends `response.create`
-  at a normal speech stop or after accepting a finalized barge-in transcript
+  only after accepting a finalized voice transcript (explicit address for barge-in)
 - Server-side automatic response interruption: disabled
 
 `prefix_padding_ms` is not set, so the Realtime default remains in use.
@@ -196,15 +196,17 @@ output. While the WebRTC output audio buffer is playing, the client records
 whether speech lasts at least 600 ms but does not interrupt from VAD duration
 alone. After
 `conversation.item.input_audio_transcription.completed`, it accepts the turn
-only when the transcript contains meaningful speech. An accepted barge-in
+only when the transcript contains meaningful speech. The external-video guard
+also requires an explicit Jarvis address at the start of a barge-in (see below).
+An accepted barge-in
 sends `response.cancel` for a response that is still being generated, followed
 by `output_audio_buffer.clear` to stop buffered WebRTC playback, then sends
 `response.create` for the new user turn. During JARVIS playback, empty
 transcripts, common cough/noise labels, filler fragments, one-character
 barge-in fragments, and sub-600 ms detections do not stop JARVIS or create a
-follow-up response. Outside JARVIS playback, the Window sends
-`response.create` at `speech_stopped`, preserving the existing normal-turn
-latency while the finalized transcript is processed separately for history.
+follow-up response. Outside JARVIS playback, the Window also waits for the final
+transcript validation before sending `response.create`. Speech stop
+alone never authorizes a voice response.
 
 The adjustable frontend constants are located together near the top of
 `static/script.js`:
@@ -615,8 +617,9 @@ Manual verification:
 when either detector produces a candidate. No audio or conversation transcripts
 are recorded by this diagnostic path. Frames with no candidate are not logged.
 
-- `decision`: `activate`, `resume_guard` (startup/resume suppression), or
-  `cooldown` (repeat suppression). A candidate is not necessarily an activation.
+- `decision`: `activate`, `resume_guard` (startup/resume suppression),
+  `cooldown` (repeat suppression), or `score_confirmation` (waiting for consecutive
+  openWakeWord hits). A candidate is not necessarily an activation.
 - `detectors`: `openwakeword`, `sherpa_onnx`, or both if both qualify on this frame.
 - `keyword`: normalized keyword, not a transcription. Jarvis takes precedence
   in this field when both detectors qualify; both remain listed in `detectors`.
@@ -810,3 +813,126 @@ from synthetic silence alone or before collecting actual recordings.
 
 Selecting and applying a production setting remains a separate step after
 reviewing the evaluation results and confirming behavior on the real microphone.
+
+## External-video false activation and interruption guard
+
+External-device playback has no local playback-reference signal. These guards
+reduce specific false-trigger paths; they do not identify the owner or guarantee
+rejection of recorded voices.
+
+Wake activation now requires **two consecutive 80 ms openWakeWord predictions**
+at or above the existing 0.5 threshold (`WAKEWORD_CONFIRMATION_FRAMES = 2`). An
+isolated high score is logged as `score_confirmation` and cannot start JARVIS.
+A lower/non-finite score or model-state reset clears confirmation. Startup guard
+hits do not count toward confirmation. This adds one prediction interval (80 ms)
+after the first qualifying score; it does not prove that 160 ms of speech was
+spoken. Genuine calls with only a brief high score may also be missed. sherpa's
+Jarvis path and its existing end-confirmation settings remain unchanged.
+
+The evaluator uses the same consecutive-score gate and reports its frame count
+under `settings.openwakeword_confirmation_frames`. Diagnostics include the required
+and observed consecutive frame counts. `detectors` lists confirmed sources;
+an unconfirmed openWakeWord candidate can have an empty detector list while its
+raw score is still recorded.
+
+During JARVIS audio playback, an interruption must still pass the 600 ms guard
+and meaningful-transcript check, and now must **begin with Jarvis / ジャービス /
+ジャーヴィス**, optionally preceded by Hey / ヘイ / ねえ / ねぇ. For example,
+say `ジャービス、止めて` rather than `止めて` alone. A name merely mentioned
+later in a video sentence does not qualify. A video beginning with the same
+address can still pass: this is an explicit-address rule, not speaker verification
+or a trained device-directed-speech classifier.
+
+Speech-start/stop candidates during playback no longer switch the visual state
+to listening/thinking. Rejected voice transcripts do not cancel output, request
+a new response, or enter local history. Their Realtime items are removed with
+`conversation.item.delete`; repeated rejected transcript events are ignored until
+session history state is reset. If the deletion send fails, a warning is logged;
+remote removal is not guaranteed. Audio is still streamed to Realtime before
+this decision. This is not a pre-upload audio filter.
+
+The address rule applies to **barge-in only**
+(`REALTIME_BARGE_IN_REQUIRES_NAME = true`). Normal listening accepts short
+questions and follow-ups with or without the name. The temporary per-turn name
+requirement was removed after real-device reports of valid speech being rejected.
+Text input is unchanged. Background speech during normal listening can still
+be accepted; this policy does not solve owner-only conversation.
+
+The previous normal-turn path requested a response at `speech_stopped` before
+the transcript was validated. That path is removed: speech stop only updates
+capture/status state. Final transcription validates the content (and the address
+for barge-in), then requests
+the response and persists the accepted turn. Rejected or failed transcriptions
+are removed from the remote session when possible; rejected item IDs prevent
+duplicate transcription events from reintroducing them. This adds transcription
+latency before ordinary responses. A video that itself begins with the accepted
+name can still pass, and the rule cannot separate overlapping voices or remove
+video speech mixed into an accepted utterance. It is not owner authentication.
+
+Apply by fully exiting the Tray and restarting JARVIS, including recreating the
+Window. Manual acceptance checks:
+
+1. Repeated Jarvis and Hey Jarvis calls at the usual distance still start one
+   Window/session. Check detection logs for confirmation vs activation.
+2. While JARVIS speaks, play previously problematic external-device videos and
+   verify unaddressed speech does not stop output or switch the UI to listening.
+3. Say `ジャービス、止めて` during playback and verify interruption; then ask
+   a follow-up after output stops using both `ジャービス、元気？` and `元気？`.
+   Both should be accepted. Test video dialogue separately; filtering it during
+   normal listening remains unresolved and must not be claimed as verified.
+4. Verify microphone input, speaker output, text input, manual connection,
+   disconnect/re-wake, and Tray/Window reopen.
+5. Record both missed calls and remaining false activations. Automated tests
+   cover the policy and lifecycle, not real-world false-activation rates.
+
+Realtime item removal API:
+https://developers.openai.com/api/reference/resources/realtime/client-events
+
+## Voice rejection feedback and transcript timing
+
+An address or duration gate can reject real speech even though VAD displays
+listening. That is not necessarily a noise classification. The status and on-screen System
+Log now distinguish missing address, empty transcription, unsuitable transcript,
+and too-short interruption. `VOICE_REJECTED` logs the reason without the raw
+transcript. During playback the speaking status remains; the reason is in System
+Log. Outside playback the reason also appears in the voice status.
+
+The address matcher normalizes full-width characters, hiragana (`じゃーびす`),
+and leading quotation marks. It still requires the address at the beginning;
+it does not accept arbitrary sentences merely mentioning Jarvis.
+
+When speech-turn metadata exists, interruption classification uses that turn's
+playback-overlap flag rather than the output state when a delayed transcript
+arrives. A completed normal turn must not become a short interruption merely
+because assistant playback began after it ended. Missing turn metadata continues
+to use the current playback state conservatively.
+
+For manual diagnosis, restart Tray/Window and try a short `ジャービス、天気は？`
+after playback ends, then a named interruption during playback. If rejected,
+report the displayed reason and whether speech overlapped assistant output.
+Also test hiragana/name transcription variations and background video. The
+600 ms interruption guard and barge-in address requirement remain enabled;
+speaker authentication and hardware accuracy are still unverified.
+
+## Realtime startup diagnostics
+
+Startup failures now identify the Tray, token, microphone, media setup, SDP,
+or remote-answer stage. The Tray completion reason includes a bounded diagnostic
+code (for example `startup_failed:sdp:HTTP_429`). Raw API response bodies,
+tokens, SDP, and exception messages are not included in these diagnostics.
+Known API error codes/types distinguish quota from rate limits; unknown 429
+responses do not imply either cause. The UI gives the corresponding action.
+Automatic retries are not added: quota errors require account action.
+
+On 2026-11-16, an authorized manual connection in the actual Window reproduced
+`startup_failed:sdp:HTTP_429` after token and microphone acquisition succeeded.
+The historical wake-triggered failures only recorded `startup_failed`, so their
+exact HTTP status cannot be recovered. The reproduced 429 subtype is unknown.
+This diagnostic change does not remove an external API limit.
+
+After reopening Window, verify manual connection and an actual `Jarvis` wake
+activation. If 429 appears, check the API project's billing/usage/limits and
+follow the displayed classification. After access recovers, verify microphone
+input, speaker output, disconnect, Tray wake listening, and Window reopen.
+No successful audio round trip or physical wake activation was verified in this
+diagnostic test. Reference: https://developers.openai.com/api/docs/guides/error-codes
