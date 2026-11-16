@@ -1,3 +1,4 @@
+import json
 import queue
 import threading
 import time
@@ -22,6 +23,8 @@ from core.config import (
     WAKEWORD_THRESHOLD,
     WAKEWORD_KEYWORD_MODEL_DIR,
     WAKEWORD_KEYWORD_THRESHOLD,
+    WAKEWORD_JARVIS_THRESHOLD,
+    WAKEWORD_KEYWORD_TRAILING_BLANKS,
 )
 from wakeword.audio_converter import (
     convert_sample_rate,
@@ -163,7 +166,7 @@ class WakeWordListener:
                 WAKEWORD_KEYWORD_MODEL_DIR, WAKEWORD_KEYWORD_THRESHOLD
             )
             from core.logger import tray_log
-            tray_log(f"[WakeWord] {PROFILE_VERSION} loaded; Jarvis / Wake up / Wake up, Jarvis")
+            tray_log(f"[WakeWord] {PROFILE_VERSION} loaded; Jarvis / Hey Jarvis")
         except Exception as error:
             self._keyword_detector = None
             print(f"[WakeWord] 追加検出を利用できません: {error}")
@@ -436,19 +439,11 @@ class WakeWordListener:
 
         current_time = time.monotonic()
 
-        if current_time < self._detection_enabled_at:
+        if keyword is None and jarvis_score < WAKEWORD_THRESHOLD:
             return
 
-        # デバッグ時にスコア推移を確認したい場合のみ
-        # コメントアウトを解除する。
-        #
-        # if jarvis_score >= 0.05:
-        #     print(
-        #         f"[WakeWord] score="
-        #         f"{jarvis_score:.3f}"
-        #     )
-
-        if keyword is None and jarvis_score < WAKEWORD_THRESHOLD:
+        if current_time < self._detection_enabled_at:
+            self._log_detection(keyword, jarvis_score, "resume_guard")
             return
 
         elapsed = (
@@ -457,20 +452,10 @@ class WakeWordListener:
         )
 
         if elapsed < WAKEWORD_COOLDOWN_SECONDS:
+            self._log_detection(keyword, jarvis_score, "cooldown")
             return
 
         self._last_detection_time = current_time
-
-        print()
-        print(
-            "[WakeWord] Wake Wordを"
-            "検知しました。"
-        )
-        print(
-            f"[WakeWord] score="
-            f"{jarvis_score:.3f}"
-        )
-        print()
 
         # Realtime側へマイクを渡せるよう、
         # 検知直後にWake Wordマイクを解放する。
@@ -478,10 +463,57 @@ class WakeWordListener:
         self._close_stream()
         self._clear_audio_queue()
 
-        from core.logger import tray_log
-        tray_log(f"[WakeWord] detected={keyword or 'Hey Jarvis'}")
-        # Existing callback consumes an activation score, not a transcription.
+        self._log_detection(keyword, jarvis_score, "activate")
+        # Preserve the callback contract; sherpa's 1.0 is a signal, not confidence.
         self._on_detected(jarvis_score if keyword is None else 1.0)
+
+    def _log_detection(
+        self, keyword: str | None, jarvis_score: float, decision: str,
+    ) -> None:
+        """Log candidate decisions only, without audio or speech transcripts."""
+        try:
+            from core.logger import tray_log
+            from wakeword.keyword_detector import (
+                JARVIS_ALIAS_IDS, JARVIS_BASE_PRONUNCIATION,
+                JARVIS_PRONUNCIATIONS, PROFILE_VERSION,
+            )
+
+            keyword_id = None
+            pronunciation = None
+            keyword_threshold = None
+            if keyword is not None:
+                keyword_id = self._keyword_detector.last_detection_id
+                keyword_threshold = self._keyword_detector.threshold
+                if keyword_id in JARVIS_ALIAS_IDS:
+                    pronunciation = JARVIS_PRONUNCIATIONS[int(keyword_id.rsplit("_", 1)[1])]
+                    keyword_threshold = WAKEWORD_JARVIS_THRESHOLD
+                elif keyword_id == "JARVIS":
+                    pronunciation = JARVIS_BASE_PRONUNCIATION
+
+            detectors = []
+            if jarvis_score >= WAKEWORD_THRESHOLD:
+                detectors.append("openwakeword")
+            if keyword is not None:
+                detectors.append("sherpa_onnx")
+            event = {
+                "decision": decision,
+                "detectors": detectors,
+                "keyword": keyword or "Hey Jarvis",
+                "openwakeword_model": self._detected_model_key,
+                "openwakeword_score": jarvis_score,
+                "openwakeword_threshold": WAKEWORD_THRESHOLD,
+                "sherpa_keyword_id": keyword_id,
+                "sherpa_pronunciation": pronunciation,
+                "sherpa_score": None,
+                "sherpa_score_status": "unavailable" if keyword else "not_detected",
+                "sherpa_threshold": keyword_threshold,
+                "sherpa_trailing_blanks": WAKEWORD_KEYWORD_TRAILING_BLANKS,
+                "profile": PROFILE_VERSION,
+            }
+            tray_log("[WakeWord] candidate=" + json.dumps(event, ensure_ascii=False))
+        except Exception as error:
+            # A diagnostic write failure must not leave wake activation paused.
+            print(f"[WakeWord] diagnostic_log_failed type={type(error).__name__}")
     
     def _clear_audio_queue(self) -> None:
         """

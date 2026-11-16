@@ -539,10 +539,11 @@ microphone timing require testing on the actual device.
 
 The existing openWakeWord detector remains responsible for Hey Jarvis. A local
 sherpa-onnx KeywordSpotter also receives the same 16 kHz microphone frames and
-detects Jarvis, Wake up, and Wake up Jarvis. No extra microphone or cloud speech
-recognition is used. Wake up can trigger before the final Jarvis in the longer
-phrase; one activation is sufficient and the existing pause/cooldown prevents
-duplicate activation. The UI uses Hey Jarvis as the canonical greeting input for
+detects Jarvis only. The supported wake phrases are Jarvis and Hey Jarvis.
+Wake up and Wake up Jarvis are no longer registered keywords. Saying Wake up
+Jarvis can still activate on its Jarvis portion; this is keyword spotting, not
+whole-utterance matching. No extra microphone or cloud speech recognition is
+used. The UI uses Hey Jarvis as the canonical greeting input for
 all wake activations; this is not a verbatim transcription of these aliases.
 
 Install requirements and run `python download_wakeword_models.py` once. The
@@ -564,13 +565,14 @@ after resume. They do not depend on regenerating the downloaded keywords.txt.
 Each pronunciation has a distinct ID, normalized to Jarvis before activation.
 The keyword search uses 16 active paths to accommodate the expanded vocabulary.
 Jarvis alternatives now use WAKEWORD_JARVIS_THRESHOLD=0.35 (previously 0.25).
-Wake up retains threshold 0.35. WAKEWORD_KEYWORD_TRAILING_BLANKS=4 adds
+WAKEWORD_KEYWORD_TRAILING_BLANKS=4 adds
 end confirmation for all sherpa keywords (previously 1), with some extra latency.
 The profile supports additional English and bilingual-model phoneme renderings;
 it is not a general Japanese speech recognizer or a guarantee for every accent.
 
 After a full tray restart, logs/jarvis_tray.log must show
-`jarvis-pronunciation-v3-strict loaded`. Successful detections log `detected=Jarvis`.
+`jarvis-pronunciation-v4-name-only loaded`. Detection decisions are recorded as
+`[WakeWord] candidate=` JSON events (see diagnostics below).
 Validate repeated standalone Jarvis calls at the usual microphone distance,
 follow-up conversation, disconnect/resume, and ordinary speech for false triggers.
 Recordings used for local evaluation are not committed to the repository.
@@ -581,3 +583,230 @@ five to four. Twelve synthetic ordinary-speech clips had no triggers with either
 profile; these do not reproduce the reported video. The actual triggering video
 must be checked in the live microphone environment before claiming resolution.
 This keyword detector does not distinguish a human voice from speaker playback.
+
+## Name-only wake phrases (v4)
+
+The runtime keyword graph uses Jarvis keywords only: a temporary keyword file
+with the existing English dictionary pronunciation, plus seven inline
+pronunciation alternatives. The temporary file is removed after model loading. Legacy
+`data/wakeword/sherpa-kws/keywords.txt` files are not loaded, so old Wake up
+entries cannot re-enable those keywords. Model preparation now writes only
+Jarvis to that file. No model download or data-file migration is required.
+Unexpected legacy result IDs are also rejected before activation.
+
+Thresholds, end confirmation, Hey Jarvis detection, microphone handoff, and
+cooldown behavior are unchanged. Fully exit and restart the Tray to apply this
+change; hiding/reopening the Window alone is insufficient.
+
+Manual verification:
+
+1. Restart the Tray and confirm the v4 profile log above.
+2. Say Jarvis and Hey Jarvis separately at the usual microphone distance; check
+   Window activation, the spoken reply, and a follow-up voice request.
+3. Disconnect, wait for wake monitoring to resume, and repeat both phrases.
+4. Say Wake up alone repeatedly and confirm it does not activate. A false match
+   against a remaining Jarvis model is still possible and needs separate tuning.
+5. Replay the previously problematic video and observe false activations.
+   Removing keywords does not guarantee that all background-audio triggers stop.
+
+## Wake-word diagnostics
+
+`logs/jarvis_tray.log` records timestamped `[WakeWord] candidate=` JSON events
+when either detector produces a candidate. No audio or conversation transcripts
+are recorded by this diagnostic path. Frames with no candidate are not logged.
+
+- `decision`: `activate`, `resume_guard` (startup/resume suppression), or
+  `cooldown` (repeat suppression). A candidate is not necessarily an activation.
+- `detectors`: `openwakeword`, `sherpa_onnx`, or both if both qualify on this frame.
+- `keyword`: normalized keyword, not a transcription. Jarvis takes precedence
+  in this field when both detectors qualify; both remain listed in `detectors`.
+- `openwakeword_model`, `openwakeword_score`, `openwakeword_threshold`: actual
+  model output and configured threshold, also recorded when sherpa triggers.
+  An openWakeWord score below threshold does not invalidate a sherpa detection.
+- `sherpa_keyword_id`, `sherpa_pronunciation`: base `JARVIS` or a specific
+  `JARVIS_ALT_0` through `JARVIS_ALT_6` and its configured phonemes.
+- `sherpa_threshold`: effective threshold for that keyword (including inline
+  pronunciation overrides); `sherpa_trailing_blanks` and `profile` identify the
+  remaining detection settings.
+- `sherpa_score`: always `null`. The public keyword API used here does not
+  provide a confidence score. `sherpa_score_status` is `unavailable` on detection,
+  otherwise `not_detected`. The manager's legacy callback value is labeled
+  `activation_signal`, not confidence; sherpa still sends the fixed signal 1.0.
+
+Logging errors do not prevent activation. This change does not adjust thresholds
+or add a new detection filter. It cannot classify correct versus false triggers
+automatically, or explain missed calls that produced no candidate.
+
+After fully restarting the Tray, inspect recent events in PowerShell:
+
+```powershell
+Get-Content .\logs\jarvis_tray.log -Tail 200 | Select-String -SimpleMatch '[WakeWord] candidate='
+```
+
+For manual evaluation, note the local time and whether each trial was an intended
+Jarvis/Hey Jarvis call, silence/background noise, or video playback. Compare that
+note with the event's timestamp, detector, and pronunciation ID. Check Window
+activation, microphone handoff, audible reply, and disconnect/re-wake as before.
+Count `activate` events separately from suppressed candidates. Keep the number
+of deliberate calls and the duration of background/video trials to evaluate
+misses and false activations later; log counts alone are not accuracy rates.
+
+## Offline WAV evaluation
+
+`scripts/evaluate_wakeword.py` evaluates existing local audio using both installed
+detectors and the current thresholds. It does not open a microphone, play audio,
+start a Window/Realtime session, call cloud APIs, or download models. Both models
+must be available; a missing model fails the evaluation instead of silently
+changing the detector set. Existing reports are never overwritten.
+
+Prepare uncompressed **16-bit PCM WAV** files under `data/wakeword-evaluation/`
+(already ignored by Git). Record at the normal microphone position and gain:
+
+- Positive: one deliberate Jarvis or Hey Jarvis call per file, with roughly one
+  second of quiet lead-in and trailing silence. Use several normal pronunciations
+  and distances. Keep the two phrases in separate, clearly named files.
+- Negative: no deliberate wake call; include silence, room noise, ordinary speech,
+  and the video that caused unwanted activation. Record video playback through
+  the usual microphone/speaker setup to include the actual acoustic conditions.
+  A direct video audio export can also be tested, but is a different condition.
+
+The evaluator does not record these samples for you. Keep the same WAV files,
+channel, and labels when comparing changes. Each input path may be listed only
+once. `--positive` and `--negative` can each be repeated. At least one is required.
+
+From the project root in PowerShell, for example:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\evaluate_wakeword.py --positive data\wakeword-evaluation\jarvis-01.wav --positive data\wakeword-evaluation\hey-jarvis-01.wav --negative data\wakeword-evaluation\video-01.wav --output data\wakeword-evaluation\baseline.json
+```
+
+The example filenames must be replaced with files you have prepared. Parent
+directories for `--output` must exist. Omit `--output` to print JSON to stdout.
+Progress/errors go to stderr. Exit code 0 means evaluation completed, not that
+recognition quality passed an acceptance target; invalid inputs or model failures
+return nonzero. Reports contain input paths but no audio or speech transcripts.
+
+`--channel 0` is the default (zero-based, matching the live mic channel). Stereo
+and multichannel WAVs use only the selected channel, without downmixing. Audio
+is streamed in 80 ms blocks and converted with the same resampler as the live
+listener. Each clip starts with reset model state; the final partial block is
+zero-padded, followed by 1.04 seconds of silence to flush streaming latency.
+
+The JSON includes:
+
+- `summary.positive_clip_detection_rate`: fraction of positive files with at
+  least one event; `positive_clips_missed` counts files with no event. This is
+  clip-level detection, not word-timed recall: a false match elsewhere in a
+  positive clip can count as a hit. Review event timing when interpreting it.
+- `summary.negative_events_per_hour`: events in negative clips divided by their
+  original duration in hours. Short recordings give unstable estimates. Missing
+  positive or negative groups yield `null` for their corresponding rate.
+- Per-file events: frame-end detection time (not the spoken word's onset), both
+  detector names when applicable, actual openWakeWord score, sherpa pronunciation
+  ID/phonemes and threshold. sherpa confidence remains `null` because the API
+  does not expose it. `peak_openwakeword_score` includes subthreshold maxima.
+- `during_padding`: flags detections after the original file ends. These events
+  count in the summary to retain delayed detections; padding time is excluded
+  from the negative-duration denominator. Inspect these events before tuning.
+- `settings` and `profile`: thresholds, frame size, cooldown, padding, and the
+  evaluation conditions needed to compare reports.
+
+This is continuous-listening detector evaluation with a two-second event cooldown.
+It does **not** apply the live one-second startup guard or simulate conversation
+pauses, microphone handoffs, or resets after each activation. It therefore does
+not predict actual Tray activation counts. After tuning, still verify Tray
+restart, Window opening, speaker response, follow-up microphone input, and
+disconnect/re-wake with the real hardware. This tool alone changes no sensitivity.
+
+## Recording evaluation samples
+
+`scripts/record_wakeword_sample.py` creates one PCM16 WAV per invocation. Unlike
+the offline evaluator, this command **opens the microphone and records locally**.
+It does not upload audio, start Realtime, play a sound, or change wake sensitivity.
+Recording starts only when you run the command, after a visible countdown.
+
+1. Fully exit JARVIS from the Tray to release its microphone. Closing the Window
+   alone is insufficient. The recorder does not stop other applications for you.
+2. Keep the normal ReSpeaker position, speaker volume, and Windows microphone
+   gain. The recorder uses the same device-name/host-API selection as the listener
+   (currently ReSpeaker + MME), its native sample rate, six capture channels, and
+   configured channel 0. It saves that selected channel as a **mono** WAV; use
+   the evaluator's default channel 0 even if the source channel changes later.
+3. Run a command below. Wait for `RECORDING`, leave about one second of silence,
+   say the phrase once, and leave the remaining time quiet. The countdown itself
+   is not recorded. For background/video samples, do not deliberately call JARVIS.
+
+From the project root in PowerShell:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\record_wakeword_sample.py --output data\wakeword-evaluation\jarvis-01.wav --seconds 5
+.\.venv\Scripts\python.exe scripts\record_wakeword_sample.py --output data\wakeword-evaluation\hey-jarvis-01.wav --seconds 5
+.\.venv\Scripts\python.exe scripts\record_wakeword_sample.py --output data\wakeword-evaluation\video-01.wav --seconds 60
+```
+
+Run each command separately for its intended condition. Repeat the positive
+samples with new names (`jarvis-02.wav`, etc.) at your usual distance; ten calls
+per phrase is a useful initial comparison set. Prepare longer negative samples
+to measure unwanted triggers. `--seconds` defaults to 5 and accepts durations
+greater than zero up to 600; `--countdown` defaults to 3 and accepts 0–10 seconds.
+Output directories are created automatically. Recordings under `data/` are
+ignored by Git. Existing output files are never overwritten, including if another
+process creates one during recording.
+
+The recorder streams into a temporary file and saves the requested WAV only
+after successful capture. Ctrl+C during capture, input overflow, unexpected frame
+shape, and all-digital-zero input do not publish a WAV. The microphone is released
+when the stream context exits. If the final output write itself fails or is
+interrupted, a partial output can remain; it is not automatically removed.
+Choose a new filename when retrying.
+
+On success it prints actual duration, peak amplitude, RMS amplitude, and the
+number of samples at the int16 limits. Clipping or very low input gets a warning;
+these samples are retained for inspection. Quiet room noise is valid negative
+audio; only an entirely digital-zero signal is rejected. These level checks do
+not determine whether a wake phrase was spoken correctly.
+
+Pass the saved WAVs to the offline evaluator using the preceding example to
+produce `baseline.json`. Inspect or listen to the samples locally to confirm the
+intended word/background is present. Then restart the Tray and verify Jarvis/Hey
+Jarvis opens the Window, the speaker reply is audible, follow-up microphone input
+works, and disconnect/re-wake succeeds. The recorder's automated tests use fake
+audio streams and do not certify physical microphone or speaker behavior.
+
+## Comparing candidate detection settings
+
+The offline evaluator accepts per-run tuning options. They do not edit
+`core/config.py`, `.env`, model files, or the running Tray's configuration.
+Omitting them preserves the current defaults:
+
+| Option | Default | Scope |
+| --- | --- | --- |
+| `--openwakeword-threshold` | 0.5 | Hey Jarvis score threshold |
+| `--sherpa-threshold` | 0.35 | Base English JARVIS pronunciation |
+| `--jarvis-threshold` | 0.35 | All seven alternate Jarvis pronunciations |
+| `--trailing-blanks` | 4 | sherpa keyword-end confirmation |
+
+Thresholds must be finite numbers in [0, 1]; trailing blanks must be a positive
+integer. Base and alternative Jarvis thresholds are independent: changing only
+`--sherpa-threshold` does not change the seven inline pronunciation thresholds.
+The selected inline threshold is preserved across every stream reset. Reports
+store the selected values in `settings` and the effective sherpa threshold in
+each event. Runtime defaults and the set of supported wake phrases are unchanged.
+
+First evaluate the prepared positive/negative WAVs with no overrides and save
+`baseline.json`. Repeat with the **same files and channel**, saving a new report
+for each candidate. For example, isolate a stricter Hey Jarvis setting:
+
+```powershell
+.\.venv\Scripts\python.exe scripts\evaluate_wakeword.py --positive data\wakeword-evaluation\jarvis-01.wav --positive data\wakeword-evaluation\hey-jarvis-01.wav --negative data\wakeword-evaluation\video-01.wav --openwakeword-threshold 0.6 --output data\wakeword-evaluation\candidate-oww-060.json
+```
+
+The example value is a trial, not a recommended production threshold. Compare
+missed positive clips, negative events/hour, and each event's detector/timing.
+Change one condition at a time, include both call phrases, and collect additional
+clips beyond those used to select settings. Increasing a threshold can remove
+valid calls as well as false triggers. No production tuning can be concluded
+from synthetic silence alone or before collecting actual recordings.
+
+Selecting and applying a production setting remains a separate step after
+reviewing the evaluation results and confirming behavior on the real microphone.
