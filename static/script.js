@@ -32,7 +32,6 @@ let activeRealtimeToolCallCount = 0;
 let hasConversationPersistenceWarning = false;
 
 const realtimeUserMessagesByItemId = new Map();
-const realtimeRejectedBargeInItemIds = new Set();
 const realtimeSpeechTurnsByItemId = new Map();
 const realtimeRestoredItemIds = new Set();
 const realtimeAssistantMessagesByItemId = new Map();
@@ -61,7 +60,6 @@ const REALTIME_SERVER_VAD_SILENCE_DURATION_MS = 1200;
 const REALTIME_CONVERSATION_IDLE_TIMEOUT_MS = 180_000;
 const REALTIME_BARGE_IN_GUARD_MS = 600;
 const REALTIME_BARGE_IN_MIN_TRANSCRIPT_CHARACTERS = 2;
-const REALTIME_BARGE_IN_REQUIRES_NAME = true;
 const REALTIME_NON_SPEECH_TRANSCRIPTS = new Set([
     "咳",
     "咳払い",
@@ -895,9 +893,6 @@ async function startRealtimeVoice(
     resetRealtimeConversationTracking();
     resetRealtimeIdleState();
 
-    let startupStage = "tray";
-    let startupHttpStatus = null;
-    let startupApiError = null;
     try {
         isRealtimeConnecting = true;
 
@@ -911,7 +906,6 @@ async function startRealtimeVoice(
 
         lifecycle.trayAccepted = true;
 
-        startupStage = "token";
         const tokenUrl = activeConversationId
             ? "/realtime/token?conversation_id=" +
                 encodeURIComponent(activeConversationId)
@@ -919,7 +913,6 @@ async function startRealtimeVoice(
         const tokenResponse = await fetch(tokenUrl);
 
         if (!tokenResponse.ok) {
-            startupHttpStatus = tokenResponse.status;
             throw new Error(`Realtime token取得失敗: ${tokenResponse.status}`);
         }
 
@@ -937,7 +930,6 @@ async function startRealtimeVoice(
         activeConversationId = realtimeConversationId;
         lifecycle.conversationId = realtimeConversationId;
 
-        startupStage = "peer";
         const currentPeerConnection = new RTCPeerConnection();
         peerConnection = currentPeerConnection;
 
@@ -988,12 +980,10 @@ async function startRealtimeVoice(
             }
         };
 
-        startupStage = "microphone";
         const currentLocalStream = await navigator.mediaDevices.getUserMedia({
             audio: REALTIME_MEDIA_AUDIO_CONSTRAINTS
         });
         localStream = currentLocalStream;
-        startupStage = "media_setup";
         window.JarvisUI.audioReactive.attachInput(currentLocalStream);
 
         currentLocalStream.getTracks().forEach(function(track) {
@@ -1052,11 +1042,9 @@ async function startRealtimeVoice(
             }
         };
 
-        startupStage = "offer";
         const offer = await currentPeerConnection.createOffer();
         await currentPeerConnection.setLocalDescription(offer);
 
-        startupStage = "sdp";
         const sdpResponse = await fetch(
             "https://api.openai.com/v1/realtime/calls",
             {
@@ -1070,14 +1058,14 @@ async function startRealtimeVoice(
         );
 
         if (!sdpResponse.ok) {
-            startupHttpStatus = sdpResponse.status;
-            // Keep only known error categories; never persist raw API bodies.
-            try {
-                startupApiError = classifyRealtimeApiError(await sdpResponse.json());
-            } catch (_) {
-                startupApiError = null;
-            }
-            throw new Error(`Realtime接続失敗: ${sdpResponse.status}`);
+            const errorText = await sdpResponse.text();
+
+            console.error("Realtime SDP error status:", sdpResponse.status);
+            console.error("Realtime SDP error body:", errorText);
+
+            throw new Error(
+                `Realtime接続失敗: ${sdpResponse.status} ${errorText}`
+            );
         }
 
         const answer = {
@@ -1085,7 +1073,6 @@ async function startRealtimeVoice(
             sdp: await sdpResponse.text()
         };
 
-        startupStage = "answer";
         await currentPeerConnection.setRemoteDescription(answer);
 
         isRealtimeConnected = true;
@@ -1097,60 +1084,20 @@ async function startRealtimeVoice(
         return true;
 
     } catch (error) {
-        const failure = describeRealtimeStartupFailure(
-            startupStage, error, startupHttpStatus, startupApiError
-        );
-        console.error("Realtime startup failed:", failure.code);
+        console.error(error);
 
         await finishRealtimeVoice(
-            `startup_failed:${failure.code}`,
+            "startup_failed",
             sessionId,
             "error",
-            failure.message
+            "接続失敗"
         );
 
         if (source === "manual") {
-            alert(failure.message);
+            alert("音声接続に失敗しました。Consoleを確認してください。");
         }
         return false;
     }
-}
-
-
-function classifyRealtimeApiError(body) {
-    const codes = [body?.error?.code, body?.error?.type];
-    if (codes.some(code => ["insufficient_quota", "credit_balance_exhausted",
-        "billing_hard_limit_reached", "usage_limit_reached", "spend_limit_reached"].includes(code))) {
-        return "quota";
-    }
-    return codes.some(code => ["rate_limit_exceeded", "rate_limit_error", "slow_down"].includes(code))
-        ? "rate_limit" : null;
-}
-
-
-function describeRealtimeStartupFailure(stage, error, httpStatus, apiError = null) {
-    const stages = {
-        tray: "Tray連携", token: "接続認証", peer: "音声通信の準備",
-        microphone: "マイク取得", media_setup: "音声入力の準備",
-        offer: "接続要求の生成", sdp: "音声サーバー接続", answer: "接続応答の設定"
-    };
-    const safeStage = Object.hasOwn(stages, stage) ? stage : "unknown";
-    const names = ["NotAllowedError", "NotFoundError", "NotReadableError",
-        "OverconstrainedError", "AbortError", "TypeError", "ReferenceError",
-        "InvalidStateError", "OperationError"];
-    const detail = Number.isInteger(httpStatus) && httpStatus >= 400 && httpStatus <= 599
-        ? `HTTP_${httpStatus}`
-        : names.includes(error?.name) ? error.name : "Error";
-    const category = ["quota", "rate_limit"].includes(apiError) ? apiError : null;
-    let message = `接続失敗: ${stages[safeStage] || "接続処理"} (${detail})`;
-    if (httpStatus === 429) {
-        message = category === "quota"
-            ? "音声APIの利用上限です。API残高・利用上限を確認してください (429)"
-            : category === "rate_limit"
-                ? "音声APIが一時的に制限されています。時間を置いて再接続してください (429)"
-                : "音声APIが接続を制限しています。API残高・利用上限・レート制限を確認してください (429)";
-    }
-    return {code: `${safeStage}:${detail}${category ? ':' + category : ''}`, message};
 }
 
 
@@ -2162,10 +2109,6 @@ function isMeaningfulRealtimeUserTranscript(transcript, isBargeIn) {
         return false;
     }
 
-    if (isBargeIn && REALTIME_BARGE_IN_REQUIRES_NAME && !isAddressedRealtimeBargeIn(normalized)) {
-        return false;
-    }
-
     const compact = normalized
         .toLowerCase()
         .replace(/[\s。、！？!?.,…・「」『』\[\]()（）【】<>"'`]/g, "");
@@ -2191,42 +2134,6 @@ function isMeaningfulRealtimeUserTranscript(transcript, isBargeIn) {
         lexicalCharacters.length >=
             REALTIME_BARGE_IN_MIN_TRANSCRIPT_CHARACTERS
     );
-}
-
-
-function isAddressedRealtimeBargeIn(transcript) {
-    // Require a vocative at the start, not a name mentioned inside video dialogue.
-    const normalized = String(transcript || "").normalize("NFKC")
-        .replace(/[ぁ-ゖ]/g, character => String.fromCharCode(character.charCodeAt(0) + 0x60))
-        .replace(/^[\s「『“"'（(]+/u, "");
-    return /^(?:(?:hey|ヘイ|ネエ|ネェ)[\s、,]*)?(?:jarvis\b|ジャー?(?:ビ|ヴィ)[スズ])(?=$|[\s、,。.!！?？」』”"'）)ァ-ヶ一-龠])/iu.test(normalized);
-}
-
-
-function explainRealtimeVoiceRejection(itemId, transcript, isBargeIn, passedGuard) {
-    if (!itemId) return "音声の識別情報を取得できませんでした";
-    if (!String(transcript || "").trim()) return "音声を文字に変換できませんでした";
-    if (isBargeIn && REALTIME_BARGE_IN_REQUIRES_NAME && !isAddressedRealtimeBargeIn(transcript)) {
-        return "呼びかけを確認できませんでした。「ジャービス、」に続けて話してください";
-    }
-    if (!isMeaningfulRealtimeUserTranscript(transcript, isBargeIn)) {
-        return "発話内容を確認できませんでした";
-    }
-    if (isBargeIn && !passedGuard) {
-        return "割り込みが短いため受け付けませんでした。応答が終わってから話してください";
-    }
-    return "音声を受け付けませんでした";
-}
-
-
-function rejectRealtimeBargeInItem(itemId) {
-    if (itemId) realtimeRejectedBargeInItemIds.add(itemId);
-    if (!itemId || !dataChannel || dataChannel.readyState !== "open") return;
-    try {
-        dataChannel.send(JSON.stringify({type: "conversation.item.delete", item_id: itemId}));
-    } catch (error) {
-        console.warn("Realtime割り込み候補の除外に失敗しました。", error);
-    }
 }
 
 
@@ -2409,10 +2316,9 @@ async function handleRealtimeEvent(data, sessionId) {
     ) {
         const itemId = normalizeRealtimeId(data.item_id);
         const speechTurn = getRealtimeSpeechTurn(itemId);
-        rejectRealtimeBargeInItem(itemId);
         discardRealtimeSpeechTurn(speechTurn, itemId);
         window.JarvisUI.controller.speechFailed();
-        updateVoiceStatus("connected", isRealtimeOutputAudioPlaying ? "応答中..." : "接続中");
+        updateVoiceStatus("connected", "接続中");
         console.warn("ユーザー音声の文字起こしに失敗しました。", data);
         processRealtimeTextInputQueue();
         scheduleRealtimeIdleTimeout(sessionId);
@@ -2479,9 +2385,7 @@ async function handleRealtimeEvent(data, sessionId) {
     }
 
     if (data.type === "input_audio_buffer.speech_started") {
-        if (!isRealtimeOutputAudioPlaying) {
-            window.JarvisUI.controller.speechStarted();
-        }
+        window.JarvisUI.controller.speechStarted();
         pauseRealtimeIdleTimer();
         isRealtimeUserSpeechActive = true;
         startRealtimeSpeechTurn(data);
@@ -2492,26 +2396,21 @@ async function handleRealtimeEvent(data, sessionId) {
             clearRealtimeBargeInTimer();
         }
 
-        if (!isRealtimeOutputAudioPlaying) {
-            updateVoiceStatus("connected", "聞き取り中...");
-        }
+        updateVoiceStatus("connected", "聞き取り中...");
         return;
     }
 
     if (data.type === "input_audio_buffer.speech_stopped") {
+        window.JarvisUI.controller.speechStopped();
         isRealtimeUserSpeechActive = false;
         const speechTurn = stopRealtimeSpeechTurn(data);
         clearRealtimeBargeInTimer();
 
-        if (!speechTurn || !speechTurn.startedWhileOutputPlaying) {
-            window.JarvisUI.controller.speechStopped();
+        if (speechTurn && !speechTurn.startedWhileOutputPlaying) {
+            speechTurn.responseRequested = requestRealtimeResponse(sessionId);
         }
 
-        // Wait for the finalized transcript and address check before responding.
-
-        if (!speechTurn || !speechTurn.startedWhileOutputPlaying) {
-            updateVoiceStatus("connected", "呼びかけを確認中...");
-        }
+        updateVoiceStatus("connected", "考え中...");
         scheduleRealtimeIdleTimeout(sessionId);
         return;
     }
@@ -2616,10 +2515,9 @@ async function handleRealtimeUserTranscriptionCompleted(data, sessionId) {
 
     const itemId = normalizeRealtimeId(data.item_id);
     const transcript = String(data.transcript || "");
-    if (realtimeRejectedBargeInItemIds.has(itemId)) return;
     const speechTurn = getRealtimeSpeechTurn(itemId);
     const isBargeIn = Boolean(
-        speechTurn ? speechTurn.startedWhileOutputPlaying : isRealtimeOutputAudioPlaying
+        speechTurn && speechTurn.startedWhileOutputPlaying
     );
     const passedBargeInGuard = Boolean(
         speechTurn && speechTurn.guardDurationMet
@@ -2632,18 +2530,8 @@ async function handleRealtimeUserTranscriptionCompleted(data, sessionId) {
         !isMeaningfulRealtimeUserTranscript(transcript, isBargeIn) ||
         (isBargeIn && !passedBargeInGuard)
     ) {
-        const rejectionReason = explainRealtimeVoiceRejection(
-            itemId, transcript, isBargeIn, passedBargeInGuard
-        );
-        if (isNewTranscription) {
-            rejectRealtimeBargeInItem(itemId);
-        }
         discardRealtimeSpeechTurn(speechTurn, itemId);
-        if (!isRealtimeOutputAudioPlaying) {
-            window.JarvisUI.controller.speechFailed();
-        }
-        window.JarvisUI.systemLog?.append("VOICE_REJECTED " + rejectionReason);
-        updateVoiceStatus("connected", isRealtimeOutputAudioPlaying ? "応答中..." : rejectionReason);
+        updateVoiceStatus("connected", "接続中");
         processRealtimeTextInputQueue();
         scheduleRealtimeIdleTimeout(sessionId);
         return;
@@ -2954,7 +2842,6 @@ function normalizeRealtimeId(value) {
 
 function resetRealtimeConversationTracking() {
     realtimeUserMessagesByItemId.clear();
-    realtimeRejectedBargeInItemIds.clear();
     realtimeRestoredItemIds.clear();
     realtimeAssistantMessagesByItemId.clear();
     realtimeAssistantMessagesByResponseId.clear();

@@ -664,7 +664,7 @@ class WindowStaticAssetTests(unittest.TestCase):
             "guardedTurn.guardDurationMet = true",
             "isMeaningfulRealtimeUserTranscript(transcript, isBargeIn)",
             "(isBargeIn && !passedBargeInGuard)",
-            "REALTIME_BARGE_IN_REQUIRES_NAME = true",
+            "speechTurn.responseRequested = requestRealtimeResponse(sessionId)",
             "requestRealtimeResponse(sessionId)",
             'type: "response.cancel"',
             'type: "output_audio_buffer.clear"',

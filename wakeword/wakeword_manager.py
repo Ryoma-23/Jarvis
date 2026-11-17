@@ -416,7 +416,7 @@ class WakeWordManager:
 
         print(
             "[WakeWordManager] "
-            f"Wake Word検知 activation_signal={score:.3f} (not confidence),"
+            f"Wake Word検知 score={score:.3f},"
             f" session_id={session_id}"
         )
 

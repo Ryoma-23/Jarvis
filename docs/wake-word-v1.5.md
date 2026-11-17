@@ -184,7 +184,7 @@ The Realtime `session.update` keeps the existing Japanese
 - VAD threshold: `0.8`
 - Speech-stop silence duration: `1200 ms`
 - Automatic response creation: disabled; the Window sends `response.create`
-  only after accepting a finalized voice transcript (explicit address for barge-in)
+  at a normal speech stop or after accepting a finalized barge-in transcript
 - Server-side automatic response interruption: disabled
 
 `prefix_padding_ms` is not set, so the Realtime default remains in use.
@@ -196,17 +196,15 @@ output. While the WebRTC output audio buffer is playing, the client records
 whether speech lasts at least 600 ms but does not interrupt from VAD duration
 alone. After
 `conversation.item.input_audio_transcription.completed`, it accepts the turn
-only when the transcript contains meaningful speech. The external-video guard
-also requires an explicit Jarvis address at the start of a barge-in (see below).
-An accepted barge-in
+only when the transcript contains meaningful speech. An accepted barge-in
 sends `response.cancel` for a response that is still being generated, followed
 by `output_audio_buffer.clear` to stop buffered WebRTC playback, then sends
 `response.create` for the new user turn. During JARVIS playback, empty
 transcripts, common cough/noise labels, filler fragments, one-character
 barge-in fragments, and sub-600 ms detections do not stop JARVIS or create a
-follow-up response. Outside JARVIS playback, the Window also waits for the final
-transcript validation before sending `response.create`. Speech stop
-alone never authorizes a voice response.
+follow-up response. Outside JARVIS playback, the Window sends
+`response.create` at `speech_stopped`, preserving the existing normal-turn
+latency while the finalized transcript is processed separately for history.
 
 The adjustable frontend constants are located together near the top of
 `static/script.js`:
@@ -541,11 +539,10 @@ microphone timing require testing on the actual device.
 
 The existing openWakeWord detector remains responsible for Hey Jarvis. A local
 sherpa-onnx KeywordSpotter also receives the same 16 kHz microphone frames and
-detects Jarvis only. The supported wake phrases are Jarvis and Hey Jarvis.
-Wake up and Wake up Jarvis are no longer registered keywords. Saying Wake up
-Jarvis can still activate on its Jarvis portion; this is keyword spotting, not
-whole-utterance matching. No extra microphone or cloud speech recognition is
-used. The UI uses Hey Jarvis as the canonical greeting input for
+detects Jarvis, Wake up, and Wake up Jarvis. No extra microphone or cloud speech
+recognition is used. Wake up can trigger before the final Jarvis in the longer
+phrase; one activation is sufficient and the existing pause/cooldown prevents
+duplicate activation. The UI uses Hey Jarvis as the canonical greeting input for
 all wake activations; this is not a verbatim transcription of these aliases.
 
 Install requirements and run `python download_wakeword_models.py` once. The
@@ -567,14 +564,13 @@ after resume. They do not depend on regenerating the downloaded keywords.txt.
 Each pronunciation has a distinct ID, normalized to Jarvis before activation.
 The keyword search uses 16 active paths to accommodate the expanded vocabulary.
 Jarvis alternatives now use WAKEWORD_JARVIS_THRESHOLD=0.35 (previously 0.25).
-WAKEWORD_KEYWORD_TRAILING_BLANKS=4 adds
+Wake up retains threshold 0.35. WAKEWORD_KEYWORD_TRAILING_BLANKS=4 adds
 end confirmation for all sherpa keywords (previously 1), with some extra latency.
 The profile supports additional English and bilingual-model phoneme renderings;
 it is not a general Japanese speech recognizer or a guarantee for every accent.
 
 After a full tray restart, logs/jarvis_tray.log must show
-`jarvis-pronunciation-v4-name-only loaded`. Detection decisions are recorded as
-`[WakeWord] candidate=` JSON events (see diagnostics below).
+`jarvis-pronunciation-v3-strict loaded`. Successful detections log `detected=Jarvis`.
 Validate repeated standalone Jarvis calls at the usual microphone distance,
 follow-up conversation, disconnect/resume, and ordinary speech for false triggers.
 Recordings used for local evaluation are not committed to the repository.
@@ -585,354 +581,3 @@ five to four. Twelve synthetic ordinary-speech clips had no triggers with either
 profile; these do not reproduce the reported video. The actual triggering video
 must be checked in the live microphone environment before claiming resolution.
 This keyword detector does not distinguish a human voice from speaker playback.
-
-## Name-only wake phrases (v4)
-
-The runtime keyword graph uses Jarvis keywords only: a temporary keyword file
-with the existing English dictionary pronunciation, plus seven inline
-pronunciation alternatives. The temporary file is removed after model loading. Legacy
-`data/wakeword/sherpa-kws/keywords.txt` files are not loaded, so old Wake up
-entries cannot re-enable those keywords. Model preparation now writes only
-Jarvis to that file. No model download or data-file migration is required.
-Unexpected legacy result IDs are also rejected before activation.
-
-Thresholds, end confirmation, Hey Jarvis detection, microphone handoff, and
-cooldown behavior are unchanged. Fully exit and restart the Tray to apply this
-change; hiding/reopening the Window alone is insufficient.
-
-Manual verification:
-
-1. Restart the Tray and confirm the v4 profile log above.
-2. Say Jarvis and Hey Jarvis separately at the usual microphone distance; check
-   Window activation, the spoken reply, and a follow-up voice request.
-3. Disconnect, wait for wake monitoring to resume, and repeat both phrases.
-4. Say Wake up alone repeatedly and confirm it does not activate. A false match
-   against a remaining Jarvis model is still possible and needs separate tuning.
-5. Replay the previously problematic video and observe false activations.
-   Removing keywords does not guarantee that all background-audio triggers stop.
-
-## Wake-word diagnostics
-
-`logs/jarvis_tray.log` records timestamped `[WakeWord] candidate=` JSON events
-when either detector produces a candidate. No audio or conversation transcripts
-are recorded by this diagnostic path. Frames with no candidate are not logged.
-
-- `decision`: `activate`, `resume_guard` (startup/resume suppression),
-  `cooldown` (repeat suppression), or `score_confirmation` (waiting for consecutive
-  openWakeWord hits). A candidate is not necessarily an activation.
-- `detectors`: `openwakeword`, `sherpa_onnx`, or both if both qualify on this frame.
-- `keyword`: normalized keyword, not a transcription. Jarvis takes precedence
-  in this field when both detectors qualify; both remain listed in `detectors`.
-- `openwakeword_model`, `openwakeword_score`, `openwakeword_threshold`: actual
-  model output and configured threshold, also recorded when sherpa triggers.
-  An openWakeWord score below threshold does not invalidate a sherpa detection.
-- `sherpa_keyword_id`, `sherpa_pronunciation`: base `JARVIS` or a specific
-  `JARVIS_ALT_0` through `JARVIS_ALT_6` and its configured phonemes.
-- `sherpa_threshold`: effective threshold for that keyword (including inline
-  pronunciation overrides); `sherpa_trailing_blanks` and `profile` identify the
-  remaining detection settings.
-- `sherpa_score`: always `null`. The public keyword API used here does not
-  provide a confidence score. `sherpa_score_status` is `unavailable` on detection,
-  otherwise `not_detected`. The manager's legacy callback value is labeled
-  `activation_signal`, not confidence; sherpa still sends the fixed signal 1.0.
-
-Logging errors do not prevent activation. This change does not adjust thresholds
-or add a new detection filter. It cannot classify correct versus false triggers
-automatically, or explain missed calls that produced no candidate.
-
-After fully restarting the Tray, inspect recent events in PowerShell:
-
-```powershell
-Get-Content .\logs\jarvis_tray.log -Tail 200 | Select-String -SimpleMatch '[WakeWord] candidate='
-```
-
-For manual evaluation, note the local time and whether each trial was an intended
-Jarvis/Hey Jarvis call, silence/background noise, or video playback. Compare that
-note with the event's timestamp, detector, and pronunciation ID. Check Window
-activation, microphone handoff, audible reply, and disconnect/re-wake as before.
-Count `activate` events separately from suppressed candidates. Keep the number
-of deliberate calls and the duration of background/video trials to evaluate
-misses and false activations later; log counts alone are not accuracy rates.
-
-## Offline WAV evaluation
-
-`scripts/evaluate_wakeword.py` evaluates existing local audio using both installed
-detectors and the current thresholds. It does not open a microphone, play audio,
-start a Window/Realtime session, call cloud APIs, or download models. Both models
-must be available; a missing model fails the evaluation instead of silently
-changing the detector set. Existing reports are never overwritten.
-
-Prepare uncompressed **16-bit PCM WAV** files under `data/wakeword-evaluation/`
-(already ignored by Git). Record at the normal microphone position and gain:
-
-- Positive: one deliberate Jarvis or Hey Jarvis call per file, with roughly one
-  second of quiet lead-in and trailing silence. Use several normal pronunciations
-  and distances. Keep the two phrases in separate, clearly named files.
-- Negative: no deliberate wake call; include silence, room noise, ordinary speech,
-  and the video that caused unwanted activation. Record video playback through
-  the usual microphone/speaker setup to include the actual acoustic conditions.
-  A direct video audio export can also be tested, but is a different condition.
-
-The evaluator does not record these samples for you. Keep the same WAV files,
-channel, and labels when comparing changes. Each input path may be listed only
-once. `--positive` and `--negative` can each be repeated. At least one is required.
-
-From the project root in PowerShell, for example:
-
-```powershell
-.\.venv\Scripts\python.exe scripts\evaluate_wakeword.py --positive data\wakeword-evaluation\jarvis-01.wav --positive data\wakeword-evaluation\hey-jarvis-01.wav --negative data\wakeword-evaluation\video-01.wav --output data\wakeword-evaluation\baseline.json
-```
-
-The example filenames must be replaced with files you have prepared. Parent
-directories for `--output` must exist. Omit `--output` to print JSON to stdout.
-Progress/errors go to stderr. Exit code 0 means evaluation completed, not that
-recognition quality passed an acceptance target; invalid inputs or model failures
-return nonzero. Reports contain input paths but no audio or speech transcripts.
-
-`--channel 0` is the default (zero-based, matching the live mic channel). Stereo
-and multichannel WAVs use only the selected channel, without downmixing. Audio
-is streamed in 80 ms blocks and converted with the same resampler as the live
-listener. Each clip starts with reset model state; the final partial block is
-zero-padded, followed by 1.04 seconds of silence to flush streaming latency.
-
-The JSON includes:
-
-- `summary.positive_clip_detection_rate`: fraction of positive files with at
-  least one event; `positive_clips_missed` counts files with no event. This is
-  clip-level detection, not word-timed recall: a false match elsewhere in a
-  positive clip can count as a hit. Review event timing when interpreting it.
-- `summary.negative_events_per_hour`: events in negative clips divided by their
-  original duration in hours. Short recordings give unstable estimates. Missing
-  positive or negative groups yield `null` for their corresponding rate.
-- Per-file events: frame-end detection time (not the spoken word's onset), both
-  detector names when applicable, actual openWakeWord score, sherpa pronunciation
-  ID/phonemes and threshold. sherpa confidence remains `null` because the API
-  does not expose it. `peak_openwakeword_score` includes subthreshold maxima.
-- `during_padding`: flags detections after the original file ends. These events
-  count in the summary to retain delayed detections; padding time is excluded
-  from the negative-duration denominator. Inspect these events before tuning.
-- `settings` and `profile`: thresholds, frame size, cooldown, padding, and the
-  evaluation conditions needed to compare reports.
-
-This is continuous-listening detector evaluation with a two-second event cooldown.
-It does **not** apply the live one-second startup guard or simulate conversation
-pauses, microphone handoffs, or resets after each activation. It therefore does
-not predict actual Tray activation counts. After tuning, still verify Tray
-restart, Window opening, speaker response, follow-up microphone input, and
-disconnect/re-wake with the real hardware. This tool alone changes no sensitivity.
-
-## Recording evaluation samples
-
-`scripts/record_wakeword_sample.py` creates one PCM16 WAV per invocation. Unlike
-the offline evaluator, this command **opens the microphone and records locally**.
-It does not upload audio, start Realtime, play a sound, or change wake sensitivity.
-Recording starts only when you run the command, after a visible countdown.
-
-1. Fully exit JARVIS from the Tray to release its microphone. Closing the Window
-   alone is insufficient. The recorder does not stop other applications for you.
-2. Keep the normal ReSpeaker position, speaker volume, and Windows microphone
-   gain. The recorder uses the same device-name/host-API selection as the listener
-   (currently ReSpeaker + MME), its native sample rate, six capture channels, and
-   configured channel 0. It saves that selected channel as a **mono** WAV; use
-   the evaluator's default channel 0 even if the source channel changes later.
-3. Run a command below. Wait for `RECORDING`, leave about one second of silence,
-   say the phrase once, and leave the remaining time quiet. The countdown itself
-   is not recorded. For background/video samples, do not deliberately call JARVIS.
-
-From the project root in PowerShell:
-
-```powershell
-.\.venv\Scripts\python.exe scripts\record_wakeword_sample.py --output data\wakeword-evaluation\jarvis-01.wav --seconds 5
-.\.venv\Scripts\python.exe scripts\record_wakeword_sample.py --output data\wakeword-evaluation\hey-jarvis-01.wav --seconds 5
-.\.venv\Scripts\python.exe scripts\record_wakeword_sample.py --output data\wakeword-evaluation\video-01.wav --seconds 60
-```
-
-Run each command separately for its intended condition. Repeat the positive
-samples with new names (`jarvis-02.wav`, etc.) at your usual distance; ten calls
-per phrase is a useful initial comparison set. Prepare longer negative samples
-to measure unwanted triggers. `--seconds` defaults to 5 and accepts durations
-greater than zero up to 600; `--countdown` defaults to 3 and accepts 0–10 seconds.
-Output directories are created automatically. Recordings under `data/` are
-ignored by Git. Existing output files are never overwritten, including if another
-process creates one during recording.
-
-The recorder streams into a temporary file and saves the requested WAV only
-after successful capture. Ctrl+C during capture, input overflow, unexpected frame
-shape, and all-digital-zero input do not publish a WAV. The microphone is released
-when the stream context exits. If the final output write itself fails or is
-interrupted, a partial output can remain; it is not automatically removed.
-Choose a new filename when retrying.
-
-On success it prints actual duration, peak amplitude, RMS amplitude, and the
-number of samples at the int16 limits. Clipping or very low input gets a warning;
-these samples are retained for inspection. Quiet room noise is valid negative
-audio; only an entirely digital-zero signal is rejected. These level checks do
-not determine whether a wake phrase was spoken correctly.
-
-Pass the saved WAVs to the offline evaluator using the preceding example to
-produce `baseline.json`. Inspect or listen to the samples locally to confirm the
-intended word/background is present. Then restart the Tray and verify Jarvis/Hey
-Jarvis opens the Window, the speaker reply is audible, follow-up microphone input
-works, and disconnect/re-wake succeeds. The recorder's automated tests use fake
-audio streams and do not certify physical microphone or speaker behavior.
-
-## Comparing candidate detection settings
-
-The offline evaluator accepts per-run tuning options. They do not edit
-`core/config.py`, `.env`, model files, or the running Tray's configuration.
-Omitting them preserves the current defaults:
-
-| Option | Default | Scope |
-| --- | --- | --- |
-| `--openwakeword-threshold` | 0.5 | Hey Jarvis score threshold |
-| `--sherpa-threshold` | 0.35 | Base English JARVIS pronunciation |
-| `--jarvis-threshold` | 0.35 | All seven alternate Jarvis pronunciations |
-| `--trailing-blanks` | 4 | sherpa keyword-end confirmation |
-
-Thresholds must be finite numbers in [0, 1]; trailing blanks must be a positive
-integer. Base and alternative Jarvis thresholds are independent: changing only
-`--sherpa-threshold` does not change the seven inline pronunciation thresholds.
-The selected inline threshold is preserved across every stream reset. Reports
-store the selected values in `settings` and the effective sherpa threshold in
-each event. Runtime defaults and the set of supported wake phrases are unchanged.
-
-First evaluate the prepared positive/negative WAVs with no overrides and save
-`baseline.json`. Repeat with the **same files and channel**, saving a new report
-for each candidate. For example, isolate a stricter Hey Jarvis setting:
-
-```powershell
-.\.venv\Scripts\python.exe scripts\evaluate_wakeword.py --positive data\wakeword-evaluation\jarvis-01.wav --positive data\wakeword-evaluation\hey-jarvis-01.wav --negative data\wakeword-evaluation\video-01.wav --openwakeword-threshold 0.6 --output data\wakeword-evaluation\candidate-oww-060.json
-```
-
-The example value is a trial, not a recommended production threshold. Compare
-missed positive clips, negative events/hour, and each event's detector/timing.
-Change one condition at a time, include both call phrases, and collect additional
-clips beyond those used to select settings. Increasing a threshold can remove
-valid calls as well as false triggers. No production tuning can be concluded
-from synthetic silence alone or before collecting actual recordings.
-
-Selecting and applying a production setting remains a separate step after
-reviewing the evaluation results and confirming behavior on the real microphone.
-
-## External-video false activation and interruption guard
-
-External-device playback has no local playback-reference signal. These guards
-reduce specific false-trigger paths; they do not identify the owner or guarantee
-rejection of recorded voices.
-
-Wake activation now requires **two consecutive 80 ms openWakeWord predictions**
-at or above the existing 0.5 threshold (`WAKEWORD_CONFIRMATION_FRAMES = 2`). An
-isolated high score is logged as `score_confirmation` and cannot start JARVIS.
-A lower/non-finite score or model-state reset clears confirmation. Startup guard
-hits do not count toward confirmation. This adds one prediction interval (80 ms)
-after the first qualifying score; it does not prove that 160 ms of speech was
-spoken. Genuine calls with only a brief high score may also be missed. sherpa's
-Jarvis path and its existing end-confirmation settings remain unchanged.
-
-The evaluator uses the same consecutive-score gate and reports its frame count
-under `settings.openwakeword_confirmation_frames`. Diagnostics include the required
-and observed consecutive frame counts. `detectors` lists confirmed sources;
-an unconfirmed openWakeWord candidate can have an empty detector list while its
-raw score is still recorded.
-
-During JARVIS audio playback, an interruption must still pass the 600 ms guard
-and meaningful-transcript check, and now must **begin with Jarvis / ジャービス /
-ジャーヴィス**, optionally preceded by Hey / ヘイ / ねえ / ねぇ. For example,
-say `ジャービス、止めて` rather than `止めて` alone. A name merely mentioned
-later in a video sentence does not qualify. A video beginning with the same
-address can still pass: this is an explicit-address rule, not speaker verification
-or a trained device-directed-speech classifier.
-
-Speech-start/stop candidates during playback no longer switch the visual state
-to listening/thinking. Rejected voice transcripts do not cancel output, request
-a new response, or enter local history. Their Realtime items are removed with
-`conversation.item.delete`; repeated rejected transcript events are ignored until
-session history state is reset. If the deletion send fails, a warning is logged;
-remote removal is not guaranteed. Audio is still streamed to Realtime before
-this decision. This is not a pre-upload audio filter.
-
-The address rule applies to **barge-in only**
-(`REALTIME_BARGE_IN_REQUIRES_NAME = true`). Normal listening accepts short
-questions and follow-ups with or without the name. The temporary per-turn name
-requirement was removed after real-device reports of valid speech being rejected.
-Text input is unchanged. Background speech during normal listening can still
-be accepted; this policy does not solve owner-only conversation.
-
-The previous normal-turn path requested a response at `speech_stopped` before
-the transcript was validated. That path is removed: speech stop only updates
-capture/status state. Final transcription validates the content (and the address
-for barge-in), then requests
-the response and persists the accepted turn. Rejected or failed transcriptions
-are removed from the remote session when possible; rejected item IDs prevent
-duplicate transcription events from reintroducing them. This adds transcription
-latency before ordinary responses. A video that itself begins with the accepted
-name can still pass, and the rule cannot separate overlapping voices or remove
-video speech mixed into an accepted utterance. It is not owner authentication.
-
-Apply by fully exiting the Tray and restarting JARVIS, including recreating the
-Window. Manual acceptance checks:
-
-1. Repeated Jarvis and Hey Jarvis calls at the usual distance still start one
-   Window/session. Check detection logs for confirmation vs activation.
-2. While JARVIS speaks, play previously problematic external-device videos and
-   verify unaddressed speech does not stop output or switch the UI to listening.
-3. Say `ジャービス、止めて` during playback and verify interruption; then ask
-   a follow-up after output stops using both `ジャービス、元気？` and `元気？`.
-   Both should be accepted. Test video dialogue separately; filtering it during
-   normal listening remains unresolved and must not be claimed as verified.
-4. Verify microphone input, speaker output, text input, manual connection,
-   disconnect/re-wake, and Tray/Window reopen.
-5. Record both missed calls and remaining false activations. Automated tests
-   cover the policy and lifecycle, not real-world false-activation rates.
-
-Realtime item removal API:
-https://developers.openai.com/api/reference/resources/realtime/client-events
-
-## Voice rejection feedback and transcript timing
-
-An address or duration gate can reject real speech even though VAD displays
-listening. That is not necessarily a noise classification. The status and on-screen System
-Log now distinguish missing address, empty transcription, unsuitable transcript,
-and too-short interruption. `VOICE_REJECTED` logs the reason without the raw
-transcript. During playback the speaking status remains; the reason is in System
-Log. Outside playback the reason also appears in the voice status.
-
-The address matcher normalizes full-width characters, hiragana (`じゃーびす`),
-and leading quotation marks. It still requires the address at the beginning;
-it does not accept arbitrary sentences merely mentioning Jarvis.
-
-When speech-turn metadata exists, interruption classification uses that turn's
-playback-overlap flag rather than the output state when a delayed transcript
-arrives. A completed normal turn must not become a short interruption merely
-because assistant playback began after it ended. Missing turn metadata continues
-to use the current playback state conservatively.
-
-For manual diagnosis, restart Tray/Window and try a short `ジャービス、天気は？`
-after playback ends, then a named interruption during playback. If rejected,
-report the displayed reason and whether speech overlapped assistant output.
-Also test hiragana/name transcription variations and background video. The
-600 ms interruption guard and barge-in address requirement remain enabled;
-speaker authentication and hardware accuracy are still unverified.
-
-## Realtime startup diagnostics
-
-Startup failures now identify the Tray, token, microphone, media setup, SDP,
-or remote-answer stage. The Tray completion reason includes a bounded diagnostic
-code (for example `startup_failed:sdp:HTTP_429`). Raw API response bodies,
-tokens, SDP, and exception messages are not included in these diagnostics.
-Known API error codes/types distinguish quota from rate limits; unknown 429
-responses do not imply either cause. The UI gives the corresponding action.
-Automatic retries are not added: quota errors require account action.
-
-On 2026-11-16, an authorized manual connection in the actual Window reproduced
-`startup_failed:sdp:HTTP_429` after token and microphone acquisition succeeded.
-The historical wake-triggered failures only recorded `startup_failed`, so their
-exact HTTP status cannot be recovered. The reproduced 429 subtype is unknown.
-This diagnostic change does not remove an external API limit.
-
-After reopening Window, verify manual connection and an actual `Jarvis` wake
-activation. If 429 appears, check the API project's billing/usage/limits and
-follow the displayed classification. After access recovers, verify microphone
-input, speaker output, disconnect, Tray wake listening, and Window reopen.
-No successful audio round trip or physical wake activation was verified in this
-diagnostic test. Reference: https://developers.openai.com/api/docs/guides/error-codes
