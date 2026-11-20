@@ -3,6 +3,8 @@ from fastapi.staticfiles import StaticFiles
 from app.routes.chat import router as chat_router
 from app.routes.conversation import router as conversation_router
 from app.routes.realtime import router as realtime_router
+from app.routes.voice_diagnostics import router as voice_diagnostics_router
+from app.routes.speaker import router as speaker_router
 
 
 # FastAPIアプリを作成
@@ -30,3 +32,7 @@ app.include_router(chat_router)
 app.include_router(conversation_router)
 app.include_router(realtime_router)
 
+
+app.include_router(voice_diagnostics_router)
+
+app.include_router(speaker_router)

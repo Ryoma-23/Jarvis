@@ -197,7 +197,7 @@ class RealtimeConversationEventContractTests(unittest.TestCase):
             handler_source,
         )
         self.assertIn(
-            "requestRealtimeResponse(sessionId)",
+            "requestRealtimeResponse(sessionId, null, null, itemId)",
             handler_source,
         )
         self.assertIn(

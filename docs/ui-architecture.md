@@ -1,5 +1,13 @@
 # Jarvis UI architecture
 
+## Opt-in voice diagnostics
+
+The independent `static/js/audio/voice-diagnostics.js` observer records lifecycle
+timestamps without changing voice acceptance or response payloads. A responsive
+details panel remains available when System Log is hidden. Bounded snapshots and
+reports are saved locally through `/voice-diagnostics`. See
+[voice-diagnostics.md](voice-diagnostics.md) for user testing, privacy, and timing limitations.
+
 ## Compatibility boundaries
 
 The UI remains a FastAPI-served HTML, CSS, and JavaScript application hosted
@@ -413,6 +421,28 @@ overlay while voice controls move beneath the floating Header, leaving the
 upper scene available to the Core. A short-viewport rule prioritizes Header,
 voice controls, and Conversation operations when browser zoom materially
 reduces the available height.
+
+## Local speaker observation (v1.50)
+
+In v1.51, `diagnostic-turns.js` renders per-turn speaker labels using session/item
+identity, independently of response outcome marks. Labels are editable while a
+diagnostic run is active; the latest explicit label wins. Capture coordinates and
+quality failure details are observation metadata only. The read-only
+`scripts/evaluate_speaker_diagnostics.py` compares thresholds without altering
+live settings, and excludes mixed/unknown/unscored turns from binary rates.
+
+The opt-in speaker panel uses `speaker-enrollment.js` for disconnected, explicit
+microphone enrollment and `speaker-observer.js` for observation during Realtime
+sessions. `speaker-capture.js` and its silent AudioWorklet share the current
+microphone stream during observation. Only enrollment obtains a separate stream;
+it reserves and releases the existing Tray microphone lifecycle without connecting
+to Realtime. Local capture blocks concurrent Realtime starts.
+
+The `/speaker` routes run CPU embeddings through `speaker_service.py`. Registered
+WAVs and embeddings stay under `data/speaker`; comparison audio stays in memory.
+The observer records tentative scores and timing through voice diagnostics and
+does not gate input, interrupt output, or create responses. See
+[speaker-observation.md](speaker-observation.md) for setup, limits, and evaluation.
 
 ## Visual Phase G cinematic integration
 

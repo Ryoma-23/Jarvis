@@ -1,5 +1,20 @@
 # Third-party notices
 
+## Local speaker observation (v1.50)
+
+- Inference: existing sherpa-onnx 1.13.8, Apache-2.0.
+- Model: WeSpeaker VoxCeleb ResNet34, `wespeaker_en_voxceleb_resnet34.onnx`.
+- Distributor: https://github.com/k2-fsa/sherpa-onnx/releases/tag/speaker-recongition-models
+- SHA-256: `5ef208a9da1453335308a6b6f4e6dfbd7e183a38b604de0a57664f45d257fe94`.
+- Model attribution: WeSpeaker / WeNet community; trained on VoxCeleb.
+- Upstream model-license statement: https://github.com/wenet-e2e/wespeaker/blob/master/docs/pretrained.md
+  specifies Creative Commons Attribution 4.0 International for VoxCeleb pretrained models:
+  https://creativecommons.org/licenses/by/4.0/
+- WeSpeaker code license (separate from model): Apache-2.0.
+- The unmodified public model is downloaded into ignored local `data/speaker/models/`;
+  it is not committed or bundled into the application sources.
+- No user audio is sent to the model distributor. Japanese accuracy is unverified.
+
 ## Three.js
 
 - Version: 0.128.0

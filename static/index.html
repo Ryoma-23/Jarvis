@@ -6,10 +6,51 @@
     <meta name="color-scheme" content="dark">
     <title>J.A.R.V.I.S</title>
 
-    <link rel="stylesheet" href="/static/style.css?v=1.44-no-background-points">
+    <link rel="stylesheet" href="/static/style.css?v=1.51-speaker-evaluation">
 </head>
 
 <body>
+    <details id="voice-diagnostics" class="voice-diagnostics">
+        <summary>音声診断</summary>
+        <p>会話の判定は変更しません。生音声は保存しません。</p>
+        <label><input id="diagnostic-transcript" type="checkbox">文字起こし本文も診断ログに保存する（任意）</label>
+        <div class="diagnostic-actions">
+            <button id="diagnostic-start" type="button">診断開始</button>
+            <button id="diagnostic-stop" type="button">終了／保存再試行</button>
+        </div>
+        <label>テスト条件 <select id="diagnostic-scenario">
+            <option value="quiet">静かな環境</option><option value="video_only">動画だけ</option>
+            <option value="video_and_me">動画＋自分の声</option><option value="interrupt">Jarvisに割り込む</option>
+        </select></label>
+        <p>発話前に「次の試行」。結果を印付けしてから次へ進んでください。動画だけの場合は1試行60秒を目安にします。</p>
+        <button id="diagnostic-trial" type="button">次の試行</button>
+        <label>結果を付ける試行番号 <input id="diagnostic-result-trial" type="number" min="1" max="1000" value="1"></label>
+        <div class="diagnostic-actions">
+            <button data-diagnostic-mark="heard" type="button">正しく応答した</button>
+            <button data-diagnostic-mark="missed" type="button">今の発話を拾わなかった</button>
+            <button data-diagnostic-mark="false_response" type="button">他の音に反応した</button>
+            <button data-diagnostic-mark="unknown" type="button">不明</button>
+        </div>
+        <p>発話ごとに声の主を選んでください。応答の良し悪しとは別の記録です。本文はこの一覧に表示しません。終了前に入力してください。</p>
+        <ol id="diagnostic-turns" aria-label="発話ごとの話者ラベル"></ol>
+        <p id="diagnostic-status" role="status">診断は無効です。終了して保存完了を確認してからウィンドウを閉じてください。</p>
+    </details>
+    <details id="speaker-panel" class="voice-diagnostics speaker-panel">
+        <summary>本人の声の登録・照合</summary>
+        <p>会話を遮断しない測定機能です。登録は音声会話を切断し、動画を止めて行ってください。</p>
+        <p>登録時に録音した音声と特徴データはPC内の data/speaker/profiles に保存します。OpenAIへは送信しません。既存の会話通信は従来どおりです。</p>
+        <div class="diagnostic-actions"><button id="speaker-refresh" type="button">登録状態を確認</button><button id="speaker-new" type="button">新しい登録を作る</button></div>
+        <label>登録 <select id="speaker-profiles" aria-label="登録データ"></select></label>
+        <label>例文 <select id="speaker-prompt" aria-label="登録用例文"></select></label>
+        <p id="speaker-phrase"></p>
+        <div class="diagnostic-actions"><button id="speaker-record" type="button">録音開始（最大12秒）</button><button id="speaker-stop" type="button">停止して保存</button><button id="speaker-cancel" type="button">中止／マイク解放</button></div>
+        <div class="diagnostic-actions"><button id="speaker-activate" type="button">この登録を使用（8本以上）</button><button id="speaker-delete" type="button">選択した登録を削除</button></div>
+        <p id="speaker-enroll-status" role="status">登録状態を確認中…</p>
+        <p id="speaker-consistency"></p>
+        <label><input id="speaker-shadow" type="checkbox">会話中の話者照合を観測する（応答は制限しない）</label>
+        <p>会話音声は一時的にPC内で照合し、保存しません。結果の保存には「音声診断」も開始してください。登録に使っていない文章や短い質問で測定してください。</p>
+        <p id="speaker-shadow-status" role="status">照合はオフです。</p>
+    </details>
     <div class="app-shell">
         <header class="app-header">
             <div class="brand-lockup" aria-label="JARVIS assistant">
@@ -196,7 +237,12 @@
     <script src="/static/js/ui/integration-status.js?v=1.33-core-ultra-detail"></script>
     <script src="/static/js/ui/conversation-view.js?v=1.33-core-ultra-detail"></script>
     <script src="/static/js/audio/audio-reactive.js?v=1.33-core-ultra-detail"></script>
-    <script src="/static/script.js?v=1.44-no-background-points"></script>
+    <script src="/static/js/audio/diagnostic-turns.js?v=1.51-speaker-evaluation"></script>
+    <script src="/static/js/audio/voice-diagnostics.js?v=1.51-speaker-evaluation"></script>
+    <script src="/static/js/audio/speaker-capture.js?v=1.51-speaker-evaluation"></script>
+    <script src="/static/js/audio/speaker-observer.js?v=1.51-speaker-evaluation"></script>
+    <script src="/static/script.js?v=1.51-speaker-evaluation"></script>
+    <script src="/static/js/audio/speaker-enrollment.js?v=1.51-speaker-evaluation"></script>
     <script src="/static/vendor/three/three.min.js?v=0.128.0"></script>
     <script src="/static/vendor/three/examples/js/shaders/CopyShader.js?v=0.128.0"></script>
     <script src="/static/vendor/three/examples/js/shaders/LuminosityHighPassShader.js?v=0.128.0"></script>

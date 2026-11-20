@@ -849,7 +849,7 @@ function requestRealtimeVoiceStart(source, sessionId) {
         );
     }
 
-    if (isRealtimeConnected || isRealtimeConnecting) {
+    if (isRealtimeConnected || isRealtimeConnecting || globalThis.JarvisLocalCapture?.busy()) {
         return false;
     }
 
@@ -868,7 +868,7 @@ async function startRealtimeVoice(
     if (
         isRealtimeConnected ||
         isRealtimeConnecting ||
-        activeRealtimeLifecycle
+        activeRealtimeLifecycle || globalThis.JarvisLocalCapture?.busy()
     ) {
         console.log("Realtime voice is already connected or connecting.");
         return false;
@@ -889,6 +889,8 @@ async function startRealtimeVoice(
     };
 
     activeRealtimeLifecycle = lifecycle;
+    globalThis.JarvisVoiceDiagnostics?.connection(sessionId, null);
+    globalThis.JarvisVoiceDiagnostics?.record("connection_start");
     resetRealtimeBargeInState();
     resetRealtimeConversationTracking();
     resetRealtimeIdleState();
@@ -984,6 +986,7 @@ async function startRealtimeVoice(
             audio: REALTIME_MEDIA_AUDIO_CONSTRAINTS
         });
         localStream = currentLocalStream;
+        globalThis.JarvisVoiceDiagnostics?.connection(sessionId, currentLocalStream);
         window.JarvisUI.audioReactive.attachInput(currentLocalStream);
 
         currentLocalStream.getTracks().forEach(function(track) {
@@ -1160,6 +1163,9 @@ async function initializeRealtimeDataChannel(
         }
 
         setRealtimeMicrophoneEnabled(currentLocalStream, true);
+        globalThis.JarvisVoiceDiagnostics?.microphone(currentLocalStream);
+        globalThis.JarvisVoiceDiagnostics?.record("ready");
+        globalThis.JarvisSpeakerObserver?.connection(sessionId, currentLocalStream);
         lifecycle.historyRestoring = false;
         requestRealtimeWakeGreeting(sessionId);
         markRealtimeConversationActivity(sessionId);
@@ -2175,7 +2181,7 @@ function requestRealtimeWakeGreeting(sessionId) {
 }
 
 
-function requestRealtimeResponse(sessionId, textTurn = null, responseOptions = null) {
+function requestRealtimeResponse(sessionId, textTurn = null, responseOptions = null, diagnosticItemId = null) {
     if (!isCurrentRealtimeSession(sessionId)) {
         return false;
     }
@@ -2212,6 +2218,7 @@ function requestRealtimeResponse(sessionId, textTurn = null, responseOptions = n
 
     try {
         currentDataChannel.send(JSON.stringify(responseEvent));
+        globalThis.JarvisVoiceDiagnostics?.request(sessionId, diagnosticItemId, textTurn ? "text" : diagnosticItemId ? "voice" : "wake_or_tool", {response_active: isRealtimeResponseActive, pending_requests: realtimePendingResponseRequestCount});
         return true;
     } catch (error) {
         realtimePendingResponseRequestCount = Math.max(
@@ -2246,6 +2253,8 @@ function finishRealtimeOutputAudio(responseId) {
 
 
 async function handleRealtimeEvent(data, sessionId) {
+    globalThis.JarvisVoiceDiagnostics?.observe(data, sessionId);
+    globalThis.JarvisSpeakerObserver?.observe(data, sessionId);
     if (rejectRealtimeHistoryRestoreFromServer(data, sessionId)) {
         return;
     }
@@ -2407,7 +2416,7 @@ async function handleRealtimeEvent(data, sessionId) {
         clearRealtimeBargeInTimer();
 
         if (speechTurn && !speechTurn.startedWhileOutputPlaying) {
-            speechTurn.responseRequested = requestRealtimeResponse(sessionId);
+            speechTurn.responseRequested = requestRealtimeResponse(sessionId, null, null, speechTurn.itemId);
         }
 
         updateVoiceStatus("connected", "考え中...");
@@ -2530,6 +2539,9 @@ async function handleRealtimeUserTranscriptionCompleted(data, sessionId) {
         !isMeaningfulRealtimeUserTranscript(transcript, isBargeIn) ||
         (isBargeIn && !passedBargeInGuard)
     ) {
+        globalThis.JarvisVoiceDiagnostics?.record("rejected", {item: itemId || "", value:
+            !itemId ? "missing_item" : !transcript.trim() ? "empty_transcript" :
+            !isMeaningfulRealtimeUserTranscript(transcript, isBargeIn) ? "non_speech" : "short_interruption"});
         discardRealtimeSpeechTurn(speechTurn, itemId);
         updateVoiceStatus("connected", "接続中");
         processRealtimeTextInputQueue();
@@ -2537,6 +2549,7 @@ async function handleRealtimeUserTranscriptionCompleted(data, sessionId) {
         return;
     }
 
+    if (isNewTranscription) globalThis.JarvisVoiceDiagnostics?.record("accepted", {item: itemId});
     markRealtimeConversationActivity(sessionId);
 
     if (
@@ -2547,7 +2560,7 @@ async function handleRealtimeUserTranscriptionCompleted(data, sessionId) {
             interruptRealtimeResponse(sessionId);
         }
 
-        requestRealtimeResponse(sessionId);
+        requestRealtimeResponse(sessionId, null, null, itemId);
     }
     discardRealtimeSpeechTurn(speechTurn, itemId);
 
@@ -3031,6 +3044,10 @@ async function finishRealtimeVoice(
     }
 
     lifecycle.finishing = true;
+    globalThis.JarvisVoiceDiagnostics?.record("connection_end", {value:
+        ["startup_failed", "history_restore_failed", "manual_disconnect", "idle_timeout",
+         "data_channel_error", "data_channel_closed", "connection_failed", "connection_disconnected",
+         "connection_closed"].includes(reason) ? reason : "other"});
 
     lifecycle.finishPromise = (async function() {
         cleanupRealtimeVoice();
@@ -3070,6 +3087,8 @@ async function finishRealtimeVoice(
 
 
 function cleanupRealtimeVoice() {
+    globalThis.JarvisVoiceDiagnostics?.connection(null, null);
+    globalThis.JarvisSpeakerObserver?.connection(null, null);
     const currentDataChannel = dataChannel;
     const currentPeerConnection = peerConnection;
     const currentLocalStream = localStream;
